@@ -371,15 +371,17 @@ async def run_agent_loop(
 
     await db.commit()
 
-    # Generate title if this is the first exchange
-    if len(existing_messages) == 0 and assistant_content and not conversation.title:
+    # Generate title if this is the first exchange (existing_messages includes
+    # the user message we just saved, so check for <= 1)
+    if len(existing_messages) <= 1 and assistant_content and not conversation.title:
         try:
             title = await llm_service.generate_title(user_message, assistant_content)
             conversation.title = title
             await db.commit()
+            logger.info(f"Generated title: {title}")
             yield _sse_event("title", {"title": title})
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(f"Title generation failed: {e}")
 
     duration_ms = int((time.monotonic() - start_time) * 1000)
 
