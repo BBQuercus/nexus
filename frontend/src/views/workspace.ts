@@ -560,68 +560,74 @@ async function handleSend(): Promise<void> {
 }
 
 function handleSSEEvent(event: SSEEvent, el: HTMLElement): void {
+  // Use 'any' access for backend snake_case field names
+  const e = event as unknown as Record<string, unknown>;
+
   switch (event.type) {
     case 'token':
-      streamingContent += event.content;
+      streamingContent += (e.content as string) || '';
       debounceRenderStreaming(el);
       break;
 
     case 'reasoning':
-      // Append reasoning trace
-      streamingContent = renderReasoningTrace(event.content, event.tokenCount) + streamingContent;
+      streamingContent = renderReasoningTrace((e.content as string) || '', undefined) + streamingContent;
       debounceRenderStreaming(el);
       break;
 
     case 'tool_start': {
-      const html = renderExecBlock(event, [], undefined);
+      const toolId = (e.tool_call_id as string) || '';
+      const toolName = (e.tool as string) || '';
+      const args = e.arguments as Record<string, string> | undefined;
+      const lang = args?.language || toolName;
+      const code = args?.code || '';
+      const html = `<div class="exec-block exec-block--running" data-tool-id="${escapeHtml(toolId)}">
+        <div class="exec-block__header">
+          <span class="exec-block__lang">${escapeHtml(lang)}</span>
+          <span class="exec-block__status">Running...</span>
+        </div>
+        ${code ? `<pre class="exec-block__code"><code>${escapeHtml(code)}</code></pre>` : ''}
+      </div>`;
       streamingContent += html;
       debounceRenderStreaming(el);
       break;
     }
 
     case 'tool_output': {
-      // Find and update the running exec block
-      const execBlock = el.querySelector(`[data-tool-id="${event.toolCallId}"]`);
+      const toolId = (e.tool_call_id as string) || '';
+      const output = (e.output as string) || '';
+      const execBlock = el.querySelector(`[data-tool-id="${toolId}"]`);
       if (execBlock) {
         let outputEl = execBlock.querySelector('.exec-block__output');
         if (!outputEl) {
-          outputEl = document.createElement('div');
-          outputEl.className = `exec-block__output exec-block__output--${event.stream}`;
-          const footer = execBlock.querySelector('.exec-block__footer');
-          if (footer) {
-            execBlock.insertBefore(outputEl, footer);
-          } else {
-            execBlock.appendChild(outputEl);
-          }
+          outputEl = document.createElement('pre');
+          outputEl.className = 'exec-block__output';
+          execBlock.appendChild(outputEl);
         }
-        outputEl.textContent += event.content;
+        outputEl.textContent += output;
       }
       break;
     }
 
     case 'tool_end': {
-      const execBlock = el.querySelector(`[data-tool-id="${event.toolCallId}"]`);
+      const toolId = (e.tool_call_id as string) || '';
+      const execBlock = el.querySelector(`[data-tool-id="${toolId}"]`);
       if (execBlock) {
         execBlock.classList.remove('exec-block--running');
-        // Add footer
-        const exitClass = event.exitCode === 0 ? '' : ' error';
-        const footer = document.createElement('div');
-        footer.className = 'exec-block__footer';
-        footer.innerHTML = `
-          <span class="exec-block__exit-code${exitClass}">exit ${event.exitCode}</span>
-          <span class="exec-block__duration">${(event.duration / 1000).toFixed(2)}s</span>
-        `;
-        execBlock.appendChild(footer);
+        const statusEl = execBlock.querySelector('.exec-block__status');
+        if (statusEl) statusEl.textContent = 'Done';
       }
       break;
     }
 
     case 'image_output': {
+      const filename = (e.filename as string) || '';
+      const sandboxId = (e.sandbox_id as string) || '';
+      const API_BASE = import.meta.env.VITE_API_BASE || '';
+      const url = `${API_BASE}/api/sandboxes/${sandboxId}/output/${filename}`;
       const imgHtml = `<div class="image-embed">
-        <img class="image-embed__img" src="${escapeHtml(event.url)}" alt="${escapeHtml(event.filename)}" data-action="lightbox" />
+        <img class="image-embed__img" src="${escapeHtml(url)}" alt="${escapeHtml(filename)}" data-action="lightbox" />
         <div class="image-embed__footer">
-          <span>${escapeHtml(event.filename)}</span>
-          <a class="image-embed__download" href="${escapeHtml(event.url)}" download="${escapeHtml(event.filename)}">Download</a>
+          <span>${escapeHtml(filename)}</span>
         </div>
       </div>`;
       streamingContent += imgHtml;
@@ -630,27 +636,23 @@ function handleSSEEvent(event: SSEEvent, el: HTMLElement): void {
     }
 
     case 'table_output': {
-      const tableContainer = renderDataTable(event.headers, event.rows, event.totalRows, event.source);
-      // We need to insert the element directly since it has event listeners
-      const content = el.querySelector('.message__content');
-      if (content) {
-        const cursor = content.querySelector('.streaming-cursor');
-        if (cursor) {
-          content.insertBefore(tableContainer, cursor);
-        } else {
-          content.appendChild(tableContainer);
-        }
+      const rows = (e.rows as string[][]) || [];
+      if (rows.length >= 2) {
+        const tableContainer = renderDataTable(rows[0], rows.slice(1), rows.length - 1, '');
+        const content = el.querySelector('.message__content');
+        if (content) content.appendChild(tableContainer);
       }
       break;
     }
 
     case 'preview': {
-      setState({ previewUrl: event.url, rightPanelTab: 'preview' });
+      const url = (e.url as string) || '';
+      setState({ previewUrl: url, rightPanelTab: 'preview' });
       const previewHtml = `<div class="preview-embed">
         <div class="preview-embed__bar">
-          <span class="preview-embed__url">${escapeHtml(event.url)}</span>
+          <span class="preview-embed__url">${escapeHtml(url)}</span>
         </div>
-        <iframe class="preview-embed__iframe" src="${escapeHtml(event.url)}" sandbox="allow-scripts allow-same-origin" loading="lazy"></iframe>
+        <iframe class="preview-embed__iframe" src="${escapeHtml(url)}" sandbox="allow-scripts allow-same-origin" loading="lazy"></iframe>
       </div>`;
       streamingContent += previewHtml;
       debounceRenderStreaming(el);
@@ -658,9 +660,11 @@ function handleSSEEvent(event: SSEEvent, el: HTMLElement): void {
     }
 
     case 'search_results': {
+      const results = (e.results as { title: string; url: string; snippet: string }[]) || [];
+      const query = (e.query as string) || '';
       let html = `<div class="search-results">`;
-      html += `<div class="search-results__header">Search: ${escapeHtml(event.query)}</div>`;
-      for (const result of event.results) {
+      html += `<div class="search-results__header">Search: ${escapeHtml(query)}</div>`;
+      for (const result of results) {
         html += `<a class="search-results__item" href="${escapeHtml(result.url)}" target="_blank" rel="noopener">
           <div class="search-results__title">${escapeHtml(result.title)}</div>
           <div class="search-results__snippet">${escapeHtml(result.snippet)}</div>
@@ -673,14 +677,29 @@ function handleSSEEvent(event: SSEEvent, el: HTMLElement): void {
       break;
     }
 
+    case 'title': {
+      const title = (e.title as string) || '';
+      if (title) {
+        // Update conversation title in sidebar
+        const state = getState();
+        if (state.activeConversationId) {
+          const convs = state.conversations.map(c =>
+            c.id === state.activeConversationId ? { ...c, title } : c
+          );
+          setState({ conversations: convs });
+          renderSidebarList();
+        }
+      }
+      break;
+    }
+
     case 'done': {
-      // Finalize message with cost badge
       const costHtml = renderCostBadge({
-        inputTokens: event.inputTokens,
-        outputTokens: event.outputTokens,
-        totalCost: event.totalCost,
-        model: event.model,
-        duration: event.duration,
+        inputTokens: (e.input_tokens as number) || 0,
+        outputTokens: (e.output_tokens as number) || 0,
+        totalCost: 0,
+        model: getState().activeModel,
+        duration: 0,
       });
       const content = el.querySelector('.message__content');
       if (content) {
@@ -697,7 +716,7 @@ function handleSSEEvent(event: SSEEvent, el: HTMLElement): void {
       if (content) {
         const errDiv = document.createElement('div');
         errDiv.style.cssText = 'color: var(--error); padding: 8px; font-size: 0.85rem;';
-        errDiv.textContent = `Error: ${event.message}`;
+        errDiv.textContent = `Error: ${(e.message as string) || 'Unknown error'}`;
         content.appendChild(errDiv);
       }
       break;

@@ -15,75 +15,63 @@ export interface ReasoningEvent {
 
 export interface ToolStartEvent {
   type: 'tool_start';
-  toolCallId: string;
-  name: string;
-  language?: string;
-  code?: string;
+  tool: string;
+  arguments?: Record<string, unknown>;
+  tool_call_id?: string;
 }
 
 export interface ToolOutputEvent {
   type: 'tool_output';
-  toolCallId: string;
-  stream: 'stdout' | 'stderr';
-  content: string;
+  tool: string;
+  output: string;
+  tool_call_id?: string;
 }
 
 export interface ToolEndEvent {
   type: 'tool_end';
-  toolCallId: string;
-  exitCode: number;
-  duration: number;
+  tool: string;
+  tool_call_id?: string;
 }
 
 export interface ImageOutputEvent {
   type: 'image_output';
-  url: string;
   filename: string;
-  format: string;
-  width?: number;
-  height?: number;
-  metadata?: Record<string, unknown>;
+  sandbox_id?: string;
 }
 
 export interface TableOutputEvent {
   type: 'table_output';
-  headers: string[];
-  rows: (string | number)[][];
-  totalRows: number;
-  source?: string;
+  rows: string[][];
 }
 
 export interface PreviewEvent {
   type: 'preview';
   url: string;
-  title?: string;
+  port?: number;
 }
 
 export interface SearchResultsEvent {
   type: 'search_results';
-  query: string;
-  results: {
-    title: string;
-    url: string;
-    snippet: string;
-  }[];
+  results: { title: string; url: string; snippet: string }[];
+  tool_call_id?: string;
 }
 
 export interface DoneEvent {
   type: 'done';
-  messageId: string;
-  inputTokens: number;
-  outputTokens: number;
-  totalCost: number;
-  model: string;
-  duration: number;
-  reasoningTokens?: number;
+  message_id?: string;
+  input_tokens?: number;
+  output_tokens?: number;
+  artifacts?: { id: string; type: string; label: string }[];
+}
+
+export interface TitleEvent {
+  type: 'title';
+  title: string;
 }
 
 export interface ErrorEvent {
   type: 'error';
   message: string;
-  code?: string;
 }
 
 export type SSEEvent =
@@ -97,6 +85,7 @@ export type SSEEvent =
   | PreviewEvent
   | SearchResultsEvent
   | DoneEvent
+  | TitleEvent
   | ErrorEvent;
 
 export async function* streamSSE(response: Response): AsyncGenerator<SSEEvent> {
@@ -115,51 +104,34 @@ export async function* streamSSE(response: Response): AsyncGenerator<SSEEvent> {
 
       buffer += decoder.decode(value, { stream: true });
 
-      // Process complete SSE events
-      const lines = buffer.split('\n');
-      buffer = '';
+      // Process complete SSE events (terminated by double newline)
+      while (true) {
+        const eventEnd = buffer.indexOf('\n\n');
+        if (eventEnd === -1) break;
 
-      let currentData = '';
+        const rawEvent = buffer.slice(0, eventEnd);
+        buffer = buffer.slice(eventEnd + 2);
 
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
+        let eventType = '';
+        let eventData = '';
 
-        // If last line doesn't end with \n, it's incomplete — put back
-        if (i === lines.length - 1 && !buffer.endsWith('\n') && line !== '') {
-          buffer = line;
-          continue;
-        }
-
-        if (line.startsWith('data: ')) {
-          currentData += line.slice(6);
-        } else if (line === '' && currentData) {
-          // Empty line = end of event
-          try {
-            const parsed = JSON.parse(currentData) as SSEEvent;
-            yield parsed;
-          } catch (e) {
-            console.warn('Failed to parse SSE event:', currentData, e);
+        for (const line of rawEvent.split('\n')) {
+          if (line.startsWith('event: ') || line.startsWith('event:')) {
+            eventType = line.slice(line.indexOf(':') + 1).trim();
+          } else if (line.startsWith('data: ') || line.startsWith('data:')) {
+            eventData += line.slice(line.indexOf(':') + 1).trim();
           }
-          currentData = '';
         }
-      }
 
-      // If there's remaining data without a terminating blank line,
-      // keep it for the next chunk
-      if (currentData) {
-        buffer = `data: ${currentData}\n${buffer}`;
-      }
-    }
+        if (!eventData) continue;
 
-    // Process any remaining data
-    if (buffer.trim()) {
-      const remaining = buffer.trim();
-      if (remaining.startsWith('data: ')) {
         try {
-          const parsed = JSON.parse(remaining.slice(6)) as SSEEvent;
-          yield parsed;
+          const data = JSON.parse(eventData);
+          // Attach the event type so consumers can switch on it
+          data.type = eventType || data.type || 'unknown';
+          yield data as SSEEvent;
         } catch {
-          // Ignore incomplete final event
+          console.warn('Failed to parse SSE data:', eventData);
         }
       }
     }

@@ -3,7 +3,9 @@
 // ============================================================
 
 import type { Message, CostData, ToolCall } from '../state';
-import type { ImageOutputEvent, SearchResultsEvent, TableOutputEvent, PreviewEvent, ToolStartEvent, ToolEndEvent } from '../services/sse';
+// Using 'any' for SSE event types since backend sends snake_case
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyEvent = Record<string, any>;
 import { renderMarkdown, postProcessMermaid } from './markdown';
 
 function escapeHtml(text: string): string {
@@ -118,7 +120,7 @@ function renderExecBlockFromTool(tool: ToolCall): string {
   return html;
 }
 
-export function renderExecBlock(toolStart: ToolStartEvent, outputs: string[], toolEnd?: ToolEndEvent): string {
+export function renderExecBlock(toolStart: AnyEvent, outputs: string[], toolEnd?: AnyEvent): string {
   const lang = toolStart.language || toolStart.name || 'code';
   const isRunning = !toolEnd;
   const runningClass = isRunning ? ' exec-block--running' : '';
@@ -149,7 +151,7 @@ export function renderExecBlock(toolStart: ToolStartEvent, outputs: string[], to
   return html;
 }
 
-export function renderImageEmbed(event: ImageOutputEvent): string {
+export function renderImageEmbed(event: AnyEvent): string {
   return `<div class="image-embed">
     <img class="image-embed__img" src="${escapeHtml(event.url)}" alt="${escapeHtml(event.filename)}" data-action="lightbox" />
     <div class="image-embed__footer">
@@ -159,7 +161,7 @@ export function renderImageEmbed(event: ImageOutputEvent): string {
   </div>`;
 }
 
-export function renderPreviewEmbed(event: PreviewEvent): string {
+export function renderPreviewEmbed(event: AnyEvent): string {
   return `<div class="preview-embed">
     <div class="preview-embed__bar">
       <span class="preview-embed__url">${escapeHtml(event.url)}</span>
@@ -169,7 +171,7 @@ export function renderPreviewEmbed(event: PreviewEvent): string {
   </div>`;
 }
 
-export function renderSearchResults(event: SearchResultsEvent): string {
+export function renderSearchResults(event: AnyEvent): string {
   let html = `<div class="search-results">`;
   html += `<div class="search-results__header">Search: ${escapeHtml(event.query)}</div>`;
   for (const result of event.results) {
@@ -183,7 +185,7 @@ export function renderSearchResults(event: SearchResultsEvent): string {
   return html;
 }
 
-export function renderDataTableHtml(event: TableOutputEvent): string {
+export function renderDataTableHtml(event: AnyEvent): string {
   // Returns a placeholder; actual rendering with event listeners is done in workspace.ts
   return `<div class="data-table-placeholder" data-headers='${escapeHtml(JSON.stringify(event.headers))}' data-rows='${escapeHtml(JSON.stringify(event.rows))}' data-total="${event.totalRows}" data-source="${escapeHtml(event.source || '')}"></div>`;
 }
