@@ -109,6 +109,7 @@ async def run_agent_loop(
     if persona and hasattr(persona, "tools_enabled"):
         tools_enabled = persona.tools_enabled
     tools = get_tools_for_mode(mode, tools_enabled)
+    logger.info(f"Agent loop: mode={mode}, model={model}, tools={len(tools) if tools else 0}")
 
     # Track sandbox and known output files
     sandbox = None
