@@ -82,11 +82,8 @@ async def create_sandbox(
         sandbox.process.exec, "mkdir -p /home/daytona/output"
     )
 
-    # Run template setup if applicable
-    setup_cmd = TEMPLATE_SETUP.get(template, "")
-    if setup_cmd:
-        logger.info(f"Running template setup: {template}")
-        await asyncio.to_thread(sandbox.process.exec, setup_cmd)
+    # Skip heavy template setup — let the LLM install what it needs on demand
+    # This avoids 60+ second pip install delays on first message
 
     return sandbox
 
