@@ -1,5 +1,6 @@
 import json
 import logging
+import time
 import uuid
 from typing import Any, AsyncGenerator, Optional
 
@@ -75,6 +76,8 @@ async def run_agent_loop(
     The loop: send messages to LLM, if tool_calls in response -> execute tools ->
     feed results back -> repeat until final text response.
     """
+    start_time = time.monotonic()
+
     # Load conversation messages
     result = await db.execute(
         select(Message)
@@ -378,10 +381,13 @@ async def run_agent_loop(
         except Exception:
             pass
 
+    duration_ms = int((time.monotonic() - start_time) * 1000)
+
     yield _sse_event("done", {
         "message_id": str(assistant_msg_obj.id),
         "input_tokens": total_input_tokens,
         "output_tokens": total_output_tokens,
+        "duration_ms": duration_ms,
         "artifacts": [
             {"id": str(a.id), "type": a.type, "label": a.label}
             for a in (await db.execute(

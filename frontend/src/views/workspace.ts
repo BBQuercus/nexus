@@ -20,7 +20,7 @@ import {
 import { renderMarkdown, initMarkdown, postProcessMermaid } from '../components/markdown';
 import { renderModelPicker, MODELS } from '../components/model-picker';
 import { renderSandboxBar } from '../components/sandbox-bar';
-import { initTerminal, connectToSandbox, disposeTerminal } from '../components/terminal';
+import { initTerminal, connectToSandbox, disposeTerminal, showTerminalPlaceholder } from '../components/terminal';
 import { renderFileTree } from '../components/file-tree';
 import { renderFileViewer } from '../components/file-viewer';
 import { renderPreviewPanel } from '../components/preview';
@@ -429,6 +429,11 @@ function initChatInput(layout: HTMLElement): void {
     el.addEventListener('click', async () => {
       const text = (el as HTMLElement).dataset.starter;
       if (text && textarea) {
+        // Switch to code mode for starter chips
+        setState({ activeMode: 'code' });
+        layout.querySelectorAll('.mode-toggle__btn').forEach((b) => {
+          b.classList.toggle('active', (b as HTMLElement).dataset.mode === 'code');
+        });
         textarea.value = text;
         textarea.dispatchEvent(new Event('input'));
         await handleSend();
@@ -516,7 +521,6 @@ async function handleSend(): Promise<void> {
 
   // Hide empty state, show messages
   hideEmptyState();
-  console.log('[nexus] messagesContainer visible:', messagesContainer?.style.display, 'parent:', messagesContainer?.parentElement?.id);
 
   // Add user message to UI
   const userMsg: Message = {
@@ -540,19 +544,13 @@ async function handleSend(): Promise<void> {
   let currentToolOutputs: string[] = [];
 
   try {
-    console.log('[nexus] sending message to', convId);
     const response = await api.sendMessage(convId, content, attachmentIds);
-    console.log('[nexus] got response, status:', response.status, 'body:', !!response.body);
 
-    let eventCount = 0;
     for await (const event of streamSSE(response)) {
-      eventCount++;
-      console.log('[nexus] SSE event:', event.type, event);
       handleSSEEvent(event, streamingEl!);
     }
-    console.log('[nexus] stream ended, total events:', eventCount);
   } catch (e) {
-    console.error('[nexus] Stream error:', e);
+    console.error('Stream error:', e);
     if (streamingEl) {
       appendToStreamingMessage(
         streamingEl,
@@ -925,17 +923,19 @@ function initRightPanel(layout: HTMLElement): void {
     });
   });
 
-  // Init terminal
+  // Init terminal — only create xterm when a sandbox is active
   const terminalContainer = layout.querySelector('#terminal-container') as HTMLElement;
   if (terminalContainer) {
-    try {
-      initTerminal(terminalContainer);
-      const state = getState();
-      if (state.sandboxId) {
+    const state = getState();
+    if (state.sandboxId) {
+      try {
+        initTerminal(terminalContainer);
         connectToSandbox(state.sandboxId);
+      } catch (e) {
+        console.warn('Terminal init failed:', e);
       }
-    } catch (e) {
-      console.warn('Terminal init failed:', e);
+    } else {
+      showTerminalPlaceholder(terminalContainer);
     }
   }
 }

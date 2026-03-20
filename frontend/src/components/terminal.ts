@@ -10,6 +10,7 @@ let terminal: Terminal | null = null;
 let fitAddon: FitAddon | null = null;
 let socket: TerminalSocket | null = null;
 let resizeObserver: ResizeObserver | null = null;
+let terminalContainer: HTMLElement | null = null;
 
 const THEME = {
   background: '#0A0A0A',
@@ -36,7 +37,23 @@ const THEME = {
   brightWhite: '#FFFFFF',
 };
 
+/**
+ * Show a placeholder message when no sandbox is active.
+ * Does NOT initialize xterm.js yet.
+ */
+export function showTerminalPlaceholder(container: HTMLElement): void {
+  terminalContainer = container;
+  container.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;padding:24px;text-align:center;color:var(--text-tertiary,#888);font-size:0.85rem;line-height:1.5;">
+    Terminal connects when a sandbox is running.<br/>Switch to <strong>Code</strong> mode and send a message to start.
+  </div>`;
+}
+
 export function initTerminal(container: HTMLElement): Terminal {
+  terminalContainer = container;
+
+  // Clear any placeholder
+  container.innerHTML = '';
+
   if (terminal) {
     terminal.dispose();
   }
@@ -85,6 +102,11 @@ export function initTerminal(container: HTMLElement): Terminal {
 export function connectToSandbox(sandboxId: string): void {
   if (socket) {
     socket.disconnect();
+  }
+
+  // If terminal hasn't been initialized yet, do it now
+  if (!terminal && terminalContainer) {
+    initTerminal(terminalContainer);
   }
 
   socket = new TerminalSocket(sandboxId);

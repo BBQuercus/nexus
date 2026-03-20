@@ -102,7 +102,29 @@ export async function listConversations(search?: string, page?: number): Promise
   if (search) params.set('search', search);
   if (page) params.set('page', String(page));
   const qs = params.toString();
-  return apiFetch<ConversationsListResponse>(`/api/conversations${qs ? `?${qs}` : ''}`);
+  const raw = await apiFetch<{ conversations: Record<string, unknown>[]; total: number; page: number; page_size?: number; pageSize?: number }>(
+    `/api/conversations${qs ? `?${qs}` : ''}`
+  );
+  return {
+    conversations: (raw.conversations || []).map(mapConversation),
+    total: raw.total,
+    page: raw.page,
+    pageSize: raw.pageSize || raw.page_size || 20,
+  };
+}
+
+function mapConversation(c: Record<string, unknown>): Conversation {
+  return {
+    id: (c.id as string) || '',
+    title: (c.title as string) || '',
+    createdAt: (c.created_at as string) || (c.createdAt as string) || '',
+    updatedAt: (c.updated_at as string) || (c.updatedAt as string) || '',
+    model: (c.model as string) || undefined,
+    mode: (c.agent_mode as Conversation['mode']) || (c.mode as Conversation['mode']) || undefined,
+    sandboxId: (c.sandbox_id as string) || (c.sandboxId as string) || undefined,
+    personaId: (c.persona_id as string) || (c.personaId as string) || undefined,
+    messageCount: (c.message_count as number) || (c.messageCount as number) || undefined,
+  };
 }
 
 export async function getConversation(id: string): Promise<Conversation> {

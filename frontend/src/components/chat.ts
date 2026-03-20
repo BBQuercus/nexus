@@ -213,22 +213,33 @@ export function renderReasoningTrace(content: string, tokenCount?: number): stri
 }
 
 export function renderCostBadge(data: CostData): string {
-  const cost = data.totalCost < 0.01
-    ? `<$0.01`
-    : `$${data.totalCost.toFixed(3)}`;
-  const tokens = `${(data.inputTokens + data.outputTokens).toLocaleString()} tok`;
-  const duration = `${(data.duration / 1000).toFixed(1)}s`;
   const model = data.model.split('/').pop() || data.model;
+  const totalTokens = data.inputTokens + data.outputTokens;
 
-  return `<div class="cost-badge">
-    <span class="cost-badge__item">${model}</span>
-    <span class="cost-badge__separator">/</span>
-    <span class="cost-badge__item">${tokens}</span>
-    <span class="cost-badge__separator">/</span>
-    <span class="cost-badge__item">${cost}</span>
-    <span class="cost-badge__separator">/</span>
-    <span class="cost-badge__item">${duration}</span>
-  </div>`;
+  // Always show model name
+  const parts: string[] = [model];
+
+  // Show tokens if available
+  if (totalTokens > 0) {
+    parts.push(`${totalTokens.toLocaleString()} tok`);
+  }
+
+  // Show cost if available
+  if (data.totalCost > 0) {
+    const cost = data.totalCost < 0.01 ? '<$0.01' : `$${data.totalCost.toFixed(3)}`;
+    parts.push(cost);
+  }
+
+  // Show duration if available
+  if (data.duration > 0) {
+    parts.push(`${(data.duration / 1000).toFixed(1)}s`);
+  }
+
+  const inner = parts
+    .map((p) => `<span class="cost-badge__item">${p}</span>`)
+    .join('<span class="cost-badge__separator">/</span>');
+
+  return `<div class="cost-badge">${inner}</div>`;
 }
 
 export function renderStepTracker(steps: { label: string; status: 'completed' | 'active' | 'pending'; duration?: number }[]): string {
