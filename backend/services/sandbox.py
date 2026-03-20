@@ -91,29 +91,32 @@ async def create_sandbox(
 async def execute_code(sandbox, language: str, code: str) -> ExecutionResult:
     """Execute code in a sandbox and return the result."""
     if language in ("python", "python3", "py"):
-        # Write to file and execute to avoid shell escaping issues
+        # Write code to sandbox file via process.exec to avoid escaping issues
+        import base64
+        b64 = base64.b64encode(code.encode("utf-8")).decode("ascii")
         await asyncio.to_thread(
-            sandbox.fs.upload_file,
-            "/tmp/_nexus_exec.py",
-            code.encode("utf-8"),
+            sandbox.process.exec,
+            f"echo '{b64}' | base64 -d > /tmp/_nexus_exec.py"
         )
-        cmd = "python3 /tmp/_nexus_exec.py"
+        cmd = "cd /home/daytona && python3 /tmp/_nexus_exec.py"
     elif language in ("javascript", "js", "node"):
+        import base64
+        b64 = base64.b64encode(code.encode("utf-8")).decode("ascii")
         await asyncio.to_thread(
-            sandbox.fs.upload_file,
-            "/tmp/_nexus_exec.js",
-            code.encode("utf-8"),
+            sandbox.process.exec,
+            f"echo '{b64}' | base64 -d > /tmp/_nexus_exec.js"
         )
-        cmd = "node /tmp/_nexus_exec.js"
+        cmd = "cd /home/daytona && node /tmp/_nexus_exec.js"
     elif language in ("typescript", "ts"):
+        import base64
+        b64 = base64.b64encode(code.encode("utf-8")).decode("ascii")
         await asyncio.to_thread(
-            sandbox.fs.upload_file,
-            "/tmp/_nexus_exec.ts",
-            code.encode("utf-8"),
+            sandbox.process.exec,
+            f"echo '{b64}' | base64 -d > /tmp/_nexus_exec.ts"
         )
-        cmd = "npx tsx /tmp/_nexus_exec.ts"
+        cmd = "cd /home/daytona && npx tsx /tmp/_nexus_exec.ts"
     elif language in ("bash", "sh", "shell"):
-        cmd = code
+        cmd = f"cd /home/daytona && {code}"
     else:
         cmd = code
 

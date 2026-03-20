@@ -588,27 +588,44 @@ function handleSSEEvent(event: SSEEvent, el: HTMLElement): void {
       break;
 
     case 'tool_start': {
+      // Flush any pending markdown content first
+      if (streamingContent.trim()) {
+        debounceRenderStreaming(el);
+      }
       const toolId = (e.tool_call_id as string) || '';
       const toolName = (e.tool as string) || '';
       const args = e.arguments as Record<string, string> | undefined;
       const lang = args?.language || toolName;
       const code = args?.code || '';
-      const html = `<div class="exec-block exec-block--running" data-tool-id="${escapeHtml(toolId)}">
-        <div class="exec-block__header">
-          <span class="exec-block__lang">${escapeHtml(lang)}</span>
-          <span class="exec-block__status">Running...</span>
-        </div>
-        ${code ? `<pre class="exec-block__code"><code>${escapeHtml(code)}</code></pre>` : ''}
-      </div>`;
-      streamingContent += html;
-      debounceRenderStreaming(el);
+      // Insert exec block directly into DOM (not via streamingContent/markdown)
+      const content = el.querySelector('.message__content');
+      if (content) {
+        const block = document.createElement('div');
+        block.className = 'exec-block exec-block--running';
+        block.dataset.toolId = toolId;
+        block.innerHTML = `
+          <div class="exec-block__header">
+            <span class="exec-block__lang">${escapeHtml(lang)}</span>
+            <span class="exec-block__status">Running...</span>
+          </div>
+          ${code ? `<pre class="exec-block__code"><code>${escapeHtml(code)}</code></pre>` : ''}
+        `;
+        // Insert before the streaming cursor
+        const cursor = content.querySelector('.streaming-cursor');
+        if (cursor) {
+          content.insertBefore(block, cursor);
+        } else {
+          content.appendChild(block);
+        }
+        scrollToBottom();
+      }
       break;
     }
 
     case 'tool_output': {
       const toolId = (e.tool_call_id as string) || '';
       const output = (e.output as string) || '';
-      const execBlock = el.querySelector(`[data-tool-id="${toolId}"]`);
+      const execBlock = el.querySelector(`[data-tool-id="${toolId}"]`) as HTMLElement;
       if (execBlock) {
         let outputEl = execBlock.querySelector('.exec-block__output');
         if (!outputEl) {
@@ -623,7 +640,7 @@ function handleSSEEvent(event: SSEEvent, el: HTMLElement): void {
 
     case 'tool_end': {
       const toolId = (e.tool_call_id as string) || '';
-      const execBlock = el.querySelector(`[data-tool-id="${toolId}"]`);
+      const execBlock = el.querySelector(`[data-tool-id="${toolId}"]`) as HTMLElement;
       if (execBlock) {
         execBlock.classList.remove('exec-block--running');
         const statusEl = execBlock.querySelector('.exec-block__status');
