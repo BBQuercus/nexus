@@ -237,11 +237,13 @@ async def run_agent_loop(
                         conversation.sandbox_id = sandbox_id
                         await db.flush()
 
+                    logger.info(f"Executing {args.get('language', 'python')} code ({len(args.get('code', ''))} chars)")
                     result = await sandbox_service.execute_code(
                         sandbox,
                         args.get("language", "python"),
                         args.get("code", ""),
                     )
+                    logger.info(f"Execution done: exit={result.exit_code}, stdout={len(result.stdout)} chars")
                     tool_output = result.stdout
                     if result.stderr:
                         tool_output += f"\n[stderr]: {result.stderr}"
