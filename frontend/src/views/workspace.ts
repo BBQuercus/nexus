@@ -333,8 +333,11 @@ function renderSidebarList(): void {
     html += `<div class="conv-group__label">${group.label}</div>`;
     for (const conv of group.items) {
       const active = conv.id === state.activeConversationId ? ' active' : '';
+      const title = conv.title
+        ? escapeHtml(conv.title)
+        : '<em style="color:var(--text-tertiary)">Untitled</em>';
       html += `<div class="conv-item${active}" data-conv-id="${conv.id}">
-        <span class="conv-item__title">${escapeHtml(conv.title || 'New conversation')}</span>
+        <span class="conv-item__title">${title}</span>
         <button class="conv-item__delete" data-delete-id="${conv.id}">\u2715</button>
       </div>`;
     }
@@ -537,6 +540,19 @@ async function handleSend(): Promise<void> {
   messagesContainer?.appendChild(streamingEl);
   scrollToBottom();
 
+  // Disable input during streaming
+  const sendBtn = document.querySelector('#send-btn') as HTMLButtonElement | null;
+  const chatTextarea = document.querySelector('#chat-textarea') as HTMLTextAreaElement | null;
+  if (sendBtn) {
+    sendBtn.disabled = true;
+    sendBtn.textContent = '\u25A0'; // Stop icon
+    sendBtn.classList.add('active');
+  }
+  if (chatTextarea) {
+    chatTextarea.disabled = true;
+    chatTextarea.placeholder = 'Waiting for response...';
+  }
+
   // Send and stream
   streamingContent = '';
   let reasoningContent = '';
@@ -566,6 +582,19 @@ async function handleSend(): Promise<void> {
     }
     streamingEl = null;
     streamingContent = '';
+
+    // Re-enable input
+    if (sendBtn) {
+      sendBtn.disabled = false;
+      sendBtn.textContent = '\u2191';
+      sendBtn.classList.remove('active');
+    }
+    if (chatTextarea) {
+      chatTextarea.disabled = false;
+      chatTextarea.placeholder = 'Message Nexus...';
+      chatTextarea.focus();
+    }
+
     // Reload conversation to show persisted messages
     if (convId) {
       loadConversations();
@@ -578,10 +607,14 @@ function handleSSEEvent(event: SSEEvent, el: HTMLElement): void {
   const e = event as unknown as Record<string, unknown>;
 
   switch (event.type) {
-    case 'token':
+    case 'token': {
+      // Remove thinking indicator on first token
+      const thinkingToken = el.querySelector('.thinking-indicator');
+      if (thinkingToken) thinkingToken.remove();
       streamingContent += (e.content as string) || '';
       debounceRenderStreaming(el);
       break;
+    }
 
     case 'reasoning':
       streamingContent = renderReasoningTrace((e.content as string) || '', undefined) + streamingContent;
@@ -598,8 +631,26 @@ function handleSSEEvent(event: SSEEvent, el: HTMLElement): void {
       const args = e.arguments as Record<string, string> | undefined;
       const lang = args?.language || toolName;
       const code = args?.code || '';
-      // Insert exec block directly into DOM (not via streamingContent/markdown)
+
+      // Remove thinking indicator when tool starts
+      const thinkingEl = el.querySelector('.thinking-indicator');
+      if (thinkingEl) thinkingEl.remove();
+
+      // Show sandbox creation status for execute_code when no sandbox exists
       const content = el.querySelector('.message__content');
+      if (toolName === 'execute_code' && !getState().sandboxId && content) {
+        const statusEl = document.createElement('span');
+        statusEl.className = 'sandbox-status';
+        statusEl.textContent = 'Creating sandbox...';
+        const cursor = content.querySelector('.streaming-cursor');
+        if (cursor) {
+          content.insertBefore(statusEl, cursor);
+        } else {
+          content.appendChild(statusEl);
+        }
+      }
+
+      // Insert exec block directly into DOM (not via streamingContent/markdown)
       if (content) {
         const block = document.createElement('div');
         block.className = 'exec-block exec-block--running';
@@ -647,6 +698,9 @@ function handleSSEEvent(event: SSEEvent, el: HTMLElement): void {
         const statusEl = execBlock.querySelector('.exec-block__status');
         if (statusEl) statusEl.textContent = 'Done';
       }
+      // Remove sandbox status message if present
+      const sandboxStatus = el.querySelector('.sandbox-status');
+      if (sandboxStatus) sandboxStatus.remove();
       break;
     }
 

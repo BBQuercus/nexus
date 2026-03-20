@@ -1393,6 +1393,16 @@
   background: var(--accent-hover);
 }
 
+.chat-input__send:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.chat-input__textarea:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* Drop zone */
 .drop-zone {
   position: absolute;
@@ -2554,17 +2564,41 @@
 
 .streaming-cursor {
   display: inline-block;
-  width: 2px;
-  height: 1em;
+  width: 3px;
+  height: 1.1em;
   background: var(--accent);
-  animation: blink 1s step-end infinite;
+  animation: cursor-pulse 1.2s ease-in-out infinite;
   vertical-align: text-bottom;
   margin-left: 2px;
+  border-radius: 1px;
 }
 
-@keyframes blink {
+@keyframes cursor-pulse {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0; }
+  50% { opacity: 0.2; }
+}
+
+.thinking-indicator {
+  display: inline-block;
+  color: var(--text-tertiary);
+  font-size: 0.85rem;
+  font-style: italic;
+  animation: thinking-pulse 2s ease-in-out infinite;
+  margin-right: 4px;
+}
+
+@keyframes thinking-pulse {
+  0%, 100% { opacity: 0.9; }
+  50% { opacity: 0.4; }
+}
+
+.sandbox-status {
+  display: block;
+  color: var(--text-tertiary);
+  font-size: 0.8rem;
+  font-style: italic;
+  padding: 4px 0;
+  animation: thinking-pulse 2s ease-in-out infinite;
 }
 
 /* ============================================================

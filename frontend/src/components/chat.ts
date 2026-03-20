@@ -266,7 +266,7 @@ export function createStreamingMessage(): HTMLElement {
 
   const content = document.createElement('div');
   content.className = 'message__content';
-  content.innerHTML = '<span class="streaming-cursor"></span>';
+  content.innerHTML = '<span class="thinking-indicator">Thinking...</span><span class="streaming-cursor"></span>';
   div.appendChild(content);
 
   return div;
@@ -276,8 +276,9 @@ export function appendToStreamingMessage(el: HTMLElement, html: string): void {
   const content = el.querySelector('.message__content');
   if (!content) return;
 
-  // Remove cursor
-  const cursor = content.querySelector('.streaming-cursor');
+  // Remove thinking indicator once content arrives
+  const thinking = content.querySelector('.thinking-indicator');
+  if (thinking) thinking.remove();
 
   // Set content
   content.innerHTML = html + '<span class="streaming-cursor"></span>';
