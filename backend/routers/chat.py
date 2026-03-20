@@ -38,6 +38,8 @@ class UpdateConversationRequest(BaseModel):
 class SendMessageRequest(BaseModel):
     content: str
     attachments: Optional[list] = None
+    model: Optional[str] = None
+    mode: Optional[str] = None
 
 
 class FeedbackRequest(BaseModel):
@@ -246,8 +248,15 @@ async def send_message(
     await db.flush()
     await db.commit()
 
-    model = conv.model or "gpt-4.1-chn"
-    mode = conv.agent_mode or "chat"
+    # Use request overrides if provided, otherwise conversation defaults
+    model = body.model or conv.model or "gpt-4.1-chn"
+    mode = body.mode or conv.agent_mode or "chat"
+    # Update conversation if mode/model changed
+    if model != conv.model or mode != conv.agent_mode:
+        conv.model = model
+        conv.agent_mode = mode
+        await db.flush()
+        await db.commit()
 
     # Load persona if set
     persona = None

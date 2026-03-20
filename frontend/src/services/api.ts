@@ -152,7 +152,9 @@ export interface SendMessageParams {
 export async function sendMessage(
   conversationId: string,
   content: string,
-  attachments?: string[]
+  attachments?: string[],
+  model?: string,
+  mode?: string,
 ): Promise<Response> {
   const url = `${API_BASE}/api/conversations/${conversationId}/messages`;
   const { getToken } = await import('../auth');
@@ -163,7 +165,7 @@ export async function sendMessage(
     method: 'POST',
     headers,
     credentials: 'include',
-    body: JSON.stringify({ content, attachments }),
+    body: JSON.stringify({ content, attachments, model, mode }),
   });
   if (!response.ok) {
     let errorBody: unknown;

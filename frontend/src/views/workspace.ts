@@ -544,7 +544,8 @@ async function handleSend(): Promise<void> {
   let currentToolOutputs: string[] = [];
 
   try {
-    const response = await api.sendMessage(convId, content, attachmentIds);
+    const currentState = getState();
+    const response = await api.sendMessage(convId, content, attachmentIds, currentState.activeModel, currentState.activeMode);
 
     for await (const event of streamSSE(response)) {
       handleSSEEvent(event, streamingEl!);
