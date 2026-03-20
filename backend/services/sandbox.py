@@ -1,17 +1,20 @@
 import asyncio
+import logging
 from dataclasses import dataclass
 from typing import Optional
 
 from backend.config import settings
 
+logger = logging.getLogger(__name__)
+
 # Template setup commands
 TEMPLATE_SETUP: dict[str, str] = {
     "python-data-science": (
-        "pip install pandas numpy matplotlib seaborn plotly "
+        "pip install -q pandas numpy matplotlib seaborn plotly "
         "scikit-learn scipy openpyxl tabulate"
     ),
     "python-general": (
-        "pip install requests beautifulsoup4 fastapi sqlalchemy pydantic"
+        "pip install -q requests beautifulsoup4 fastapi sqlalchemy pydantic"
     ),
     "nodejs": "npm init -y && npm install express typescript tsx axios zod",
     "react-vite": (
@@ -29,18 +32,25 @@ class ExecutionResult:
     exit_code: int
 
 
+_daytona_client = None
+
+
 def _get_daytona():
     """Lazily initialize Daytona client. Returns None if not configured."""
+    global _daytona_client
+    if _daytona_client is not None:
+        return _daytona_client
     if not settings.DAYTONA_API_KEY or not settings.DAYTONA_API_URL:
         return None
     from daytona_sdk import Daytona, DaytonaConfig
 
-    return Daytona(
+    _daytona_client = Daytona(
         DaytonaConfig(
             api_key=settings.DAYTONA_API_KEY,
             server_url=settings.DAYTONA_API_URL,
         )
     )
+    return _daytona_client
 
 
 async def create_sandbox(
@@ -51,13 +61,21 @@ async def create_sandbox(
     if daytona is None:
         raise RuntimeError("Daytona SDK not configured (missing API key or URL)")
 
-    from daytona_sdk import CreateSandboxParams
+    from daytona_sdk import CreateSandboxFromImageParams
 
-    params = CreateSandboxParams(
+    language = "python"
+    if template in ("nodejs", "react-vite"):
+        language = "javascript"
+
+    params = CreateSandboxFromImageParams(
+        image="ubuntu:22.04",
+        language=language,
         labels=labels or {},
     )
 
+    logger.info(f"Creating sandbox with template={template}")
     sandbox = await asyncio.to_thread(daytona.create, params)
+    logger.info(f"Sandbox created: {sandbox.id}")
 
     # Create output directory
     await asyncio.to_thread(
@@ -67,6 +85,7 @@ async def create_sandbox(
     # Run template setup if applicable
     setup_cmd = TEMPLATE_SETUP.get(template, "")
     if setup_cmd:
+        logger.info(f"Running template setup: {template}")
         await asyncio.to_thread(sandbox.process.exec, setup_cmd)
 
     return sandbox
@@ -75,15 +94,27 @@ async def create_sandbox(
 async def execute_code(sandbox, language: str, code: str) -> ExecutionResult:
     """Execute code in a sandbox and return the result."""
     if language in ("python", "python3", "py"):
-        # Write code to a temp file and execute
-        escaped_code = code.replace("'", "'\\''")
-        cmd = f"python3 -c '{escaped_code}'"
+        # Write to file and execute to avoid shell escaping issues
+        await asyncio.to_thread(
+            sandbox.fs.upload_file,
+            "/tmp/_nexus_exec.py",
+            code.encode("utf-8"),
+        )
+        cmd = "python3 /tmp/_nexus_exec.py"
     elif language in ("javascript", "js", "node"):
-        escaped_code = code.replace("'", "'\\''")
-        cmd = f"node -e '{escaped_code}'"
+        await asyncio.to_thread(
+            sandbox.fs.upload_file,
+            "/tmp/_nexus_exec.js",
+            code.encode("utf-8"),
+        )
+        cmd = "node /tmp/_nexus_exec.js"
     elif language in ("typescript", "ts"):
-        escaped_code = code.replace("'", "'\\''")
-        cmd = f"npx tsx -e '{escaped_code}'"
+        await asyncio.to_thread(
+            sandbox.fs.upload_file,
+            "/tmp/_nexus_exec.ts",
+            code.encode("utf-8"),
+        )
+        cmd = "npx tsx /tmp/_nexus_exec.ts"
     elif language in ("bash", "sh", "shell"):
         cmd = code
     else:
@@ -94,7 +125,6 @@ async def execute_code(sandbox, language: str, code: str) -> ExecutionResult:
     exit_code = getattr(result, "exit_code", 0)
     stdout = getattr(result, "result", "") or ""
     stderr = ""
-    # Some SDK versions use different attributes
     if hasattr(result, "stdout"):
         stdout = result.stdout or ""
     if hasattr(result, "stderr"):
@@ -109,13 +139,15 @@ async def execute_code(sandbox, language: str, code: str) -> ExecutionResult:
 
 async def read_file(sandbox, path: str) -> str:
     """Read file content from sandbox."""
-    result = await asyncio.to_thread(sandbox.fs.read_file, path)
-    return result
+    content = await asyncio.to_thread(sandbox.fs.download_file, path)
+    if isinstance(content, bytes):
+        return content.decode("utf-8", errors="replace")
+    return str(content)
 
 
 async def write_file(sandbox, path: str, content: str) -> None:
     """Write file content to sandbox."""
-    await asyncio.to_thread(sandbox.fs.write_file, path, content)
+    await asyncio.to_thread(sandbox.fs.upload_file, path, content.encode("utf-8"))
 
 
 async def list_files(sandbox, path: str) -> list[str]:
@@ -130,7 +162,9 @@ async def list_files(sandbox, path: str) -> list[str]:
 
 async def upload_file(sandbox, local_path: str, sandbox_path: str) -> None:
     """Upload a file to the sandbox."""
-    await asyncio.to_thread(sandbox.fs.upload_file, local_path, sandbox_path)
+    with open(local_path, "rb") as f:
+        data = f.read()
+    await asyncio.to_thread(sandbox.fs.upload_file, sandbox_path, data)
 
 
 async def get_sandbox(sandbox_id: str):
@@ -167,8 +201,8 @@ async def delete_sandbox(sandbox) -> None:
 
 async def get_preview_url(sandbox, port: int) -> str:
     """Get forwarded port URL for a sandbox."""
-    result = await asyncio.to_thread(sandbox.get_preview_url, port)
-    return result
+    url = await asyncio.to_thread(sandbox.get_preview_url, port)
+    return str(url)
 
 
 async def check_output_files(sandbox, known_files: set[str]) -> list[str]:
