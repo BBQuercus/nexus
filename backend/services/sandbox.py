@@ -45,23 +45,24 @@ async def create_sandbox(
     if daytona is None:
         raise RuntimeError("Daytona SDK not configured (missing API key or URL)")
 
-    from daytona_sdk import CreateSandboxFromImageParams
+    from daytona_sdk import CreateSandboxFromSnapshotParams, CreateSandboxFromImageParams
 
-    # Use python:3.12-slim for Python templates, node for JS templates
+    # Use pre-built snapshots for fast startup with packages pre-installed
     if template in ("nodejs", "react-vite"):
-        image = "node:22-slim"
-        language = "javascript"
+        params = CreateSandboxFromImageParams(
+            image="node:22-slim",
+            language="javascript",
+            labels=labels or {},
+        )
     else:
-        image = "python:3.12-slim"
-        language = "python"
+        # Python templates use the pre-built snapshot with data science packages
+        params = CreateSandboxFromSnapshotParams(
+            snapshot="nexus-ds-v4",
+            language="python",
+            labels=labels or {},
+        )
 
-    params = CreateSandboxFromImageParams(
-        image=image,
-        language=language,
-        labels=labels or {},
-    )
-
-    logger.info(f"Creating sandbox with template={template}, image={image}")
+    logger.info(f"Creating sandbox with template={template}")
     sandbox = await asyncio.to_thread(daytona.create, params)
     logger.info(f"Sandbox created: {sandbox.id}")
 
