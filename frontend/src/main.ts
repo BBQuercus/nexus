@@ -6,7 +6,7 @@ import './styles/tokens.css';
 import './styles/base.css';
 import './styles/components.css';
 
-import { registerRoute, initRouter, navigateTo } from './router';
+import { registerRoute, initRouter, navigateTo, getCurrentRoute } from './router';
 import { checkAuth, handleCallback } from './auth';
 import { renderLoginView } from './views/login';
 import { renderWorkspaceView } from './views/workspace';
@@ -42,10 +42,17 @@ registerRoute('/auth/callback', (_container) => {
 
 // Initialize
 async function init(): Promise<void> {
-  // Check authentication
+  // Handle auth callback BEFORE anything else
+  const route = getCurrentRoute();
+  if (route.startsWith('/auth/callback')) {
+    handleCallback();
+    // handleCallback sets token and navigates to #/
+    // Now check auth with the newly stored token
+  }
+
   const user = await checkAuth();
 
-  if (!user) {
+  if (!user && !getCurrentRoute().startsWith('/auth/callback')) {
     navigateTo('/login');
   }
 
