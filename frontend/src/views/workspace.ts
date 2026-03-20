@@ -119,8 +119,8 @@ export async function renderWorkspaceView(container: HTMLElement): Promise<void>
       </div>
     </div>
 
-    <!-- Right Panel -->
-    <div class="right-panel" id="right-panel">
+    <!-- Right Panel (hidden by default, shown when sandbox is active) -->
+    <div class="right-panel" id="right-panel" style="display: none;">
       <div class="right-panel__tabs">
         <button class="right-panel__tab active" data-tab="terminal">Terminal</button>
         <button class="right-panel__tab" data-tab="files">Files</button>
@@ -182,7 +182,14 @@ export async function renderWorkspaceView(container: HTMLElement): Promise<void>
 
   subscribe(
     (s) => s.sandboxStatus,
-    () => refreshSandboxBar(layout)
+    (status) => {
+      refreshSandboxBar(layout);
+      // Show/hide right panel based on sandbox status
+      const rightPanel = layout.querySelector('#right-panel') as HTMLElement;
+      if (rightPanel) {
+        rightPanel.style.display = (status !== 'none') ? '' : 'none';
+      }
+    }
   );
 
   subscribe(
@@ -706,17 +713,26 @@ function handleSSEEvent(event: SSEEvent, el: HTMLElement): void {
 
     case 'image_output': {
       const filename = (e.filename as string) || '';
-      const sandboxId = (e.sandbox_id as string) || '';
-      const API_BASE = import.meta.env.VITE_API_BASE || '';
-      const url = `${API_BASE}/api/sandboxes/${sandboxId}/output/${filename}`;
-      const imgHtml = `<div class="image-embed">
-        <img class="image-embed__img" src="${escapeHtml(url)}" alt="${escapeHtml(filename)}" data-action="lightbox" />
-        <div class="image-embed__footer">
-          <span>${escapeHtml(filename)}</span>
-        </div>
-      </div>`;
-      streamingContent += imgHtml;
-      debounceRenderStreaming(el);
+      const url = (e.url as string) || '';
+      if (url) {
+        // Insert image directly into DOM (not via streamingContent/markdown)
+        const content = el.querySelector('.message__content');
+        if (content) {
+          const imgDiv = document.createElement('div');
+          imgDiv.className = 'image-embed';
+          imgDiv.innerHTML = `
+            <img class="image-embed__img" src="${url}" alt="${escapeHtml(filename)}" loading="lazy" />
+            <div class="image-embed__footer">
+              <span>${escapeHtml(filename)}</span>
+              <a class="image-embed__download" href="${url}" download="${escapeHtml(filename)}">Download</a>
+            </div>
+          `;
+          const cursor = content.querySelector('.streaming-cursor');
+          if (cursor) content.insertBefore(imgDiv, cursor);
+          else content.appendChild(imgDiv);
+          scrollToBottom();
+        }
+      }
       break;
     }
 

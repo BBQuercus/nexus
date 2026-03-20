@@ -257,7 +257,19 @@ async def run_agent_loop(
                     for f in new_files:
                         known_output_files.add(f)
                         if f.lower().endswith((".png", ".jpg", ".jpeg", ".svg", ".gif", ".webp")):
-                            yield _sse_event("image_output", {"filename": f, "sandbox_id": sandbox_id})
+                            # Read file and send as base64 data URL
+                            try:
+                                from backend.services.media import get_output_file
+                                img_bytes = await get_output_file(sandbox, f)
+                                import base64 as b64mod
+                                img_b64 = b64mod.b64encode(img_bytes).decode("ascii")
+                                ext = f.rsplit(".", 1)[-1].lower()
+                                mime = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg", "svg": "image/svg+xml", "gif": "image/gif", "webp": "image/webp"}.get(ext, "image/png")
+                                data_url = f"data:{mime};base64,{img_b64}"
+                                yield _sse_event("image_output", {"filename": f, "url": data_url, "sandbox_id": sandbox_id})
+                            except Exception as img_err:
+                                logger.error(f"Failed to read output image {f}: {img_err}")
+                                yield _sse_event("image_output", {"filename": f, "sandbox_id": sandbox_id})
 
                     # Detect tables
                     if result.stdout:

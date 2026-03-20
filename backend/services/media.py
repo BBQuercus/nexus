@@ -1,27 +1,29 @@
 import asyncio
+import base64
 
 
 async def get_output_file(sandbox, filename: str) -> bytes:
     """Read a file from /home/daytona/output/ and return its bytes."""
     path = f"/home/daytona/output/{filename}"
-    content = await asyncio.to_thread(sandbox.fs.read_file, path)
-    if isinstance(content, str):
-        return content.encode("utf-8")
-    return content
+    # Use base64 encoding via process.exec since fs API may not work as expected
+    result = await asyncio.to_thread(
+        sandbox.process.exec,
+        f"base64 -w0 '{path}'"
+    )
+    b64_data = getattr(result, "result", "") or ""
+    if not b64_data or getattr(result, "exit_code", 1) != 0:
+        raise FileNotFoundError(f"File not found: {path}")
+    return base64.b64decode(b64_data)
 
 
 async def list_output_files(sandbox) -> list[str]:
     """List files in the output directory."""
     try:
         result = await asyncio.to_thread(
-            sandbox.fs.list_files, "/home/daytona/output"
+            sandbox.process.exec,
+            "ls -1 /home/daytona/output/ 2>/dev/null"
         )
-        if isinstance(result, list):
-            return [
-                getattr(f, "name", str(f))
-                for f in result
-                if getattr(f, "name", str(f)) not in (".", "..")
-            ]
-        return []
+        output = getattr(result, "result", "") or ""
+        return [f for f in output.strip().split("\n") if f]
     except Exception:
         return []
