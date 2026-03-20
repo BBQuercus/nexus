@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import logging
 from dataclasses import dataclass
 from typing import Optional
@@ -6,23 +7,6 @@ from typing import Optional
 from backend.config import settings
 
 logger = logging.getLogger(__name__)
-
-# Template setup commands
-TEMPLATE_SETUP: dict[str, str] = {
-    "python-data-science": (
-        "pip install -q pandas numpy matplotlib seaborn plotly "
-        "scikit-learn scipy openpyxl tabulate"
-    ),
-    "python-general": (
-        "pip install -q requests beautifulsoup4 fastapi sqlalchemy pydantic"
-    ),
-    "nodejs": "npm init -y && npm install express typescript tsx axios zod",
-    "react-vite": (
-        "npm create vite@latest app -- --template react-ts "
-        "&& cd app && npm install && npm install tailwindcss"
-    ),
-    "blank": "",
-}
 
 
 @dataclass
@@ -36,7 +20,7 @@ _daytona_client = None
 
 
 def _get_daytona():
-    """Lazily initialize Daytona client. Returns None if not configured."""
+    """Lazily initialize Daytona client."""
     global _daytona_client
     if _daytona_client is not None:
         return _daytona_client
@@ -47,7 +31,7 @@ def _get_daytona():
     _daytona_client = Daytona(
         DaytonaConfig(
             api_key=settings.DAYTONA_API_KEY,
-            server_url=settings.DAYTONA_API_URL,
+            api_url=settings.DAYTONA_API_URL,
         )
     )
     return _daytona_client
@@ -56,43 +40,40 @@ def _get_daytona():
 async def create_sandbox(
     template: str = "python-data-science", labels: Optional[dict] = None
 ) -> object:
-    """Create a new Daytona sandbox with the given template."""
+    """Create a new Daytona sandbox."""
     daytona = _get_daytona()
     if daytona is None:
         raise RuntimeError("Daytona SDK not configured (missing API key or URL)")
 
     from daytona_sdk import CreateSandboxFromImageParams
 
-    language = "python"
+    # Use python:3.12-slim for Python templates, node for JS templates
     if template in ("nodejs", "react-vite"):
+        image = "node:22-slim"
         language = "javascript"
+    else:
+        image = "python:3.12-slim"
+        language = "python"
 
     params = CreateSandboxFromImageParams(
-        image="ubuntu:22.04",
+        image=image,
         language=language,
         labels=labels or {},
     )
 
-    logger.info(f"Creating sandbox with template={template}")
+    logger.info(f"Creating sandbox with template={template}, image={image}")
     sandbox = await asyncio.to_thread(daytona.create, params)
     logger.info(f"Sandbox created: {sandbox.id}")
 
     # Create output directory
-    await asyncio.to_thread(
-        sandbox.process.exec, "mkdir -p /home/daytona/output"
-    )
-
-    # Skip heavy template setup — let the LLM install what it needs on demand
-    # This avoids 60+ second pip install delays on first message
+    await asyncio.to_thread(sandbox.process.exec, "mkdir -p /home/daytona/output")
 
     return sandbox
 
 
 async def execute_code(sandbox, language: str, code: str) -> ExecutionResult:
-    """Execute code in a sandbox and return the result."""
+    """Execute code in a sandbox."""
     if language in ("python", "python3", "py"):
-        # Write code to sandbox file via process.exec to avoid escaping issues
-        import base64
         b64 = base64.b64encode(code.encode("utf-8")).decode("ascii")
         await asyncio.to_thread(
             sandbox.process.exec,
@@ -100,7 +81,6 @@ async def execute_code(sandbox, language: str, code: str) -> ExecutionResult:
         )
         cmd = "cd /home/daytona && python3 /tmp/_nexus_exec.py"
     elif language in ("javascript", "js", "node"):
-        import base64
         b64 = base64.b64encode(code.encode("utf-8")).decode("ascii")
         await asyncio.to_thread(
             sandbox.process.exec,
@@ -108,7 +88,6 @@ async def execute_code(sandbox, language: str, code: str) -> ExecutionResult:
         )
         cmd = "cd /home/daytona && node /tmp/_nexus_exec.js"
     elif language in ("typescript", "ts"):
-        import base64
         b64 = base64.b64encode(code.encode("utf-8")).decode("ascii")
         await asyncio.to_thread(
             sandbox.process.exec,
@@ -124,47 +103,46 @@ async def execute_code(sandbox, language: str, code: str) -> ExecutionResult:
 
     exit_code = getattr(result, "exit_code", 0)
     stdout = getattr(result, "result", "") or ""
-    stderr = ""
-    if hasattr(result, "stdout"):
-        stdout = result.stdout or ""
-    if hasattr(result, "stderr"):
-        stderr = result.stderr or ""
+    # Also check artifacts.stdout
+    if hasattr(result, "artifacts") and result.artifacts:
+        artifacts_stdout = getattr(result.artifacts, "stdout", None)
+        if artifacts_stdout and not stdout:
+            stdout = artifacts_stdout
 
-    return ExecutionResult(
-        stdout=stdout,
-        stderr=stderr,
-        exit_code=exit_code,
-    )
+    return ExecutionResult(stdout=stdout, stderr="", exit_code=exit_code)
 
 
 async def read_file(sandbox, path: str) -> str:
     """Read file content from sandbox."""
-    content = await asyncio.to_thread(sandbox.fs.download_file, path)
-    if isinstance(content, bytes):
-        return content.decode("utf-8", errors="replace")
-    return str(content)
+    result = await asyncio.to_thread(sandbox.process.exec, f"cat '{path}'")
+    return getattr(result, "result", "") or ""
 
 
 async def write_file(sandbox, path: str, content: str) -> None:
     """Write file content to sandbox."""
-    await asyncio.to_thread(sandbox.fs.upload_file, path, content.encode("utf-8"))
+    b64 = base64.b64encode(content.encode("utf-8")).decode("ascii")
+    await asyncio.to_thread(
+        sandbox.process.exec,
+        f"echo '{b64}' | base64 -d > '{path}'"
+    )
 
 
 async def list_files(sandbox, path: str) -> list[str]:
     """List directory contents in sandbox."""
-    result = await asyncio.to_thread(sandbox.fs.list_files, path)
-    if isinstance(result, list):
-        return [
-            getattr(f, "name", str(f)) for f in result
-        ]
-    return []
+    result = await asyncio.to_thread(sandbox.process.exec, f"ls -1 '{path}' 2>/dev/null")
+    output = getattr(result, "result", "") or ""
+    return [f for f in output.strip().split("\n") if f]
 
 
 async def upload_file(sandbox, local_path: str, sandbox_path: str) -> None:
     """Upload a file to the sandbox."""
     with open(local_path, "rb") as f:
         data = f.read()
-    await asyncio.to_thread(sandbox.fs.upload_file, sandbox_path, data)
+    b64 = base64.b64encode(data).decode("ascii")
+    await asyncio.to_thread(
+        sandbox.process.exec,
+        f"echo '{b64}' | base64 -d > '{sandbox_path}'"
+    )
 
 
 async def get_sandbox(sandbox_id: str):
@@ -176,7 +154,6 @@ async def get_sandbox(sandbox_id: str):
 
 
 async def stop_sandbox(sandbox) -> None:
-    """Stop a sandbox."""
     daytona = _get_daytona()
     if daytona is None:
         raise RuntimeError("Daytona SDK not configured")
@@ -184,7 +161,6 @@ async def stop_sandbox(sandbox) -> None:
 
 
 async def start_sandbox(sandbox) -> None:
-    """Start a stopped sandbox."""
     daytona = _get_daytona()
     if daytona is None:
         raise RuntimeError("Daytona SDK not configured")
@@ -192,7 +168,6 @@ async def start_sandbox(sandbox) -> None:
 
 
 async def delete_sandbox(sandbox) -> None:
-    """Delete a sandbox."""
     daytona = _get_daytona()
     if daytona is None:
         raise RuntimeError("Daytona SDK not configured")
@@ -200,7 +175,6 @@ async def delete_sandbox(sandbox) -> None:
 
 
 async def get_preview_url(sandbox, port: int) -> str:
-    """Get forwarded port URL for a sandbox."""
     url = await asyncio.to_thread(sandbox.get_preview_url, port)
     return str(url)
 
@@ -209,7 +183,6 @@ async def check_output_files(sandbox, known_files: set[str]) -> list[str]:
     """Check /home/daytona/output/ for new files."""
     try:
         files = await list_files(sandbox, "/home/daytona/output")
-        new_files = [f for f in files if f not in known_files and f not in (".", "..")]
-        return new_files
+        return [f for f in files if f not in known_files]
     except Exception:
         return []
