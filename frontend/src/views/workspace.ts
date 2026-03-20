@@ -57,7 +57,6 @@ export async function renderWorkspaceView(container: HTMLElement): Promise<void>
     <!-- Top Bar -->
     <div class="top-bar" id="top-bar">
       <div class="top-bar__brand" id="brand">NEXUS<span class="top-bar__brand-dot">.</span></div>
-      <div class="top-bar__section" id="model-picker-slot"></div>
       <div class="top-bar__section">
         <div class="mode-toggle" id="mode-toggle">
           <button class="mode-toggle__btn active" data-mode="chat">Chat</button>
@@ -108,6 +107,7 @@ export async function renderWorkspaceView(container: HTMLElement): Promise<void>
         </div>
       </div>
       <div class="chat-input" id="chat-input">
+        <div class="chat-input__model-row" id="model-picker-slot"></div>
         <div class="chat-input__container" id="chat-input-container">
           <div class="chat-input__chips" id="file-chips"></div>
           <textarea class="chat-input__textarea" id="chat-textarea" placeholder="Message Nexus..." rows="1"></textarea>
@@ -741,11 +741,24 @@ function debounceRenderStreaming(el: HTMLElement): void {
 
 async function loadConversation(convId: string): Promise<void> {
   try {
-    const conv = await api.getConversation(convId);
-    // For now we assume messages are returned with the conversation
-    // or we fetch them separately. The API structure might vary.
+    const conv = await api.getConversation(convId) as unknown as Record<string, unknown>;
+    // Map backend messages to frontend Message type
+    const rawMessages = (conv.messages as Array<Record<string, unknown>>) || [];
+    const messages: Message[] = rawMessages.map((m) => ({
+      id: (m.id as string) || '',
+      conversationId: convId,
+      role: (m.role as 'user' | 'assistant' | 'system') || 'user',
+      content: (m.content as string) || '',
+      createdAt: (m.created_at as string) || (m.createdAt as string) || '',
+      reasoning: (m.reasoning as string) || undefined,
+    }));
+    setState({
+      messages,
+      sandboxId: (conv.sandbox_id as string) || null,
+      sandboxStatus: conv.sandbox_id ? 'running' : 'none',
+    });
     hideEmptyState();
-    renderMessages(getState().messages);
+    renderMessages(messages);
     updateSidebarActive(convId);
 
     // Load artifacts

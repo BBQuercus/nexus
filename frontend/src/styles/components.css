@@ -1251,6 +1251,33 @@
   padding: 0 var(--space-3xl) var(--space-xl);
 }
 
+.chat-input__model-row {
+  display: flex;
+  align-items: center;
+  padding-bottom: var(--space-xs);
+}
+
+.chat-input__model-row:empty {
+  display: none;
+}
+
+/* Override dropdown direction when model picker is inside chat input (opens upward) */
+.chat-input__model-row .model-picker__dropdown {
+  top: auto;
+  bottom: calc(100% + 4px);
+}
+
+.chat-input__model-row .model-picker__trigger {
+  background: transparent;
+  border-color: transparent;
+  padding: 4px 8px;
+  font-size: 0.7rem;
+}
+
+.chat-input__model-row .model-picker__trigger:hover {
+  border-color: var(--border);
+}
+
 .chat-input__container {
   position: relative;
   background: var(--surface-1);

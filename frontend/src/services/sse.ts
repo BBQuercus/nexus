@@ -104,6 +104,9 @@ export async function* streamSSE(response: Response): AsyncGenerator<SSEEvent> {
 
       buffer += decoder.decode(value, { stream: true });
 
+      // Normalize \r\n to \n (sse_starlette may use either)
+      buffer = buffer.replace(/\r\n/g, '\n');
+
       // Process complete SSE events (terminated by double newline)
       while (true) {
         const eventEnd = buffer.indexOf('\n\n');
@@ -113,16 +116,18 @@ export async function* streamSSE(response: Response): AsyncGenerator<SSEEvent> {
         buffer = buffer.slice(eventEnd + 2);
 
         let eventType = '';
-        let eventData = '';
+        const dataLines: string[] = [];
 
         for (const line of rawEvent.split('\n')) {
-          if (line.startsWith('event: ') || line.startsWith('event:')) {
+          if (line.startsWith('event:')) {
             eventType = line.slice(line.indexOf(':') + 1).trim();
-          } else if (line.startsWith('data: ') || line.startsWith('data:')) {
-            eventData += line.slice(line.indexOf(':') + 1).trim();
+          } else if (line.startsWith('data:')) {
+            dataLines.push(line.slice(line.indexOf(':') + 1).trimStart());
           }
+          // Skip comments (lines starting with ':') and empty lines
         }
 
+        const eventData = dataLines.join('\n');
         if (!eventData) continue;
 
         try {
