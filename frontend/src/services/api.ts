@@ -26,6 +26,13 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
     ...(options.headers as Record<string, string> || {}),
   };
 
+  // Add auth token from localStorage
+  const { getToken } = await import('../auth');
+  const token = getToken();
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
   // Add JSON content-type for non-FormData bodies
   if (options.body && !(options.body instanceof FormData)) {
     headers['Content-Type'] = 'application/json';
@@ -126,9 +133,13 @@ export async function sendMessage(
   attachments?: string[]
 ): Promise<Response> {
   const url = `${API_BASE}/api/conversations/${conversationId}/messages`;
+  const { getToken } = await import('../auth');
+  const token = getToken();
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
   const response = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     credentials: 'include',
     body: JSON.stringify({ content, attachments }),
   });

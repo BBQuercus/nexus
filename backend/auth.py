@@ -71,8 +71,13 @@ def create_session_token(user_id: str, email: str) -> str:
 
 
 async def get_current_user(request: Request) -> uuid.UUID:
-    """FastAPI dependency: extracts and validates JWT from session cookie."""
-    token = request.cookies.get("session")
+    """FastAPI dependency: extracts JWT from Authorization header or session cookie."""
+    token = None
+    auth_header = request.headers.get("authorization", "")
+    if auth_header.startswith("Bearer "):
+        token = auth_header[7:]
+    if not token:
+        token = request.cookies.get("session")
     if not token:
         raise HTTPException(status_code=401, detail="Not authenticated")
     try:
@@ -133,16 +138,10 @@ async def callback(code: str, db: AsyncSession = Depends(get_db)):
 
     token = create_session_token(str(user.id), user.email)
     frontend_url = _get_frontend_url()
-    is_production = "localhost" not in frontend_url
-    response = RedirectResponse(url=frontend_url)
-    response.set_cookie(
-        key="session",
-        value=token,
-        httponly=True,
-        secure=is_production,
-        samesite="none" if is_production else "lax",
-        max_age=settings.JWT_VALIDITY_DAYS * 86400,
-    )
+    # Pass token via URL fragment — the frontend stores it in localStorage
+    # and sends it as Authorization header. Avoids cross-origin cookie issues.
+    redirect_url = f"{frontend_url}#/auth/callback?token={token}"
+    response = RedirectResponse(url=redirect_url)
     return response
 
 
