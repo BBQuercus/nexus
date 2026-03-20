@@ -78,7 +78,8 @@ class Conversation(Base):
 
     user: Mapped["User"] = relationship(back_populates="conversations")
     messages: Mapped[list["Message"]] = relationship(
-        back_populates="conversation", cascade="all, delete-orphan"
+        back_populates="conversation", cascade="all, delete-orphan",
+        foreign_keys="[Message.conversation_id]",
     )
     artifacts: Mapped[list["Artifact"]] = relationship(
         back_populates="conversation", cascade="all, delete-orphan"
@@ -114,7 +115,9 @@ class Message(Base):
         DateTime(timezone=True), server_default=func.now()
     )
 
-    conversation: Mapped["Conversation"] = relationship(back_populates="messages")
+    conversation: Mapped["Conversation"] = relationship(
+        back_populates="messages", foreign_keys=[conversation_id]
+    )
     artifacts: Mapped[list["Artifact"]] = relationship(back_populates="message")
 
 
