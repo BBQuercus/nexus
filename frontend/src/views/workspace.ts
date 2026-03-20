@@ -170,6 +170,8 @@ export async function renderWorkspaceView(container: HTMLElement): Promise<void>
   subscribe(
     (s) => s.activeConversationId,
     async (id) => {
+      // Skip loading during streaming — handleSend manages the UI directly
+      if (getState().isStreaming) return;
       if (id) {
         await loadConversation(id);
       } else {
@@ -472,20 +474,23 @@ async function handleSend(): Promise<void> {
   const content = textarea?.value.trim();
   if (!content && pendingFiles.length === 0) return;
 
+  // Mark streaming early to prevent subscribe from interfering
+  setState({ isStreaming: true });
+
   // Ensure we have a conversation
   let convId = state.activeConversationId;
   if (!convId) {
     try {
       const conv = await api.createConversation({
-        title: content.slice(0, 50),
         model: state.activeModel,
-        mode: state.activeMode,
-      });
+        agent_mode: state.activeMode,
+      } as any);
       convId = conv.id;
-      setState({ activeConversationId: convId });
-      await loadConversations();
+      setState({ activeConversationId: convId, isStreaming: true });
+      loadConversations(); // Don't await — just refresh sidebar in background
     } catch (e) {
       console.error('Failed to create conversation:', e);
+      setState({ isStreaming: false });
       return;
     }
   }
@@ -528,7 +533,6 @@ async function handleSend(): Promise<void> {
   scrollToBottom();
 
   // Send and stream
-  setState({ isStreaming: true });
   streamingContent = '';
   let reasoningContent = '';
   let currentToolStart: ToolStartEvent | null = null;
