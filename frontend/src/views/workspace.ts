@@ -516,6 +516,7 @@ async function handleSend(): Promise<void> {
 
   // Hide empty state, show messages
   hideEmptyState();
+  console.log('[nexus] messagesContainer visible:', messagesContainer?.style.display, 'parent:', messagesContainer?.parentElement?.id);
 
   // Add user message to UI
   const userMsg: Message = {
@@ -539,13 +540,19 @@ async function handleSend(): Promise<void> {
   let currentToolOutputs: string[] = [];
 
   try {
+    console.log('[nexus] sending message to', convId);
     const response = await api.sendMessage(convId, content, attachmentIds);
+    console.log('[nexus] got response, status:', response.status, 'body:', !!response.body);
 
+    let eventCount = 0;
     for await (const event of streamSSE(response)) {
+      eventCount++;
+      console.log('[nexus] SSE event:', event.type, event);
       handleSSEEvent(event, streamingEl!);
     }
+    console.log('[nexus] stream ended, total events:', eventCount);
   } catch (e) {
-    console.error('Stream error:', e);
+    console.error('[nexus] Stream error:', e);
     if (streamingEl) {
       appendToStreamingMessage(
         streamingEl,
@@ -560,6 +567,10 @@ async function handleSend(): Promise<void> {
     }
     streamingEl = null;
     streamingContent = '';
+    // Reload conversation to show persisted messages
+    if (convId) {
+      loadConversations();
+    }
   }
 }
 
