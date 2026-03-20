@@ -140,7 +140,7 @@ async def callback(code: str, db: AsyncSession = Depends(get_db)):
         value=token,
         httponly=True,
         secure=is_production,
-        samesite="lax",
+        samesite="none" if is_production else "lax",
         max_age=settings.JWT_VALIDITY_DAYS * 86400,
     )
     return response

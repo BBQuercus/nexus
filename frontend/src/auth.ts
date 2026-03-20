@@ -19,7 +19,8 @@ export async function checkAuth(): Promise<User | null> {
 }
 
 export function login(): void {
-  window.location.href = '/auth/login';
+  const base = import.meta.env.VITE_API_BASE || '';
+  window.location.href = `${base}/auth/login`;
 }
 
 export async function logout(): Promise<void> {
