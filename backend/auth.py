@@ -1,8 +1,9 @@
+import logging
+import os
 import uuid
 from datetime import datetime, timedelta, timezone
 
 import jwt
-import workos
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,17 +12,39 @@ from backend.config import settings
 from backend.db import get_db
 from backend.models import User
 
-workos_client = workos.WorkOSClient(
-    api_key=settings.WORKOS_API_KEY,
-    client_id=settings.WORKOS_CLIENT_ID,
-)
+logger = logging.getLogger(__name__)
+
+_workos_client = None
+
+
+def _get_workos_client():
+    global _workos_client
+    if _workos_client is None:
+        if not settings.WORKOS_API_KEY or not settings.WORKOS_CLIENT_ID:
+            raise HTTPException(
+                status_code=503, detail="WorkOS not configured"
+            )
+        import workos
+
+        _workos_client = workos.WorkOSClient(
+            api_key=settings.WORKOS_API_KEY,
+            client_id=settings.WORKOS_CLIENT_ID,
+        )
+    return _workos_client
+
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
+def _get_frontend_url() -> str:
+    """Get the frontend URL for redirects."""
+    return os.environ.get("FRONTEND_URL", "http://localhost:5173")
+
+
 def get_auth_url() -> str:
     """Returns WorkOS authorization URL."""
-    return workos_client.user_management.get_authorization_url(
+    client = _get_workos_client()
+    return client.user_management.get_authorization_url(
         redirect_uri=settings.WORKOS_REDIRECT_URI,
         provider="authkit",
     )
@@ -29,7 +52,8 @@ def get_auth_url() -> str:
 
 def exchange_code(code: str):
     """Exchanges auth code for user profile via WorkOS."""
-    return workos_client.user_management.authenticate_with_code(code=code)
+    client = _get_workos_client()
+    return client.user_management.authenticate_with_code(code=code)
 
 
 def create_session_token(user_id: str, email: str) -> str:
@@ -70,9 +94,9 @@ async def get_current_user(request: Request) -> uuid.UUID:
 @router.get("/login")
 async def login():
     """Redirect to WorkOS login."""
-    url = get_auth_url()
     from fastapi.responses import RedirectResponse
 
+    url = get_auth_url()
     return RedirectResponse(url=url)
 
 
@@ -108,12 +132,14 @@ async def callback(code: str, db: AsyncSession = Depends(get_db)):
     await db.commit()
 
     token = create_session_token(str(user.id), user.email)
-    response = RedirectResponse(url="http://localhost:5173")
+    frontend_url = _get_frontend_url()
+    is_production = "localhost" not in frontend_url
+    response = RedirectResponse(url=frontend_url)
     response.set_cookie(
         key="session",
         value=token,
         httponly=True,
-        secure=False,
+        secure=is_production,
         samesite="lax",
         max_age=settings.JWT_VALIDITY_DAYS * 86400,
     )
@@ -121,7 +147,7 @@ async def callback(code: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/logout")
-async def logout(response: Response):
+async def logout_endpoint(response: Response):
     """Clear session cookie."""
     response.delete_cookie("session")
     return {"ok": True}

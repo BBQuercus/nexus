@@ -4,7 +4,9 @@
 
 import type { Conversation, Message, Artifact, AgentPersona, User, FileNode } from '../state';
 
-const API_BASE = '';
+// In production, API_BASE points to the backend service directly.
+// In dev, Vite proxies /api to localhost:8000 so we use ''.
+const API_BASE = import.meta.env.VITE_API_BASE || '';
 
 export class ApiError extends Error {
   status: number;
