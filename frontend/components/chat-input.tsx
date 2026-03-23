@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useStore } from '@/lib/store';
+import type { StreamingState } from '@/lib/store';
 import * as api from '@/lib/api';
 import { streamSSE } from '@/lib/sse';
 import type { Message, ToolCall } from '@/lib/types';
@@ -152,7 +153,7 @@ export default function ChatInput() {
     let finalCost: Message['cost'] = undefined;
 
     // Helper to update a specific branch in multi-streaming state
-    const updateBranch = (bi: number, updater: (branch: typeof useStore.getState().streaming) => Partial<typeof useStore.getState().streaming>) => {
+    const updateBranch = (bi: number, updater: (branch: StreamingState) => Partial<StreamingState>) => {
       const ms = useStore.getState().multiStreaming;
       if (!ms) return;
       const branches = [...ms.branches];
