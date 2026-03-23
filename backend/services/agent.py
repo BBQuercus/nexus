@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import time
@@ -459,4 +460,79 @@ async def run_agent_loop(
                 select(Artifact).where(Artifact.message_id == assistant_msg_obj.id)
             )).scalars().all()
         ] if artifacts_data else [],
+    })
+
+
+async def run_multi_agent_loop(
+    conversation_id: uuid.UUID,
+    user_message: str,
+    model: str,
+    mode: str,
+    persona: Optional[object],
+    sandbox_id: Optional[str],
+    leaf_message_id: uuid.UUID,
+    num_responses: int,
+) -> AsyncGenerator[dict, None]:
+    """Run N agent loops in parallel, yielding multiplexed SSE events tagged with branch_index."""
+    from backend.db import async_session
+
+    queue: asyncio.Queue = asyncio.Queue()
+    message_ids: list[Optional[str]] = [None] * num_responses
+
+    async def run_branch(branch_idx: int):
+        try:
+            async with async_session() as branch_db:
+                async for event in run_agent_loop(
+                    conversation_id=conversation_id,
+                    user_message=user_message,
+                    model=model,
+                    mode=mode,
+                    persona=persona,
+                    sandbox_id=sandbox_id,
+                    db=branch_db,
+                    leaf_message_id=leaf_message_id,
+                ):
+                    # Tag the event with branch_index
+                    tagged = dict(event)
+                    if "data" in tagged:
+                        try:
+                            data = json.loads(tagged["data"])
+                            data["branch_index"] = branch_idx
+                            tagged["data"] = json.dumps(data)
+                        except (json.JSONDecodeError, TypeError):
+                            pass
+                    await queue.put(tagged)
+
+                    # Capture message_id from done event
+                    if tagged.get("event") == "done":
+                        try:
+                            data = json.loads(event.get("data", "{}"))
+                            message_ids[branch_idx] = data.get("message_id")
+                        except (json.JSONDecodeError, TypeError):
+                            pass
+        except Exception as e:
+            logger.error(f"Branch {branch_idx} error: {e}")
+            await queue.put(_sse_event("error", {"message": str(e), "branch_index": branch_idx}))
+        finally:
+            await queue.put(("BRANCH_DONE", branch_idx))
+
+    tasks = [asyncio.create_task(run_branch(i)) for i in range(num_responses)]
+
+    done_count = 0
+    while done_count < num_responses:
+        item = await queue.get()
+        if isinstance(item, tuple) and item[0] == "BRANCH_DONE":
+            done_count += 1
+            continue
+        yield item
+
+    # Wait for all tasks to finish cleanly
+    await asyncio.gather(*tasks, return_exceptions=True)
+
+    # Emit all_done with collected message IDs
+    first_msg_id = next((mid for mid in message_ids if mid), None)
+    yield _sse_event("all_done", {
+        "message_ids": [mid for mid in message_ids if mid],
+        "active_leaf_id": first_msg_id,
+        "branch_count": num_responses,
     })

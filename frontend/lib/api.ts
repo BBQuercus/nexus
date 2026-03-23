@@ -140,6 +140,7 @@ export async function sendMessage(
   model?: string,
   mode?: string,
   parentId?: string,
+  numResponses?: number,
 ): Promise<Response> {
   const token = getToken();
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -148,7 +149,11 @@ export async function sendMessage(
     method: 'POST',
     headers,
     credentials: 'include',
-    body: JSON.stringify({ content, attachments, model, mode, parent_id: parentId }),
+    body: JSON.stringify({
+      content, attachments, model, mode,
+      parent_id: parentId,
+      ...(numResponses && numResponses > 1 ? { num_responses: numResponses } : {}),
+    }),
   });
   if (!response.ok) {
     let errorBody: unknown;

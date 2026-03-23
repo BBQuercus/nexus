@@ -2,7 +2,8 @@
 
 import { useRef, useEffect } from 'react';
 import { useStore } from '@/lib/store';
-import { Zap, Terminal, Play, Download, Check, ChevronDown } from 'lucide-react';
+import type { StreamingState } from '@/lib/store';
+import { Zap, Terminal, Play, Download, Check, ChevronDown, Loader2 } from 'lucide-react';
 import type { ToolCall } from '@/lib/types';
 
 function StreamingExecBlock({ tool }: { tool: ToolCall }) {
@@ -60,77 +61,113 @@ function StreamingImage({ filename, url }: { filename: string; url: string }) {
   );
 }
 
+function BranchContent({ state, showCursor }: { state: StreamingState; showCursor: boolean }) {
+  const hasContent = state.content || state.reasoning || state.toolCalls.length > 0 || state.images.length > 0;
+
+  if (!hasContent) {
+    return (
+      <div className="flex items-center gap-3 py-3">
+        <div className="w-7 h-7 rounded-lg flex items-center justify-center border border-accent/20 bg-accent/5">
+          <Zap size={13} className="text-accent animate-pulse" />
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] font-mono text-accent tracking-widest uppercase">Thinking</span>
+          <div className="flex gap-0.5">
+            <span className="w-1 h-1 rounded-full bg-accent animate-bounce" style={{ animationDelay: '0ms' }} />
+            <span className="w-1 h-1 rounded-full bg-accent animate-bounce" style={{ animationDelay: '150ms' }} />
+            <span className="w-1 h-1 rounded-full bg-accent animate-bounce" style={{ animationDelay: '300ms' }} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {state.reasoning && (
+        <details open className="mb-2">
+          <summary className="flex items-center gap-1.5 cursor-pointer text-[11px] text-text-tertiary py-1 font-mono tracking-wide">
+            <ChevronDown size={10} />
+            reasoning...
+          </summary>
+          <div className="mt-1 pl-3 border-l-2 border-accent/20 text-xs text-text-tertiary whitespace-pre-wrap leading-relaxed">
+            {state.reasoning}
+          </div>
+        </details>
+      )}
+      {state.toolCalls.map((tool) => (
+        <StreamingExecBlock key={tool.id} tool={tool} />
+      ))}
+      {state.images.map((img, i) => (
+        <StreamingImage key={i} filename={img.filename} url={img.url} />
+      ))}
+      {state.content && (
+        <div className="text-sm text-text-primary whitespace-pre-wrap break-words leading-relaxed">
+          {state.content}
+          {showCursor && <span className="inline-block w-0.5 h-4 bg-accent ml-0.5 align-text-bottom animate-pulse" />}
+        </div>
+      )}
+    </>
+  );
+}
+
 export default function StreamingBubble() {
-  const content = useStore((s) => s.streaming.content);
-  const reasoning = useStore((s) => s.streaming.reasoning);
-  const toolCalls = useStore((s) => s.streaming.toolCalls);
-  const images = useStore((s) => s.streaming.images);
+  const singleStream = useStore((s) => s.streaming);
   const isStreaming = useStore((s) => s.isStreaming);
+  const multi = useStore((s) => s.multiStreaming);
+  const setActiveBranchView = useStore((s) => s.setActiveBranchView);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  const activeState = multi
+    ? multi.branches[multi.activeBranchIndex] || singleStream
+    : singleStream;
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  }, [content, toolCalls, images]);
+  }, [activeState.content, activeState.toolCalls, activeState.images]);
 
   if (!isStreaming) return null;
 
-  const hasContent = content || reasoning || toolCalls.length > 0 || images.length > 0;
+  const isMulti = multi !== null && multi.branchCount > 1;
 
   return (
     <div className="flex justify-start animate-fade-in-up">
       <div className="max-w-[85%] w-full">
-        {/* Waiting state */}
-        {!hasContent && (
-          <div className="flex items-center gap-3 py-3">
-            <div className="w-7 h-7 rounded-lg flex items-center justify-center border border-accent/20 bg-accent/5">
-              <Zap size={13} className="text-accent animate-pulse" />
-            </div>
-            <div className="flex-1">
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] font-mono text-accent tracking-widest uppercase">Thinking</span>
-                <div className="flex gap-0.5">
-                  <span className="w-1 h-1 rounded-full bg-accent animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <span className="w-1 h-1 rounded-full bg-accent animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <span className="w-1 h-1 rounded-full bg-accent animate-bounce" style={{ animationDelay: '300ms' }} />
-                </div>
-              </div>
-            </div>
+        {/* Multi-response branch tab bar */}
+        {isMulti && (
+          <div className="flex items-center gap-1 mb-3 p-1 bg-surface-1 border border-border-default rounded-lg">
+            {multi.branches.map((_, i) => {
+              const isActive = i === multi.activeBranchIndex;
+              const isDone = multi.completedBranches.includes(i);
+              return (
+                <button
+                  key={i}
+                  onClick={() => setActiveBranchView(i)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-md transition-all cursor-pointer ${
+                    isActive
+                      ? 'bg-accent/10 text-accent border border-accent/20'
+                      : 'text-text-tertiary hover:text-text-secondary hover:bg-surface-2 border border-transparent'
+                  }`}
+                >
+                  {isDone ? (
+                    <Check size={10} className="text-accent" />
+                  ) : (
+                    <Loader2 size={10} className="animate-spin" />
+                  )}
+                  <span>Response {i + 1}</span>
+                </button>
+              );
+            })}
           </div>
         )}
 
-        {/* Reasoning */}
-        {reasoning && (
-          <details open className="mb-2">
-            <summary className="flex items-center gap-1.5 cursor-pointer text-[11px] text-text-tertiary py-1 font-mono tracking-wide">
-              <ChevronDown size={10} />
-              reasoning...
-            </summary>
-            <div className="mt-1 pl-3 border-l-2 border-accent/20 text-xs text-text-tertiary whitespace-pre-wrap leading-relaxed">
-              {reasoning}
-            </div>
-          </details>
-        )}
-
-        {/* Tool calls */}
-        {toolCalls.map((tool) => (
-          <StreamingExecBlock key={tool.id} tool={tool} />
-        ))}
-
-        {/* Inline images */}
-        {images.map((img, i) => (
-          <StreamingImage key={i} filename={img.filename} url={img.url} />
-        ))}
-
-        {/* Streaming text */}
-        {content && (
-          <div className="text-sm text-text-primary whitespace-pre-wrap break-words leading-relaxed">
-            {content}
-            <span className="inline-block w-0.5 h-4 bg-accent ml-0.5 align-text-bottom animate-pulse" />
-          </div>
-        )}
+        <BranchContent
+          state={activeState}
+          showCursor={isMulti ? !multi.completedBranches.includes(multi.activeBranchIndex) : true}
+        />
 
         {/* Accent shimmer bar */}
-        {hasContent && (
+        {(activeState.content || activeState.toolCalls.length > 0) && (
           <div className="h-px mt-3 rounded-full overflow-hidden">
             <div className="h-full w-full shimmer" style={{ background: 'linear-gradient(90deg, transparent, var(--color-accent), transparent)', backgroundSize: '200% 100%' }} />
           </div>

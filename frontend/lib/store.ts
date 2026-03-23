@@ -13,6 +13,13 @@ export interface StreamingState {
   images: StreamingImage[];
 }
 
+export interface MultiStreamingState {
+  branches: StreamingState[];
+  activeBranchIndex: number;
+  branchCount: number;
+  completedBranches: number[];
+}
+
 export interface AppState {
   user: User | null;
   conversations: Conversation[];
@@ -27,6 +34,7 @@ export interface AppState {
   activeLeafId: string | null;
   conversationTree: ConversationTree | null;
   branchingFromId: string | null;
+  multiStreaming: MultiStreamingState | null;
   commandPaletteOpen: boolean;
   isStreaming: boolean;
   streaming: StreamingState;
@@ -50,6 +58,8 @@ export interface AppActions {
   setActiveLeafId: (id: string | null) => void;
   setConversationTree: (tree: ConversationTree | null) => void;
   setBranchingFromId: (id: string | null) => void;
+  setMultiStreaming: (state: MultiStreamingState | null) => void;
+  setActiveBranchView: (index: number) => void;
   setCommandPaletteOpen: (open: boolean) => void;
   setIsStreaming: (streaming: boolean) => void;
   setStreaming: (streaming: Partial<StreamingState>) => void;
@@ -94,6 +104,7 @@ const initialState: AppState = {
   activeLeafId: null,
   conversationTree: null,
   branchingFromId: null,
+  multiStreaming: null,
   commandPaletteOpen: false,
   isStreaming: false,
   streaming: { ...emptyStreaming },
@@ -128,6 +139,10 @@ export const useStore = create<AppState & AppActions>((set) => ({
   setActiveLeafId: (id) => set({ activeLeafId: id }),
   setConversationTree: (tree) => set({ conversationTree: tree }),
   setBranchingFromId: (id) => set({ branchingFromId: id }),
+  setMultiStreaming: (state) => set({ multiStreaming: state }),
+  setActiveBranchView: (index) => set((state) => ({
+    multiStreaming: state.multiStreaming ? { ...state.multiStreaming, activeBranchIndex: index } : null,
+  })),
   setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
   setIsStreaming: (streaming) => set({ isStreaming: streaming }),
   setStreaming: (partial) => set((state) => ({ streaming: { ...state.streaming, ...partial } })),

@@ -12,7 +12,7 @@ from sse_starlette.sse import EventSourceResponse
 from backend.auth import get_current_user
 from backend.db import get_db
 from backend.models import Artifact, Conversation, AgentPersona, Message
-from backend.services.agent import run_agent_loop
+from backend.services.agent import run_agent_loop, run_multi_agent_loop
 from backend.services import sandbox as sandbox_service
 from backend.services import llm as llm_service
 
@@ -42,6 +42,7 @@ class SendMessageRequest(BaseModel):
     model: Optional[str] = None
     mode: Optional[str] = None
     parent_id: Optional[uuid.UUID] = None
+    num_responses: Optional[int] = 1  # 1-5 parallel responses
 
 
 class SwitchBranchRequest(BaseModel):
@@ -327,29 +328,53 @@ async def send_message(
         )
         persona = p_result.scalar_one_or_none()
 
+    num_responses = max(1, min(5, body.num_responses or 1))
+
     async def event_generator():
         assistant_msg_id = None
-        try:
-            async for event in run_agent_loop(
+
+        if num_responses > 1:
+            # Multi-response: run N parallel agent loops
+            async for event in run_multi_agent_loop(
                 conversation_id=conversation_id,
                 user_message=body.content,
                 model=model,
                 mode=mode,
                 persona=persona,
                 sandbox_id=conv.sandbox_id,
-                db=db,
                 leaf_message_id=user_msg.id,
+                num_responses=num_responses,
             ):
-                # Capture the assistant message id from the done event
-                if event.get("event") == "done":
+                # Capture active_leaf_id from all_done event
+                if event.get("event") == "all_done":
                     try:
                         data = json.loads(event.get("data", "{}"))
-                        assistant_msg_id = data.get("message_id")
+                        assistant_msg_id = data.get("active_leaf_id")
                     except (json.JSONDecodeError, AttributeError):
                         pass
                 yield event
-        except Exception as e:
-            yield {"event": "error", "data": json.dumps({"message": str(e)})}
+        else:
+            # Single response: existing path
+            try:
+                async for event in run_agent_loop(
+                    conversation_id=conversation_id,
+                    user_message=body.content,
+                    model=model,
+                    mode=mode,
+                    persona=persona,
+                    sandbox_id=conv.sandbox_id,
+                    db=db,
+                    leaf_message_id=user_msg.id,
+                ):
+                    if event.get("event") == "done":
+                        try:
+                            data = json.loads(event.get("data", "{}"))
+                            assistant_msg_id = data.get("message_id")
+                        except (json.JSONDecodeError, AttributeError):
+                            pass
+                    yield event
+            except Exception as e:
+                yield {"event": "error", "data": json.dumps({"message": str(e)})}
 
         # Update active_leaf_id to point to the new assistant message
         if assistant_msg_id:
@@ -368,7 +393,6 @@ async def send_message(
             )).scalar() or 0
             if msg_count <= 2 and (not conv.title or conv.title == "New conversation"):
                 try:
-                    # Get the assistant response for context
                     last_msg = (await db.execute(
                         select(Message).where(
                             Message.conversation_id == conversation_id,
@@ -381,7 +405,6 @@ async def send_message(
                     await db.commit()
                     yield {"event": "title", "data": json.dumps({"title": title})}
                 except Exception as e:
-                    # Fallback to user message
                     conv.title = body.content[:50] + ("..." if len(body.content) > 50 else "")
                     await db.commit()
                     yield {"event": "title", "data": json.dumps({"title": conv.title})}

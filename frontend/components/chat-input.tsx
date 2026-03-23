@@ -8,9 +8,12 @@ import type { Message, ToolCall } from '@/lib/types';
 import { ArrowUp, Square, Paperclip, X } from 'lucide-react';
 import ModelPicker from './model-picker';
 
+const RESPONSE_COUNTS = [1, 3, 5] as const;
+
 export default function ChatInput() {
   const [content, setContent] = useState('');
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [numResponses, setNumResponses] = useState<number>(1);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -35,6 +38,7 @@ export default function ChatInput() {
   const setBranchingFromId = useStore((s) => s.setBranchingFromId);
   const setActiveLeafId = useStore((s) => s.setActiveLeafId);
   const setConversationTree = useStore((s) => s.setConversationTree);
+  const setMultiStreaming = useStore((s) => s.setMultiStreaming);
 
   // Pick up pending prompt from empty state starters
   useEffect(() => {
@@ -128,25 +132,57 @@ export default function ChatInput() {
       setMessages([...messages, userMsg]);
     }
 
+    const isMulti = numResponses > 1;
+
+    // Initialize multi-streaming state if needed
+    if (isMulti) {
+      const emptyBranch = { content: '', reasoning: '', toolCalls: [] as ToolCall[], images: [] as { filename: string; url: string }[] };
+      setMultiStreaming({
+        branches: Array.from({ length: numResponses }, () => ({ ...emptyBranch, toolCalls: [], images: [] })),
+        activeBranchIndex: 0,
+        branchCount: numResponses,
+        completedBranches: [],
+      });
+    }
+
     // Stream into the dedicated streaming state (NOT into messages array)
     let finalContent = '';
     let finalReasoning = '';
     let finalToolCalls: ToolCall[] = [];
     let finalCost: Message['cost'] = undefined;
 
+    // Helper to update a specific branch in multi-streaming state
+    const updateBranch = (bi: number, updater: (branch: typeof useStore.getState().streaming) => Partial<typeof useStore.getState().streaming>) => {
+      const ms = useStore.getState().multiStreaming;
+      if (!ms) return;
+      const branches = [...ms.branches];
+      branches[bi] = { ...branches[bi], ...updater(branches[bi]) };
+      setMultiStreaming({ ...ms, branches });
+    };
+
     try {
-      const response = await api.sendMessage(convId, text, attachmentIds, activeModel, 'code', parentId);
+      const response = await api.sendMessage(convId, text, attachmentIds, activeModel, 'code', parentId, numResponses);
       for await (const event of streamSSE(response)) {
         const e = event as unknown as Record<string, unknown>;
+        const bi = (e.branch_index as number) ?? 0;
+
         switch (event.type) {
           case 'token':
-            appendStreamingContent((e.content as string) || '');
-            finalContent = useStore.getState().streaming.content;
+            if (isMulti) {
+              updateBranch(bi, (b) => ({ content: b.content + ((e.content as string) || '') }));
+            } else {
+              appendStreamingContent((e.content as string) || '');
+              finalContent = useStore.getState().streaming.content;
+            }
             break;
 
           case 'reasoning':
-            setStreaming({ reasoning: (e.content as string) || '' });
-            finalReasoning = (e.content as string) || '';
+            if (isMulti) {
+              updateBranch(bi, () => ({ reasoning: (e.content as string) || '' }));
+            } else {
+              setStreaming({ reasoning: (e.content as string) || '' });
+              finalReasoning = (e.content as string) || '';
+            }
             break;
 
           case 'tool_start': {
@@ -157,38 +193,56 @@ export default function ChatInput() {
               language: args?.language || (e.tool as string) || '',
               code: args?.code || '', isRunning: true,
             };
-            finalToolCalls = [...useStore.getState().streaming.toolCalls, newTool];
-            setStreaming({ toolCalls: finalToolCalls });
+            if (isMulti) {
+              updateBranch(bi, (b) => ({ toolCalls: [...b.toolCalls, newTool] }));
+            } else {
+              finalToolCalls = [...useStore.getState().streaming.toolCalls, newTool];
+              setStreaming({ toolCalls: finalToolCalls });
+            }
             break;
           }
 
           case 'tool_output': {
             const toolId = (e.tool_call_id as string) || '';
             const output = (e.output as string) || '';
-            finalToolCalls = useStore.getState().streaming.toolCalls.map((t) =>
-              t.id === toolId ? { ...t, output: (t.output || '') + output } : t
-            );
-            setStreaming({ toolCalls: finalToolCalls });
+            if (isMulti) {
+              updateBranch(bi, (b) => ({
+                toolCalls: b.toolCalls.map((t) => t.id === toolId ? { ...t, output: (t.output || '') + output } : t),
+              }));
+            } else {
+              finalToolCalls = useStore.getState().streaming.toolCalls.map((t) =>
+                t.id === toolId ? { ...t, output: (t.output || '') + output } : t
+              );
+              setStreaming({ toolCalls: finalToolCalls });
+            }
             break;
           }
 
           case 'tool_end': {
             const toolId = (e.tool_call_id as string) || '';
-            finalToolCalls = useStore.getState().streaming.toolCalls.map((t) =>
-              t.id === toolId ? { ...t, isRunning: false, exitCode: (e as Record<string, unknown>).exit_code as number ?? 0 } : t
-            );
-            setStreaming({ toolCalls: finalToolCalls });
+            if (isMulti) {
+              updateBranch(bi, (b) => ({
+                toolCalls: b.toolCalls.map((t) => t.id === toolId ? { ...t, isRunning: false, exitCode: (e as Record<string, unknown>).exit_code as number ?? 0 } : t),
+              }));
+            } else {
+              finalToolCalls = useStore.getState().streaming.toolCalls.map((t) =>
+                t.id === toolId ? { ...t, isRunning: false, exitCode: (e as Record<string, unknown>).exit_code as number ?? 0 } : t
+              );
+              setStreaming({ toolCalls: finalToolCalls });
+            }
             break;
           }
 
           case 'image_output': {
             const url = (e.url as string) || '';
             const filename = (e.filename as string) || '';
-            console.log('[nexus] image_output event:', { filename, urlLen: url.length, hasUrl: !!url });
             if (url) {
-              const currentImages = useStore.getState().streaming.images;
-              setStreaming({ images: [...currentImages, { filename, url }] });
-              console.log('[nexus] Stored image, total now:', currentImages.length + 1);
+              if (isMulti) {
+                updateBranch(bi, (b) => ({ images: [...b.images, { filename, url }] }));
+              } else {
+                const currentImages = useStore.getState().streaming.images;
+                setStreaming({ images: [...currentImages, { filename, url }] });
+              }
             }
             break;
           }
@@ -205,75 +259,117 @@ export default function ChatInput() {
           }
 
           case 'done': {
-            finalCost = {
-              inputTokens: (e.input_tokens as number) || 0,
-              outputTokens: (e.output_tokens as number) || 0,
-              totalCost: 0, model: activeModel,
-              duration: (e.duration_ms as number) || 0,
-            };
-            // Pick up sandbox ID from the backend
-            const newSandboxId = (e.sandbox_id as string) || null;
-            if (newSandboxId) {
-              useStore.getState().setSandboxId(newSandboxId);
-              useStore.getState().setSandboxStatus('running');
-            }
-            // Update active leaf
-            const newLeafId = (e.active_leaf_id as string) || null;
-            if (newLeafId) {
-              setActiveLeafId(newLeafId);
+            if (isMulti) {
+              // Mark this branch as completed
+              const ms = useStore.getState().multiStreaming;
+              if (ms) {
+                setMultiStreaming({ ...ms, completedBranches: [...ms.completedBranches, bi] });
+              }
+              const newSandboxId = (e.sandbox_id as string) || null;
+              if (newSandboxId) {
+                useStore.getState().setSandboxId(newSandboxId);
+                useStore.getState().setSandboxStatus('running');
+              }
+            } else {
+              finalCost = {
+                inputTokens: (e.input_tokens as number) || 0,
+                outputTokens: (e.output_tokens as number) || 0,
+                totalCost: 0, model: activeModel,
+                duration: (e.duration_ms as number) || 0,
+              };
+              const newSandboxId = (e.sandbox_id as string) || null;
+              if (newSandboxId) {
+                useStore.getState().setSandboxId(newSandboxId);
+                useStore.getState().setSandboxStatus('running');
+              }
+              const newLeafId = (e.active_leaf_id as string) || null;
+              if (newLeafId) setActiveLeafId(newLeafId);
             }
             break;
           }
 
+          case 'all_done': {
+            // Multi-response complete — reload conversation
+            const newLeafId = (e.active_leaf_id as string) || null;
+            if (newLeafId) setActiveLeafId(newLeafId);
+            break;
+          }
+
           case 'error':
-            appendStreamingContent(`\n\n**Error:** ${(e.message as string) || 'Unknown error'}`);
-            finalContent = useStore.getState().streaming.content;
+            if (isMulti) {
+              updateBranch(bi, (b) => ({ content: b.content + `\n\n**Error:** ${(e.message as string) || 'Unknown error'}` }));
+            } else {
+              appendStreamingContent(`\n\n**Error:** ${(e.message as string) || 'Unknown error'}`);
+              finalContent = useStore.getState().streaming.content;
+            }
             break;
         }
       }
     } catch (err) {
       console.error('Stream error:', err);
-      finalContent = `Error: ${(err as Error).message}`;
+      if (!isMulti) finalContent = `Error: ${(err as Error).message}`;
     }
 
-    // Streaming done — read final state from store (local vars may be stale)
-    const finalState = useStore.getState().streaming;
-    const commitContent = finalState.content || finalContent;
-    const commitToolCalls = finalState.toolCalls.length > 0 ? finalState.toolCalls : (finalToolCalls.length > 0 ? finalToolCalls : undefined);
-    const commitReasoning = finalState.reasoning || finalReasoning || undefined;
-    const commitImages = finalState.images.length > 0 ? [...finalState.images] : undefined;
+    if (isMulti) {
+      // Multi-response done — reload full conversation from backend
+      setMultiStreaming(null);
+      resetStreaming();
+      setIsStreaming(false);
+      if (convId) {
+        try {
+          const conv = await api.getConversation(convId);
+          const rawMessages = (conv.messages as Array<Record<string, unknown>>) || [];
+          const mapped: Message[] = rawMessages.map((m) => ({
+            id: (m.id as string) || '',
+            conversationId: convId,
+            role: (m.role as 'user' | 'assistant' | 'system') || 'user',
+            content: (m.content as string) || '',
+            createdAt: (m.created_at as string) || '',
+            reasoning: (m.reasoning as string) || undefined,
+            toolCalls: (m.tool_calls as Message['toolCalls']) || undefined,
+            images: (m.images as Message['images']) || undefined,
+            feedback: (m.feedback as Message['feedback']) || undefined,
+            parentId: (m.parent_id as string) || undefined,
+            branchIndex: (m.branch_index as number) ?? undefined,
+          }));
+          setMessages(mapped);
+          const tree = await api.getConversationTree(convId);
+          setConversationTree(tree);
+        } catch {}
+        api.listConversations().then((r) => setConversations(r.conversations));
+      }
+    } else {
+      // Single response — commit locally
+      const finalState = useStore.getState().streaming;
+      const commitContent = finalState.content || finalContent;
+      const commitToolCalls = finalState.toolCalls.length > 0 ? finalState.toolCalls : (finalToolCalls.length > 0 ? finalToolCalls : undefined);
+      const commitReasoning = finalState.reasoning || finalReasoning || undefined;
+      const commitImages = finalState.images.length > 0 ? [...finalState.images] : undefined;
 
-    console.log('[nexus] Committing message:', {
-      contentLen: commitContent.length,
-      toolCalls: commitToolCalls?.length ?? 0,
-      images: commitImages?.length ?? 0,
-      reasoning: !!commitReasoning,
-    });
+      const assistantMsg: Message = {
+        id: `msg-${Date.now()}`,
+        conversationId: convId,
+        role: 'assistant',
+        content: commitContent,
+        createdAt: new Date().toISOString(),
+        reasoning: commitReasoning,
+        toolCalls: commitToolCalls,
+        cost: finalCost,
+        images: commitImages,
+      };
+      setMessages((prev: Message[]) => [...prev, assistantMsg]);
+      resetStreaming();
+      setIsStreaming(false);
 
-    const assistantMsg: Message = {
-      id: `msg-${Date.now()}`,
-      conversationId: convId,
-      role: 'assistant',
-      content: commitContent,
-      createdAt: new Date().toISOString(),
-      reasoning: commitReasoning,
-      toolCalls: commitToolCalls,
-      cost: finalCost,
-      images: commitImages,
-    };
-    setMessages((prev: Message[]) => [...prev, assistantMsg]);
-    resetStreaming();
-    setIsStreaming(false);
-
-    if (convId) {
-      api.listConversations().then((r) => setConversations(r.conversations));
-      // Refresh tree after message
-      api.getConversationTree(convId).then((tree) => setConversationTree(tree)).catch(() => {});
+      if (convId) {
+        api.listConversations().then((r) => setConversations(r.conversations));
+        api.getConversationTree(convId).then((tree) => setConversationTree(tree)).catch(() => {});
+      }
     }
   }, [content, pendingFiles, isStreaming, activeConversationId, activeModel, sandboxId, messages,
     setIsStreaming, setActiveConversationId, setMessages, setConversations, setPreviewUrl,
     setRightPanelTab, updateConversationTitle, appendStreamingContent, setStreaming, resetStreaming,
-    branchingFromId, setBranchingFromId, setActiveLeafId, setConversationTree]);
+    branchingFromId, setBranchingFromId, setActiveLeafId, setConversationTree, numResponses, setMultiStreaming]);
 
   // Handle regenerate events from message bubbles
   useEffect(() => {
@@ -446,8 +542,26 @@ export default function ChatInput() {
         </button>
       </div>
 
-      <div className="mt-1.5 px-1">
+      <div className="mt-1.5 px-1 flex items-center gap-3">
         <ModelPicker />
+        {/* Response count selector */}
+        {!isStreaming && (
+          <div className="flex items-center gap-1 ml-auto">
+            {RESPONSE_COUNTS.map((n) => (
+              <button
+                key={n}
+                onClick={() => setNumResponses(n)}
+                className={`px-2 py-0.5 text-[10px] font-mono rounded-md border cursor-pointer transition-all ${
+                  numResponses === n
+                    ? 'text-accent bg-accent/10 border-accent/30'
+                    : 'text-text-tertiary bg-surface-1 border-border-default hover:border-border-focus hover:text-text-secondary'
+                }`}
+              >
+                {n}x
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
