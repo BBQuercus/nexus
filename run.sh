@@ -29,7 +29,7 @@ uv run uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload &
 BACKEND_PID=$!
 
 # Start frontend
-echo "→ Starting Vite dev server (port 5173)..."
+echo "→ Starting Next.js dev server (port 5173)..."
 cd frontend && npm run dev &
 FRONTEND_PID=$!
 

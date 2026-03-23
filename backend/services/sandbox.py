@@ -53,6 +53,7 @@ async def create_sandbox(
             image="node:22-slim",
             language="javascript",
             labels=labels or {},
+            network_block_all=False,
         )
     else:
         # Python templates use the pre-built snapshot with data science packages
@@ -60,7 +61,23 @@ async def create_sandbox(
             snapshot="nexus-ds-v4",
             language="python",
             labels=labels or {},
+            network_block_all=False,
         )
+
+    # Auto-cleanup: delete stopped sandboxes before creating a new one
+    try:
+        result = await asyncio.to_thread(daytona.list)
+        items = list(getattr(result, 'items', result))
+        for s in items:
+            state = str(getattr(s, 'state', ''))
+            if 'STOPPED' in state:
+                try:
+                    await asyncio.to_thread(daytona.delete, s)
+                    logger.info(f"Auto-cleaned stopped sandbox: {s.id}")
+                except Exception:
+                    pass
+    except Exception as e:
+        logger.warning(f"Sandbox auto-cleanup failed: {e}")
 
     logger.info(f"Creating sandbox with template={template}")
     sandbox = await asyncio.to_thread(daytona.create, params)
@@ -100,7 +117,15 @@ async def execute_code(sandbox, language: str, code: str) -> ExecutionResult:
     else:
         cmd = code
 
-    result = await asyncio.to_thread(sandbox.process.exec, cmd)
+    try:
+        result = await asyncio.wait_for(
+            asyncio.to_thread(sandbox.process.exec, cmd),
+            timeout=120,  # 2 minute timeout
+        )
+    except asyncio.TimeoutError:
+        return ExecutionResult(
+            stdout="", stderr="Execution timed out after 120 seconds", exit_code=124
+        )
 
     exit_code = getattr(result, "exit_code", 0)
     stdout = getattr(result, "result", "") or ""

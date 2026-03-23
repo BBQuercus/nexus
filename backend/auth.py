@@ -138,9 +138,7 @@ async def callback(code: str, db: AsyncSession = Depends(get_db)):
 
     token = create_session_token(str(user.id), user.email)
     frontend_url = _get_frontend_url()
-    # Pass token via URL fragment — the frontend stores it in localStorage
-    # and sends it as Authorization header. Avoids cross-origin cookie issues.
-    redirect_url = f"{frontend_url}#/auth/callback?token={token}"
+    redirect_url = f"{frontend_url}/auth/callback?token={token}"
     response = RedirectResponse(url=redirect_url)
     return response
 

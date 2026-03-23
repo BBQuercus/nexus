@@ -4,7 +4,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import delete, func, select, update, text as sa_text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sse_starlette.sse import EventSourceResponse
@@ -14,6 +14,7 @@ from backend.db import get_db
 from backend.models import Artifact, Conversation, AgentPersona, Message
 from backend.services.agent import run_agent_loop
 from backend.services import sandbox as sandbox_service
+from backend.services import llm as llm_service
 
 router = APIRouter(prefix="/api/conversations", tags=["conversations"])
 
@@ -40,10 +41,59 @@ class SendMessageRequest(BaseModel):
     attachments: Optional[list] = None
     model: Optional[str] = None
     mode: Optional[str] = None
+    parent_id: Optional[uuid.UUID] = None
+
+
+class SwitchBranchRequest(BaseModel):
+    leaf_id: uuid.UUID
 
 
 class FeedbackRequest(BaseModel):
     feedback: str  # "thumbs_up" or "thumbs_down"
+
+
+# ----- Helpers -----
+
+async def get_active_path(db: AsyncSession, leaf_id: uuid.UUID) -> list[Message]:
+    """Walk parent_id chain from leaf to root, return messages in root-to-leaf order."""
+    result = await db.execute(
+        sa_text("""
+            WITH RECURSIVE path AS (
+                SELECT * FROM messages WHERE id = :leaf_id
+                UNION ALL
+                SELECT m.* FROM messages m JOIN path p ON m.id = p.parent_id
+            )
+            SELECT id FROM path
+        """),
+        {"leaf_id": str(leaf_id)},
+    )
+    path_ids = [row[0] for row in result.fetchall()]
+    if not path_ids:
+        return []
+    # Load full Message objects in chronological order
+    msg_result = await db.execute(
+        select(Message).where(Message.id.in_(path_ids)).order_by(Message.created_at)
+    )
+    return list(msg_result.scalars().all())
+
+
+def _serialize_message(m: Message) -> dict:
+    return {
+        "id": str(m.id),
+        "role": m.role,
+        "content": m.content,
+        "reasoning": m.reasoning,
+        "tool_calls": m.tool_calls,
+        "tool_result": m.tool_result,
+        "images": m.images,
+        "attachments": m.attachments,
+        "feedback": m.feedback,
+        "token_count": m.token_count,
+        "cost_usd": float(m.cost_usd) if m.cost_usd else None,
+        "parent_id": str(m.parent_id) if m.parent_id else None,
+        "branch_index": m.branch_index,
+        "created_at": m.created_at.isoformat() if m.created_at else None,
+    }
 
 
 # ----- Endpoints -----
@@ -126,12 +176,22 @@ async def get_conversation(
 ):
     result = await db.execute(
         select(Conversation)
-        .options(selectinload(Conversation.messages))
         .where(Conversation.id == conversation_id, Conversation.user_id == user_id)
     )
     conv = result.scalar_one_or_none()
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
+
+    # Return only active path messages (or all if no active_leaf_id set yet)
+    if conv.active_leaf_id:
+        path_messages = await get_active_path(db, conv.active_leaf_id)
+    else:
+        msg_result = await db.execute(
+            select(Message)
+            .where(Message.conversation_id == conversation_id)
+            .order_by(Message.created_at)
+        )
+        path_messages = list(msg_result.scalars().all())
 
     return {
         "id": str(conv.id),
@@ -141,25 +201,11 @@ async def get_conversation(
         "agent_persona_id": str(conv.agent_persona_id) if conv.agent_persona_id else None,
         "sandbox_id": conv.sandbox_id,
         "sandbox_template": conv.sandbox_template,
+        "active_leaf_id": str(conv.active_leaf_id) if conv.active_leaf_id else None,
         "forked_from_message_id": str(conv.forked_from_message_id) if conv.forked_from_message_id else None,
         "created_at": conv.created_at.isoformat() if conv.created_at else None,
         "updated_at": conv.updated_at.isoformat() if conv.updated_at else None,
-        "messages": [
-            {
-                "id": str(m.id),
-                "role": m.role,
-                "content": m.content,
-                "reasoning": m.reasoning,
-                "tool_calls": m.tool_calls,
-                "tool_result": m.tool_result,
-                "attachments": m.attachments,
-                "feedback": m.feedback,
-                "token_count": m.token_count,
-                "cost_usd": float(m.cost_usd) if m.cost_usd else None,
-                "created_at": m.created_at.isoformat() if m.created_at else None,
-            }
-            for m in sorted(conv.messages, key=lambda x: x.created_at)
-        ],
+        "messages": [_serialize_message(m) for m in path_messages],
     }
 
 
@@ -237,12 +283,27 @@ async def send_message(
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
 
+    # Determine parent_id for the new message
+    parent_id = body.parent_id
+    if parent_id is None:
+        parent_id = conv.active_leaf_id  # continue the active path
+
+    # Compute branch_index (count of existing children of same parent)
+    if parent_id:
+        sibling_count = (await db.execute(
+            select(func.count()).select_from(Message).where(Message.parent_id == parent_id)
+        )).scalar() or 0
+    else:
+        sibling_count = 0
+
     # Save user message
     user_msg = Message(
         conversation_id=conversation_id,
         role="user",
         content=body.content,
         attachments=body.attachments,
+        parent_id=parent_id,
+        branch_index=sibling_count,
     )
     db.add(user_msg)
     await db.flush()
@@ -267,6 +328,7 @@ async def send_message(
         persona = p_result.scalar_one_or_none()
 
     async def event_generator():
+        assistant_msg_id = None
         try:
             async for event in run_agent_loop(
                 conversation_id=conversation_id,
@@ -276,10 +338,55 @@ async def send_message(
                 persona=persona,
                 sandbox_id=conv.sandbox_id,
                 db=db,
+                leaf_message_id=user_msg.id,
             ):
+                # Capture the assistant message id from the done event
+                if event.get("event") == "done":
+                    try:
+                        data = json.loads(event.get("data", "{}"))
+                        assistant_msg_id = data.get("message_id")
+                    except (json.JSONDecodeError, AttributeError):
+                        pass
                 yield event
         except Exception as e:
             yield {"event": "error", "data": json.dumps({"message": str(e)})}
+
+        # Update active_leaf_id to point to the new assistant message
+        if assistant_msg_id:
+            try:
+                await db.refresh(conv)
+                conv.active_leaf_id = uuid.UUID(assistant_msg_id)
+                await db.commit()
+            except Exception:
+                pass
+
+        # Generate title after agent loop completes (for first message)
+        try:
+            await db.refresh(conv)
+            msg_count = (await db.execute(
+                select(func.count()).select_from(Message).where(Message.conversation_id == conversation_id)
+            )).scalar() or 0
+            if msg_count <= 2 and (not conv.title or conv.title == "New conversation"):
+                try:
+                    # Get the assistant response for context
+                    last_msg = (await db.execute(
+                        select(Message).where(
+                            Message.conversation_id == conversation_id,
+                            Message.role == "assistant"
+                        ).order_by(Message.created_at.desc()).limit(1)
+                    )).scalar_one_or_none()
+                    assistant_text = last_msg.content if last_msg else ""
+                    title = await llm_service.generate_title(body.content, assistant_text)
+                    conv.title = title
+                    await db.commit()
+                    yield {"event": "title", "data": json.dumps({"title": title})}
+                except Exception as e:
+                    # Fallback to user message
+                    conv.title = body.content[:50] + ("..." if len(body.content) > 50 else "")
+                    await db.commit()
+                    yield {"event": "title", "data": json.dumps({"title": conv.title})}
+        except Exception:
+            pass
 
     return EventSourceResponse(event_generator())
 
@@ -370,6 +477,7 @@ async def regenerate_message(
     user_id: uuid.UUID = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    """Regenerate creates a sibling branch — the old response is preserved."""
     # Verify ownership
     result = await db.execute(
         select(Conversation).where(
@@ -380,7 +488,7 @@ async def regenerate_message(
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
 
-    # Get the message to regenerate and the preceding user message
+    # Get the assistant message to regenerate
     msg_result = await db.execute(
         select(Message).where(
             Message.id == message_id,
@@ -391,32 +499,34 @@ async def regenerate_message(
     if not target_msg or target_msg.role != "assistant":
         raise HTTPException(status_code=400, detail="Can only regenerate assistant messages")
 
-    # Find the user message before this one
-    prev_msgs = await db.execute(
-        select(Message)
-        .where(
-            Message.conversation_id == conversation_id,
-            Message.created_at < target_msg.created_at,
-            Message.role == "user",
+    # The parent of the assistant message is the user message that prompted it
+    parent_msg_id = target_msg.parent_id
+    if not parent_msg_id:
+        # Fallback: find the user message before this one by timestamp
+        prev_msgs = await db.execute(
+            select(Message)
+            .where(
+                Message.conversation_id == conversation_id,
+                Message.created_at < target_msg.created_at,
+                Message.role == "user",
+            )
+            .order_by(Message.created_at.desc())
+            .limit(1)
         )
-        .order_by(Message.created_at.desc())
-        .limit(1)
-    )
-    user_msg = prev_msgs.scalar_one_or_none()
-    if not user_msg:
-        raise HTTPException(status_code=400, detail="No preceding user message found")
-
-    # Delete the old assistant message and any messages after it
-    await db.execute(
-        delete(Artifact).where(Artifact.message_id == message_id)
-    )
-    await db.execute(
-        delete(Message).where(
-            Message.conversation_id == conversation_id,
-            Message.created_at >= target_msg.created_at,
+        user_msg = prev_msgs.scalar_one_or_none()
+        if not user_msg:
+            raise HTTPException(status_code=400, detail="No preceding user message found")
+        parent_msg_id = user_msg.id
+        user_message_content = user_msg.content
+    else:
+        # Load the parent (user) message
+        parent_result = await db.execute(
+            select(Message).where(Message.id == parent_msg_id)
         )
-    )
-    await db.flush()
+        user_msg = parent_result.scalar_one_or_none()
+        if not user_msg:
+            raise HTTPException(status_code=400, detail="Parent user message not found")
+        user_message_content = user_msg.content
 
     model = conv.model or "gpt-4.1-chn"
     mode = conv.agent_mode or "chat"
@@ -429,21 +539,130 @@ async def regenerate_message(
         persona = p_result.scalar_one_or_none()
 
     async def event_generator():
+        assistant_msg_id = None
         try:
+            # Run agent loop with the user message as the leaf — the agent loop
+            # will load path up to user_msg, then produce a new assistant response
+            # as a sibling of the original
             async for event in run_agent_loop(
                 conversation_id=conversation_id,
-                user_message=user_msg.content,
+                user_message=user_message_content,
                 model=model,
                 mode=mode,
                 persona=persona,
                 sandbox_id=conv.sandbox_id,
                 db=db,
+                leaf_message_id=parent_msg_id,
             ):
+                if event.get("event") == "done":
+                    try:
+                        data = json.loads(event.get("data", "{}"))
+                        assistant_msg_id = data.get("message_id")
+                    except (json.JSONDecodeError, AttributeError):
+                        pass
                 yield event
         except Exception as e:
             yield {"event": "error", "data": json.dumps({"message": str(e)})}
 
+        # Update active_leaf_id to point to the new sibling
+        if assistant_msg_id:
+            try:
+                await db.refresh(conv)
+                conv.active_leaf_id = uuid.UUID(assistant_msg_id)
+                await db.commit()
+            except Exception:
+                pass
+
     return EventSourceResponse(event_generator())
+
+
+@router.get("/{conversation_id}/tree")
+async def get_conversation_tree(
+    conversation_id: uuid.UUID,
+    user_id: uuid.UUID = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return lightweight tree structure for the minimap visualizer."""
+    result = await db.execute(
+        select(Conversation).where(
+            Conversation.id == conversation_id, Conversation.user_id == user_id
+        )
+    )
+    conv = result.scalar_one_or_none()
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    # Get all messages with just the fields needed for the tree
+    msg_result = await db.execute(
+        select(Message)
+        .where(Message.conversation_id == conversation_id)
+        .order_by(Message.created_at)
+    )
+    all_messages = msg_result.scalars().all()
+
+    # Count children per message
+    child_counts: dict[str, int] = {}
+    for m in all_messages:
+        pid = str(m.parent_id) if m.parent_id else None
+        if pid:
+            child_counts[pid] = child_counts.get(pid, 0) + 1
+
+    nodes = [
+        {
+            "id": str(m.id),
+            "parentId": str(m.parent_id) if m.parent_id else None,
+            "role": m.role,
+            "branchIndex": m.branch_index,
+            "preview": (m.content or "")[:50],
+            "childCount": child_counts.get(str(m.id), 0),
+            "createdAt": m.created_at.isoformat() if m.created_at else None,
+        }
+        for m in all_messages
+        if m.role in ("user", "assistant")
+    ]
+
+    return {
+        "nodes": nodes,
+        "activeLeafId": str(conv.active_leaf_id) if conv.active_leaf_id else None,
+    }
+
+
+@router.post("/{conversation_id}/switch-branch")
+async def switch_branch(
+    conversation_id: uuid.UUID,
+    body: SwitchBranchRequest,
+    user_id: uuid.UUID = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Switch active branch by updating active_leaf_id and returning the new path."""
+    result = await db.execute(
+        select(Conversation).where(
+            Conversation.id == conversation_id, Conversation.user_id == user_id
+        )
+    )
+    conv = result.scalar_one_or_none()
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    # Verify the leaf message belongs to this conversation
+    leaf_result = await db.execute(
+        select(Message).where(
+            Message.id == body.leaf_id,
+            Message.conversation_id == conversation_id,
+        )
+    )
+    if not leaf_result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Message not found in conversation")
+
+    conv.active_leaf_id = body.leaf_id
+    await db.commit()
+
+    # Return messages on the new active path
+    path_messages = await get_active_path(db, body.leaf_id)
+    return {
+        "active_leaf_id": str(body.leaf_id),
+        "messages": [_serialize_message(m) for m in path_messages],
+    }
 
 
 @router.get("/{conversation_id}/artifacts")

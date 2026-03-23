@@ -70,7 +70,7 @@ async def generate_title(user_message: str, assistant_response: str) -> str:
     """Generate a 4-6 word conversation title using a cheap model."""
     try:
         response = await client.chat.completions.create(
-            model="gpt-4.1-nano-swc",
+            model="gpt-5-mini-gwc",
             messages=[
                 {
                     "role": "system",

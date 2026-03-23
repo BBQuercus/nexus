@@ -4,17 +4,15 @@ WORKDIR /app
 COPY frontend/package.json frontend/package-lock.json* ./
 RUN npm install
 COPY frontend/ .
-
-# Railway passes env vars as build args with RAILWAY_ prefix
-# But also passes all service env vars during build
-ARG VITE_API_BASE
-ENV VITE_API_BASE=${VITE_API_BASE}
 RUN npm run build
 
-FROM nginx:alpine
+FROM node:22-alpine
 
-COPY --from=build /app/dist /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+WORKDIR /app
+COPY --from=build /app/.next/standalone ./
+COPY --from=build /app/.next/static ./.next/static
+COPY --from=build /app/public ./public
 
-EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
+EXPOSE 5173
+ENV PORT=5173
+CMD ["node", "server.js"]

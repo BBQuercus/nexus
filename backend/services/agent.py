@@ -4,7 +4,7 @@ import time
 import uuid
 from typing import Any, AsyncGenerator, Optional
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.models import Artifact, Conversation, Message, UsageLog
@@ -70,21 +70,48 @@ async def run_agent_loop(
     persona: Optional[object],
     sandbox_id: Optional[str],
     db: AsyncSession,
+    leaf_message_id: Optional[uuid.UUID] = None,
 ) -> AsyncGenerator[dict, None]:
     """Run the agent loop, yielding SSE events.
 
     The loop: send messages to LLM, if tool_calls in response -> execute tools ->
     feed results back -> repeat until final text response.
+
+    If leaf_message_id is provided, loads only messages on the path from root to
+    that leaf (for branching support). The user message is already saved in the DB
+    and included in the path.
     """
     start_time = time.monotonic()
 
-    # Load conversation messages
-    result = await db.execute(
-        select(Message)
-        .where(Message.conversation_id == conversation_id)
-        .order_by(Message.created_at)
-    )
-    existing_messages = result.scalars().all()
+    # Load conversation messages — either the active path or all messages
+    if leaf_message_id:
+        from sqlalchemy import text as sa_text
+        path_result = await db.execute(
+            sa_text("""
+                WITH RECURSIVE path AS (
+                    SELECT * FROM messages WHERE id = :leaf_id
+                    UNION ALL
+                    SELECT m.* FROM messages m JOIN path p ON m.id = p.parent_id
+                )
+                SELECT id FROM path
+            """),
+            {"leaf_id": str(leaf_message_id)},
+        )
+        path_ids = [row[0] for row in path_result.fetchall()]
+        if path_ids:
+            result = await db.execute(
+                select(Message).where(Message.id.in_(path_ids)).order_by(Message.created_at)
+            )
+            existing_messages = list(result.scalars().all())
+        else:
+            existing_messages = []
+    else:
+        result = await db.execute(
+            select(Message)
+            .where(Message.conversation_id == conversation_id)
+            .order_by(Message.created_at)
+        )
+        existing_messages = list(result.scalars().all())
 
     # Build message history for LLM
     system_prompt = build_system_prompt(mode, persona)
@@ -101,8 +128,10 @@ async def run_agent_loop(
             entry["tool_call_id"] = msg.tool_result.get("tool_call_id", "") if isinstance(msg.tool_result, dict) else ""
         llm_messages.append(entry)
 
-    # Add new user message
-    llm_messages.append({"role": "user", "content": user_message})
+    # Only append user message if it's not already in the path
+    # (when leaf_message_id is provided, the user message is already in the DB path)
+    if not leaf_message_id:
+        llm_messages.append({"role": "user", "content": user_message})
 
     # Get tools
     tools_enabled = None
@@ -135,6 +164,8 @@ async def run_agent_loop(
     assistant_content = ""
     assistant_reasoning = ""
     all_tool_calls_raw: list[dict] = []
+    enriched_tool_calls: list[dict] = []
+    collected_images: list[dict] = []
 
     while iteration < max_iterations:
         iteration += 1
@@ -226,6 +257,7 @@ async def run_agent_loop(
             yield _sse_event("tool_start", {"tool": func_name, "arguments": args, "tool_call_id": tool_call_id})
 
             tool_output = ""
+            tool_exit_code = 0
             try:
                 if func_name == "execute_code":
                     # Lazy sandbox creation
@@ -247,6 +279,7 @@ async def run_agent_loop(
                     tool_output = result.stdout
                     if result.stderr:
                         tool_output += f"\n[stderr]: {result.stderr}"
+                    tool_exit_code = result.exit_code
                     if result.exit_code != 0:
                         tool_output += f"\n[exit_code]: {result.exit_code}"
 
@@ -254,6 +287,7 @@ async def run_agent_loop(
 
                     # Check for new output files
                     new_files = await sandbox_service.check_output_files(sandbox, known_output_files)
+                    logger.info(f"Output file check: new_files={new_files}, known={known_output_files}")
                     for f in new_files:
                         known_output_files.add(f)
                         if f.lower().endswith((".png", ".jpg", ".jpeg", ".svg", ".gif", ".webp")):
@@ -267,6 +301,7 @@ async def run_agent_loop(
                                 mime = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg", "svg": "image/svg+xml", "gif": "image/gif", "webp": "image/webp"}.get(ext, "image/png")
                                 data_url = f"data:{mime};base64,{img_b64}"
                                 yield _sse_event("image_output", {"filename": f, "url": data_url, "sandbox_id": sandbox_id})
+                                collected_images.append({"filename": f, "url": data_url})
                             except Exception as img_err:
                                 logger.error(f"Failed to read output image {f}: {img_err}")
                                 yield _sse_event("image_output", {"filename": f, "sandbox_id": sandbox_id})
@@ -332,10 +367,21 @@ async def run_agent_loop(
 
             except Exception as e:
                 tool_output = f"Error executing {func_name}: {str(e)}"
+                tool_exit_code = 1
                 logger.error(f"Tool execution error: {e}")
                 yield _sse_event("tool_output", {"tool": func_name, "output": tool_output, "tool_call_id": tool_call_id})
 
             yield _sse_event("tool_end", {"tool": func_name, "tool_call_id": tool_call_id})
+
+            # Build enriched tool call for persistence
+            enriched_tool_calls.append({
+                "id": tool_call_id,
+                "name": func_name,
+                "language": args.get("language", "") if func_name == "execute_code" else "",
+                "code": args.get("code", "") if func_name == "execute_code" else "",
+                "output": tool_output,
+                "exitCode": tool_exit_code,
+            })
 
             # Add tool result to message history
             llm_messages.append({
@@ -346,15 +392,27 @@ async def run_agent_loop(
 
         # Continue the loop - LLM will process tool results
 
+    # Compute parent_id and branch_index for the assistant message
+    assistant_parent_id = leaf_message_id  # parent is the user message (leaf of path)
+    assistant_branch_index = 0
+    if assistant_parent_id:
+        sibling_result = await db.execute(
+            select(func.count()).select_from(Message).where(Message.parent_id == assistant_parent_id)
+        )
+        assistant_branch_index = (sibling_result.scalar() or 0)
+
     # Save assistant message
     assistant_msg_obj = Message(
         conversation_id=conversation_id,
         role="assistant",
         content=assistant_content,
         reasoning=assistant_reasoning or None,
-        tool_calls=all_tool_calls_raw if all_tool_calls_raw else None,
+        tool_calls=enriched_tool_calls if enriched_tool_calls else None,
+        images=collected_images if collected_images else None,
         token_count=(total_input_tokens + total_output_tokens) if (total_input_tokens + total_output_tokens) > 0 else None,
         cost_usd=llm_service.calculate_cost(model, total_input_tokens, total_output_tokens) if total_input_tokens > 0 else None,
+        parent_id=assistant_parent_id,
+        branch_index=assistant_branch_index,
     )
     db.add(assistant_msg_obj)
     await db.flush()
@@ -386,25 +444,15 @@ async def run_agent_loop(
 
     await db.commit()
 
-    # Generate title if this is the first exchange (existing_messages includes
-    # the user message we just saved, so check for <= 1)
-    if len(existing_messages) <= 1 and assistant_content and not conversation.title:
-        try:
-            title = await llm_service.generate_title(user_message, assistant_content)
-            conversation.title = title
-            await db.commit()
-            logger.info(f"Generated title: {title}")
-            yield _sse_event("title", {"title": title})
-        except Exception as e:
-            logger.error(f"Title generation failed: {e}")
-
     duration_ms = int((time.monotonic() - start_time) * 1000)
 
     yield _sse_event("done", {
         "message_id": str(assistant_msg_obj.id),
+        "active_leaf_id": str(assistant_msg_obj.id),
         "input_tokens": total_input_tokens,
         "output_tokens": total_output_tokens,
         "duration_ms": duration_ms,
+        "sandbox_id": sandbox_id,
         "artifacts": [
             {"id": str(a.id), "type": a.type, "label": a.label}
             for a in (await db.execute(

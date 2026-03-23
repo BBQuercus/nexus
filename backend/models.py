@@ -69,6 +69,11 @@ class Conversation(Base):
     forked_from_message_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True), ForeignKey("messages.id"), nullable=True
     )
+    active_leaf_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("messages.id", use_alter=True, name="fk_conversations_active_leaf_id"),
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -105,18 +110,26 @@ class Message(Base):
     reasoning: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     tool_calls: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
     tool_result: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
+    images: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
     attachments: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
     feedback: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     token_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     cost_usd: Mapped[Optional[Decimal]] = mapped_column(
         Numeric(10, 6), nullable=True
     )
+    parent_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("messages.id"), nullable=True, index=True
+    )
+    branch_index: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
 
     conversation: Mapped["Conversation"] = relationship(
         back_populates="messages", foreign_keys=[conversation_id]
+    )
+    parent: Mapped[Optional["Message"]] = relationship(
+        remote_side="Message.id", foreign_keys="Message.parent_id",
     )
     artifacts: Mapped[list["Artifact"]] = relationship(back_populates="message")
 

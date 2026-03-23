@@ -100,11 +100,25 @@ def _validate_ws_session(cookie_header: str | None) -> uuid.UUID | None:
 
 
 @app.websocket("/ws/sandbox/{sandbox_id}/terminal")
-async def sandbox_terminal(websocket: WebSocket, sandbox_id: str):
+async def sandbox_terminal(websocket: WebSocket, sandbox_id: str, token: str | None = None):
     """WebSocket endpoint for terminal streaming to a sandbox."""
-    # Validate session
-    cookie_header = websocket.headers.get("cookie")
-    user_id = _validate_ws_session(cookie_header)
+    # Validate session — try query param token first, then cookie
+    user_id = None
+    auth_token = token
+    if auth_token:
+        try:
+            payload = jwt.decode(
+                auth_token,
+                settings.SERVER_SECRET,
+                algorithms=[settings.JWT_ENCODING_ALGORITHM],
+            )
+            uid = payload.get("sub")
+            user_id = uuid.UUID(uid) if uid else None
+        except Exception:
+            user_id = None
+    if not user_id:
+        cookie_header = websocket.headers.get("cookie")
+        user_id = _validate_ws_session(cookie_header)
     if not user_id:
         await websocket.close(code=4001, reason="Unauthorized")
         return
