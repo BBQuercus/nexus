@@ -38,14 +38,14 @@ export default function TerminalPanel() {
 
       const terminal = new Terminal({
         theme: {
-          background: '#0A0A0A',
-          foreground: '#ECECEC',
+          background: '#121214',
+          foreground: '#F0F0F2',
           cursor: '#00E599',
-          cursorAccent: '#0A0A0A',
+          cursorAccent: '#121214',
           selectionBackground: '#00E59940',
-          black: '#0A0A0A', red: '#FF5555', green: '#00E599', yellow: '#FFAA33',
-          blue: '#5599FF', magenta: '#CC77FF', cyan: '#33CCCC', white: '#ECECEC',
-          brightBlack: '#555555', brightRed: '#FF7777', brightGreen: '#00FFB2',
+          black: '#121214', red: '#FF5555', green: '#00E599', yellow: '#FFAA33',
+          blue: '#5599FF', magenta: '#CC77FF', cyan: '#33CCCC', white: '#F0F0F2',
+          brightBlack: '#636369', brightRed: '#FF7777', brightGreen: '#00FFB2',
           brightYellow: '#FFCC66', brightBlue: '#77BBFF', brightMagenta: '#DD99FF',
           brightCyan: '#55DDDD', brightWhite: '#FFFFFF',
         },
@@ -71,8 +71,12 @@ export default function TerminalPanel() {
       socket.onConnect = () => {
         terminal.write('\x1b[32m Connected to sandbox \x1b[0m\r\n\r\n');
       };
-      // Don't show disconnect — it's noisy. Just silently reconnect.
-      socket.onDisconnect = () => {};
+      socket.onDisconnect = () => {
+        terminal.write('\r\n\x1b[33m Connection lost.\x1b[0m\r\n');
+      };
+      socket.onReconnecting = (attempt, max) => {
+        terminal.write(`\x1b[33m Reconnecting (${attempt}/${max})...\x1b[0m\r\n`);
+      };
       socket.onStdout = (data) => terminal.write(data);
       socket.onStderr = (data) => terminal.write(`\x1b[31m${data}\x1b[0m`);
 

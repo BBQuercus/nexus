@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { setToken } from '@/lib/auth';
+import { setToken, setRefreshToken } from '@/lib/auth';
 import { Suspense } from 'react';
 
 function CallbackHandler() {
@@ -24,6 +24,14 @@ function CallbackHandler() {
 
     if (token) {
       setToken(token);
+      // Also store refresh token if present
+      let refreshToken = searchParams.get('refresh_token');
+      if (!refreshToken && typeof window !== 'undefined') {
+        const hash = window.location.hash;
+        const match = hash.match(/[?&]refresh_token=([^&]+)/);
+        if (match) refreshToken = decodeURIComponent(match[1]);
+      }
+      if (refreshToken) setRefreshToken(refreshToken);
       router.replace('/');
     } else {
       router.replace('/login');
