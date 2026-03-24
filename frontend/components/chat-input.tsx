@@ -509,6 +509,7 @@ export default function ChatInput() {
       id: `temp-${Date.now()}`, conversationId: convId, role: 'user',
       content: text || '[File upload]', createdAt: new Date().toISOString(),
       parentId,
+      ...(attachedContexts.length > 0 ? { contexts: [...attachedContexts] } : {}),
     };
     if (parentId) {
       const branchIdx = messages.findIndex((m) => m.id === parentId);
@@ -625,7 +626,7 @@ export default function ChatInput() {
     <div className="shrink-0 bg-surface-0 px-3 sm:px-5 pt-4 sm:pt-5 safe-bottom"
       style={{ '--safe-bottom-pad': '1.25rem' } as React.CSSProperties}
     >
-    <div className="max-w-3xl mx-auto w-full">
+    <div className="max-w-4xl mx-auto w-full">
       {attachedContexts.length > 0 && (
         <div className="flex flex-wrap gap-1.5 mb-2">
           {attachedContexts.map((ctx) => (
