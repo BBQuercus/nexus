@@ -11,6 +11,43 @@ import { toast } from './toast';
 import { useStreaming } from '@/lib/useStreaming';
 
 const RESPONSE_COUNTS = [1, 3, 5] as const;
+const CONTEXT_WINDOW = 128_000;
+
+function estimateTokens(text: string): number {
+  // Rough estimate: ~4 chars per token for English text
+  return Math.ceil(text.length / 4);
+}
+
+function TokenIndicator({ messages }: { messages: Message[] }) {
+  const totalTokens = useMemo(() => {
+    return messages.reduce((sum, msg) => {
+      // Use actual token counts from cost data if available
+      if (msg.cost) {
+        return sum + msg.cost.inputTokens + msg.cost.outputTokens;
+      }
+      return sum + estimateTokens(msg.content);
+    }, 0);
+  }, [messages]);
+
+  if (messages.length === 0) return null;
+
+  const pct = totalTokens / CONTEXT_WINDOW;
+  const colorClass = pct > 0.8
+    ? 'text-error'
+    : pct > 0.5
+      ? 'text-yellow-500'
+      : 'text-text-tertiary';
+
+  const formatted = totalTokens >= 1000
+    ? `~${(totalTokens / 1000).toFixed(1)}K`
+    : `~${totalTokens}`;
+
+  return (
+    <span className={`text-[10px] font-mono ${colorClass} transition-colors`} title={`${totalTokens.toLocaleString()} tokens (~${(pct * 100).toFixed(0)}% of 128K context)`}>
+      {formatted} tokens
+    </span>
+  );
+}
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -517,6 +554,7 @@ export default function ChatInput() {
 
       <div className="mt-1.5 px-1 flex items-center gap-3">
         <ModelPicker />
+        <TokenIndicator messages={messages} />
         {!isStreaming && (
           <div className="hidden sm:flex items-center gap-1 ml-auto">
             {RESPONSE_COUNTS.map((n) => (
