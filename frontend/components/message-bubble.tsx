@@ -7,7 +7,7 @@ import { renderMarkdown } from '@/lib/markdown';
 import { useStore } from '@/lib/store';
 import * as api from '@/lib/api';
 import { mapRawMessages } from '@/lib/useStreaming';
-import { Copy, GitBranch, RefreshCw, ChevronRight, ChevronDown, ChevronLeft, Terminal, Play, Check, Download, Clock, Coins, Cpu, ArrowRight, X, Link, FileEdit, Pencil, ChevronUp } from 'lucide-react';
+import { Copy, GitBranch, RefreshCw, ChevronRight, ChevronDown, ChevronLeft, Terminal, Play, Check, Download, Clock, Coins, Cpu, ArrowRight, X, Link, FileEdit, Pencil, ChevronUp, ThumbsUp, ThumbsDown } from 'lucide-react';
 
 function CostBadge({ data }: { data: CostData }) {
   const model = data.model.split('/').pop() || data.model;
@@ -359,6 +359,121 @@ function RetryWithModelMenu({ messageId, onClose }: { messageId: string; onClose
   );
 }
 
+const FEEDBACK_TAGS = ['Wrong answer', 'Too slow', 'Code didn\'t work', 'Formatting issue', 'Other'];
+
+function FeedbackPanel({ message }: { message: Message }) {
+  const activeConversationId = useStore((s) => s.activeConversationId);
+  const [feedbackState, setFeedbackState] = useState<'up' | 'down' | null>(message.feedback ?? null);
+  const [showForm, setShowForm] = useState(false);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [comment, setComment] = useState('');
+  const [thanks, setThanks] = useState(false);
+
+  const submitFeedback = async (rating: 'up' | 'down', tags?: string[], commentText?: string) => {
+    if (!activeConversationId) return;
+    try {
+      await api.submitEnhancedFeedback(activeConversationId, message.id, {
+        rating,
+        tags: tags?.length ? tags : undefined,
+        comment: commentText?.trim() || undefined,
+      });
+      setFeedbackState(rating);
+      setShowForm(false);
+      setThanks(true);
+      setTimeout(() => setThanks(false), 2000);
+    } catch (e) {
+      console.error('Feedback submit failed:', e);
+    }
+  };
+
+  const handleThumbsUp = () => {
+    if (feedbackState === 'up') return;
+    submitFeedback('up');
+  };
+
+  const handleThumbsDown = () => {
+    if (feedbackState === 'down') {
+      setShowForm(!showForm);
+      return;
+    }
+    setShowForm(true);
+  };
+
+  const handleSubmitDown = () => {
+    submitFeedback('down', selectedTags, comment);
+  };
+
+  const toggleTag = (tag: string) => {
+    setSelectedTags((prev) => prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]);
+  };
+
+  return (
+    <>
+      <div className="h-3 w-[1px] bg-border-default/30 mx-0.5" />
+      {thanks ? (
+        <span className="text-[10px] text-accent font-medium animate-fade-in-up" style={{ animationDuration: '0.15s' }}>Thanks!</span>
+      ) : (
+        <>
+          <button
+            onClick={handleThumbsUp}
+            title="Good response"
+            className={`flex items-center gap-1 text-[10px] cursor-pointer transition-colors ${
+              feedbackState === 'up' ? 'text-accent' : 'text-text-tertiary hover:text-text-secondary'
+            }`}
+          >
+            <ThumbsUp size={10} className={feedbackState === 'up' ? 'fill-current' : ''} />
+          </button>
+          <button
+            onClick={handleThumbsDown}
+            title="Bad response"
+            className={`flex items-center gap-1 text-[10px] cursor-pointer transition-colors ${
+              feedbackState === 'down' ? 'text-error' : 'text-text-tertiary hover:text-text-secondary'
+            }`}
+          >
+            <ThumbsDown size={10} className={feedbackState === 'down' ? 'fill-current' : ''} />
+          </button>
+        </>
+      )}
+      {showForm && (
+        <div className="absolute left-0 top-full mt-1.5 w-80 bg-surface-0 border border-border-default rounded-xl shadow-xl shadow-black/30 z-50 p-3 animate-fade-in-up" style={{ animationDuration: '0.12s' }}>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[10px] font-bold text-text-secondary uppercase tracking-wider">What went wrong?</span>
+            <button onClick={() => setShowForm(false)} className="text-text-tertiary hover:text-text-secondary cursor-pointer"><X size={12} /></button>
+          </div>
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {FEEDBACK_TAGS.map((tag) => (
+              <button
+                key={tag}
+                onClick={() => toggleTag(tag)}
+                className={`px-2 py-0.5 text-[10px] rounded-md border cursor-pointer transition-colors ${
+                  selectedTags.includes(tag)
+                    ? 'bg-accent/15 border-accent/30 text-accent'
+                    : 'bg-surface-1 border-border-default text-text-tertiary hover:text-text-secondary hover:border-border-focus'
+                }`}
+              >
+                {tag}
+              </button>
+            ))}
+          </div>
+          <textarea
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            placeholder="Optional: tell us more..."
+            className="w-full bg-surface-1 border border-border-default rounded-lg p-2 text-xs text-text-primary placeholder:text-text-tertiary/50 focus:border-accent/30 outline-none resize-none mb-2"
+            rows={2}
+          />
+          <button
+            onClick={handleSubmitDown}
+            className="w-full px-3 py-1.5 text-[11px] font-medium bg-accent text-bg rounded-lg hover:bg-accent-hover cursor-pointer transition-colors"
+          >
+            Submit feedback
+          </button>
+        </div>
+      )}
+    </>
+  );
+}
+
 export default function MessageBubble({ message }: { message: Message }) {
   const contentRef = useRef<HTMLDivElement>(null);
   const activeConversationId = useStore((s) => s.activeConversationId);
@@ -462,7 +577,7 @@ export default function MessageBubble({ message }: { message: Message }) {
           <div ref={contentRef} className="markdown-content text-sm text-text-primary" dangerouslySetInnerHTML={{ __html: renderedHtml }} />
         )}
         {message.cost && <CostBadge data={message.cost} />}
-        <div className="flex items-center gap-3 mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="relative flex items-center gap-3 mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
           <button onClick={handleCopy} className="flex items-center gap-1 text-[10px] text-text-tertiary hover:text-text-secondary cursor-pointer">
             {copied ? <Check size={10} className="text-accent" /> : <Copy size={10} />} {copied ? 'Copied' : 'Copy'}
           </button>
@@ -491,6 +606,7 @@ export default function MessageBubble({ message }: { message: Message }) {
           >
             <GitBranch size={10} /> New Branch
           </button>
+          <FeedbackPanel message={message} />
         </div>
         {showBranchInput && (
           <InlineBranchInput messageId={message.id} onClose={() => setShowBranchInput(false)} />

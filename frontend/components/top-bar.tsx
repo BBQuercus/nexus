@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useStore } from '@/lib/store';
 import { logout as apiLogout } from '@/lib/api';
 import { clearToken } from '@/lib/auth';
-import { Zap, Command, PanelRight, PanelLeft, Network, LogOut, User, Settings, Keyboard } from 'lucide-react';
+import { Zap, Command, PanelRight, PanelLeft, Network, LogOut, User, Settings, Keyboard, Shield } from 'lucide-react';
 import SandboxBar from './sandbox-bar';
 
 function TreeToggleButton() {
@@ -132,6 +132,16 @@ function UserDropdown() {
               <span className="flex-1 text-left">Keyboard shortcuts</span>
               <kbd className="text-[9px] text-text-tertiary bg-surface-1 border border-border-default rounded px-1 py-0.5">&#8984;K</kbd>
             </button>
+            {user?.isAdmin && (
+              <a
+                href="/admin"
+                onClick={() => setOpen(false)}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-text-secondary hover:text-text-primary hover:bg-surface-1 cursor-pointer transition-colors"
+              >
+                <Shield size={13} className="text-text-tertiary shrink-0" />
+                <span className="flex-1 text-left">Admin dashboard</span>
+              </a>
+            )}
           </div>
 
           {/* Logout */}
