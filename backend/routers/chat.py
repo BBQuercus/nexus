@@ -12,6 +12,7 @@ from sse_starlette.sse import EventSourceResponse
 from backend.auth import get_current_user
 from backend.db import get_db
 from backend.models import Artifact, Conversation, AgentPersona, Message
+from backend.rate_limit import chat_limiter
 from backend.services.agent import run_agent_loop, run_multi_agent_loop
 from backend.services import sandbox as sandbox_service
 from backend.services import llm as llm_service
@@ -274,6 +275,9 @@ async def send_message(
     user_id: uuid.UUID = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    # Rate limit: 60 requests per minute per user
+    chat_limiter.check(str(user_id), limit=60, window_seconds=60)
+
     # Verify conversation belongs to user
     result = await db.execute(
         select(Conversation).where(

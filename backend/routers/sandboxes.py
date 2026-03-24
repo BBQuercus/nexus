@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.auth import get_current_user
 from backend.db import get_db
+from backend.rate_limit import sandbox_limiter
 from backend.services import sandbox as sandbox_service
 
 router = APIRouter(prefix="/api/sandboxes", tags=["sandboxes"])
@@ -34,6 +35,8 @@ async def create_sandbox(
     body: CreateSandboxRequest,
     user_id: uuid.UUID = Depends(get_current_user),
 ):
+    # Rate limit: 10 sandbox creations per minute per user
+    sandbox_limiter.check(str(user_id), limit=10, window_seconds=60)
     try:
         labels = body.labels or {}
         labels["user_id"] = str(user_id)
@@ -124,6 +127,11 @@ async def write_file(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB per file
+MAX_TOTAL_UPLOAD_SIZE = 200 * 1024 * 1024  # 200MB total
+BLOCKED_EXTENSIONS = {".exe", ".bat", ".cmd", ".sh"}
+
+
 @router.post("/{sandbox_id}/upload")
 async def upload_files(
     sandbox_id: str,
@@ -134,8 +142,34 @@ async def upload_files(
     try:
         sandbox = await sandbox_service.get_sandbox(sandbox_id)
         uploaded = []
+        total_size = 0
         for file in files:
+            # Check blocked extensions
+            filename_lower = (file.filename or "").lower()
+            for ext in BLOCKED_EXTENSIONS:
+                if filename_lower.endswith(ext):
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"File type '{ext}' is not allowed: {file.filename}",
+                    )
+
             content = await file.read()
+
+            # Check individual file size
+            if len(content) > MAX_FILE_SIZE:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"File '{file.filename}' exceeds max size of 50MB ({len(content)} bytes).",
+                )
+
+            # Check total upload size
+            total_size += len(content)
+            if total_size > MAX_TOTAL_UPLOAD_SIZE:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Total upload size exceeds 200MB limit.",
+                )
+
             file_path = f"{path}/{file.filename}"
             # Write content directly via sandbox fs
             import asyncio
@@ -144,6 +178,8 @@ async def upload_files(
             )
             uploaded.append(file_path)
         return {"uploaded": uploaded}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
