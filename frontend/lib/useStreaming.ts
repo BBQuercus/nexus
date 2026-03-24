@@ -53,6 +53,7 @@ export function mapRawMessages(raw: Array<Record<string, unknown>>, conversation
 export function processSseEvent(
   event: Record<string, unknown>,
   opts: {
+    conversationId: string;
     isMulti: boolean;
     activeModel: string;
     updateBranch: (bi: number, updater: (b: StreamingState) => Partial<StreamingState>) => void;
@@ -61,13 +62,14 @@ export function processSseEvent(
   const store = useStore.getState();
   const bi = (event.branch_index as number) ?? 0;
   const type = event.type as string;
+  const isActiveConversation = store.activeConversationId === opts.conversationId;
 
   switch (type) {
     case 'token':
       if (opts.isMulti) {
         opts.updateBranch(bi, (b) => ({ content: b.content + ((event.content as string) || '') }));
       } else {
-        store.appendStreamingContent((event.content as string) || '');
+        store.appendConversationStreamingContent(opts.conversationId, (event.content as string) || '');
       }
       break;
 
@@ -75,7 +77,7 @@ export function processSseEvent(
       if (opts.isMulti) {
         opts.updateBranch(bi, () => ({ reasoning: (event.content as string) || '' }));
       } else {
-        store.setStreaming({ reasoning: (event.content as string) || '' });
+        store.setConversationStreaming(opts.conversationId, { reasoning: (event.content as string) || '' });
       }
       break;
 
@@ -92,7 +94,8 @@ export function processSseEvent(
       if (opts.isMulti) {
         opts.updateBranch(bi, (b) => ({ toolCalls: [...b.toolCalls, newTool] }));
       } else {
-        store.setStreaming({ toolCalls: [...store.streaming.toolCalls, newTool] });
+        const current = store.streamingByConversation[opts.conversationId] || store.streaming;
+        store.setConversationStreaming(opts.conversationId, { toolCalls: [...current.toolCalls, newTool] });
       }
       break;
     }
@@ -105,8 +108,9 @@ export function processSseEvent(
           toolCalls: b.toolCalls.map((t) => t.id === toolId ? { ...t, output: (t.output || '') + output } : t),
         }));
       } else {
-        store.setStreaming({
-          toolCalls: store.streaming.toolCalls.map((t) =>
+        const current = store.streamingByConversation[opts.conversationId] || store.streaming;
+        store.setConversationStreaming(opts.conversationId, {
+          toolCalls: current.toolCalls.map((t) =>
             t.id === toolId ? { ...t, output: (t.output || '') + output } : t
           ),
         });
@@ -122,8 +126,9 @@ export function processSseEvent(
           toolCalls: b.toolCalls.map((t) => t.id === toolId ? { ...t, isRunning: false, exitCode } : t),
         }));
       } else {
-        store.setStreaming({
-          toolCalls: store.streaming.toolCalls.map((t) =>
+        const current = store.streamingByConversation[opts.conversationId] || store.streaming;
+        store.setConversationStreaming(opts.conversationId, {
+          toolCalls: current.toolCalls.map((t) =>
             t.id === toolId ? { ...t, isRunning: false, exitCode } : t
           ),
         });
@@ -138,7 +143,8 @@ export function processSseEvent(
         if (opts.isMulti) {
           opts.updateBranch(bi, (b) => ({ images: [...b.images, { filename, url }] }));
         } else {
-          store.setStreaming({ images: [...store.streaming.images, { filename, url }] });
+          const current = store.streamingByConversation[opts.conversationId] || store.streaming;
+          store.setConversationStreaming(opts.conversationId, { images: [...current.images, { filename, url }] });
         }
       }
       break;
@@ -153,7 +159,8 @@ export function processSseEvent(
         if (opts.isMulti) {
           opts.updateBranch(bi, (b) => ({ files: [...b.files, fileEntry] }));
         } else {
-          store.setStreaming({ files: [...store.streaming.files, fileEntry] });
+          const current = store.streamingByConversation[opts.conversationId] || store.streaming;
+          store.setConversationStreaming(opts.conversationId, { files: [...current.files, fileEntry] });
         }
       }
       break;
@@ -166,7 +173,8 @@ export function processSseEvent(
         if (opts.isMulti) {
           opts.updateBranch(bi, (b) => ({ tables: [...b.tables, tableEntry] }));
         } else {
-          store.setStreaming({ tables: [...store.streaming.tables, tableEntry] });
+          const current = store.streamingByConversation[opts.conversationId] || store.streaming;
+          store.setConversationStreaming(opts.conversationId, { tables: [...current.tables, tableEntry] });
         }
       }
       break;
@@ -180,10 +188,13 @@ export function processSseEvent(
       if (opts.isMulti) {
         opts.updateBranch(bi, (b) => ({ charts: [...b.charts, chartEntry] }));
       } else {
-        store.setStreaming({ charts: [...store.streaming.charts, chartEntry] });
+        const current = store.streamingByConversation[opts.conversationId] || store.streaming;
+        store.setConversationStreaming(opts.conversationId, { charts: [...current.charts, chartEntry] });
       }
-      store.setRightPanelTab('artifacts');
-      if (!store.rightPanelOpen) store.setRightPanelOpen(true);
+      if (isActiveConversation) {
+        store.setRightPanelTab('artifacts');
+        if (!store.rightPanelOpen) store.setRightPanelOpen(true);
+      }
       break;
     }
 
@@ -211,42 +222,45 @@ export function processSseEvent(
           retrievalResult,
         }));
       } else {
-        store.setStreaming({
-          citations: [...store.streaming.citations, ...sources],
+        const current = store.streamingByConversation[opts.conversationId] || store.streaming;
+        store.setConversationStreaming(opts.conversationId, {
+          citations: [...current.citations, ...sources],
           retrievalResult,
         });
       }
-      // Auto-open sources panel when citations arrive
-      store.setRightPanelTab('sources');
-      if (!store.rightPanelOpen) store.setRightPanelOpen(true);
+      if (isActiveConversation) {
+        store.setRightPanelTab('sources');
+        if (!store.rightPanelOpen) store.setRightPanelOpen(true);
+      }
       break;
     }
 
     case 'preview':
-      store.setPreviewUrl((event.url as string) || '');
-      store.setRightPanelTab('preview');
+      if (isActiveConversation) {
+        store.setPreviewUrl((event.url as string) || '');
+        store.setRightPanelTab('preview');
+      }
       break;
 
     case 'title': {
       const title = (event.title as string) || '';
-      const convId = store.activeConversationId;
-      if (title && convId) store.updateConversationTitle(convId, title);
+      if (title) store.updateConversationTitle(opts.conversationId, title);
       break;
     }
 
     case 'done': {
       const newSandboxId = (event.sandbox_id as string) || null;
-      if (newSandboxId) {
+      if (newSandboxId && isActiveConversation) {
         store.setSandboxId(newSandboxId);
         store.setSandboxStatus('running');
       }
       const newLeafId = (event.active_leaf_id as string) || null;
-      if (newLeafId) store.setActiveLeafId(newLeafId);
+      if (newLeafId && isActiveConversation) store.setActiveLeafId(newLeafId);
 
       if (opts.isMulti) {
-        const ms = store.multiStreaming;
+        const ms = store.multiStreamingByConversation[opts.conversationId];
         if (ms) {
-          store.setMultiStreaming({ ...ms, completedBranches: [...ms.completedBranches, bi] });
+          store.setConversationMultiStreaming(opts.conversationId, { ...ms, completedBranches: [...ms.completedBranches, bi] });
         }
       } else {
         return {
@@ -264,7 +278,7 @@ export function processSseEvent(
 
     case 'all_done': {
       const newLeafId = (event.active_leaf_id as string) || null;
-      if (newLeafId) store.setActiveLeafId(newLeafId);
+      if (newLeafId && isActiveConversation) store.setActiveLeafId(newLeafId);
       return { done: true };
     }
 
@@ -272,7 +286,7 @@ export function processSseEvent(
       if (opts.isMulti) {
         opts.updateBranch(bi, (b) => ({ content: b.content + `\n\n**Error:** ${(event.message as string) || 'Unknown error'}` }));
       } else {
-        store.appendStreamingContent(`\n\n**Error:** ${(event.message as string) || 'Unknown error'}`);
+        store.appendConversationStreamingContent(opts.conversationId, `\n\n**Error:** ${(event.message as string) || 'Unknown error'}`);
       }
       break;
   }
@@ -286,9 +300,14 @@ export async function reloadConversation(conversationId: string): Promise<void> 
   try {
     const conv = await api.getConversation(conversationId);
     const rawMessages = (conv.messages as Array<Record<string, unknown>>) || [];
-    store.setMessages(mapRawMessages(rawMessages, conversationId));
-    const tree = await api.getConversationTree(conversationId);
-    store.setConversationTree(tree);
+    store.setConversationMessages(conversationId, mapRawMessages(rawMessages, conversationId));
+    if (store.activeConversationId === conversationId) {
+      store.setActiveLeafId((conv.active_leaf_id as string) || null);
+      store.setSandboxId((conv.sandbox_id as string) || null);
+      store.setSandboxStatus(conv.sandbox_id ? 'running' : 'none');
+      const tree = await api.getConversationTree(conversationId);
+      store.setConversationTree(tree);
+    }
   } catch {}
   api.listConversations().then((r) => store.setConversations(r.conversations));
 }
@@ -310,15 +329,15 @@ export function useStreaming() {
   ) => {
     const store = useStore.getState();
     const controller = new AbortController();
-    store.setAbortController(controller);
-    store.setIsStreaming(true);
-    store.resetStreaming();
+    store.setConversationAbortController(convId, controller);
+    store.setConversationIsStreaming(convId, true);
+    store.resetConversationStreaming(convId);
 
     const isMulti = opts.numResponses > 1;
 
     if (isMulti) {
         const emptyBranch: StreamingState = { content: '', reasoning: '', toolCalls: [], images: [], files: [], tables: [], charts: [], citations: [], retrievalResult: null };
-      store.setMultiStreaming({
+      store.setConversationMultiStreaming(convId, {
         branches: Array.from({ length: opts.numResponses }, () => ({ ...emptyBranch })),
         activeBranchIndex: 0,
         branchCount: opts.numResponses,
@@ -327,11 +346,11 @@ export function useStreaming() {
     }
 
     const updateBranch = (bi: number, updater: (b: StreamingState) => Partial<StreamingState>) => {
-      const ms = useStore.getState().multiStreaming;
+      const ms = useStore.getState().multiStreamingByConversation[convId];
       if (!ms) return;
       const branches = [...ms.branches];
       branches[bi] = { ...branches[bi], ...updater(branches[bi]) };
-      useStore.getState().setMultiStreaming({ ...ms, branches });
+      useStore.getState().setConversationMultiStreaming(convId, { ...ms, branches });
     };
 
     let finalCost: Message['cost'] = undefined;
@@ -345,7 +364,7 @@ export function useStreaming() {
       for await (const event of streamSSE(response)) {
         const result = processSseEvent(
           event as unknown as Record<string, unknown>,
-          { isMulti, activeModel: opts.model, updateBranch },
+          { conversationId: convId, isMulti, activeModel: opts.model, updateBranch },
         );
         if (result.finalCost) finalCost = result.finalCost;
       }
@@ -364,16 +383,16 @@ export function useStreaming() {
       }
     }
 
-    useStore.getState().setAbortController(null);
+    useStore.getState().setConversationAbortController(convId, null);
 
     if (isMulti) {
-      useStore.getState().setMultiStreaming(null);
-      useStore.getState().resetStreaming();
-      useStore.getState().setIsStreaming(false);
+      useStore.getState().setConversationMultiStreaming(convId, null);
+      useStore.getState().resetConversationStreaming(convId);
+      useStore.getState().setConversationIsStreaming(convId, false);
       await reloadConversation(convId);
     } else {
       // Single response — commit locally
-      const finalState = useStore.getState().streaming;
+      const finalState = useStore.getState().streamingByConversation[convId] || useStore.getState().streaming;
       const assistantMsg: Message = {
         id: `msg-${Date.now()}`,
         conversationId: convId,
@@ -388,18 +407,22 @@ export function useStreaming() {
         tables: finalState.tables.length > 0 ? [...finalState.tables] : undefined,
         citations: finalState.citations.length > 0 ? [...finalState.citations] : undefined,
       };
-      useStore.getState().setMessages((prev: Message[]) => [...prev, assistantMsg]);
-      useStore.getState().resetStreaming();
-      useStore.getState().setIsStreaming(false);
+      useStore.getState().setConversationMessages(convId, (prev: Message[]) => [...prev, assistantMsg]);
+      useStore.getState().resetConversationStreaming(convId);
+      useStore.getState().setConversationIsStreaming(convId, false);
 
       // If this was a branch (edit/branch send), do a full reload so sibling nav appears immediately
       if (opts.parentId) {
         await reloadConversation(convId);
       } else {
         api.listConversations().then((r) => useStore.getState().setConversations(r.conversations));
-        api.getConversationTree(convId).then((tree) => useStore.getState().setConversationTree(tree)).catch(() => {});
+        if (useStore.getState().activeConversationId === convId) {
+          api.getConversationTree(convId).then((tree) => useStore.getState().setConversationTree(tree)).catch(() => {});
+        }
       }
-      api.getArtifacts(convId).then((artifacts) => useStore.getState().setArtifacts(artifacts)).catch(() => {});
+      if (useStore.getState().activeConversationId === convId) {
+        api.getArtifacts(convId).then((artifacts) => useStore.getState().setArtifacts(artifacts)).catch(() => {});
+      }
     }
   }, []);
 
@@ -408,9 +431,9 @@ export function useStreaming() {
     if (store.isStreaming) return;
 
     const controller = new AbortController();
-    store.setAbortController(controller);
-    store.setIsStreaming(true);
-    store.resetStreaming();
+    store.setConversationAbortController(conversationId, controller);
+    store.setConversationIsStreaming(conversationId, true);
+    store.resetConversationStreaming(conversationId);
 
     const noopBranch = () => {};
 
@@ -419,7 +442,7 @@ export function useStreaming() {
       for await (const event of streamSSE(response)) {
         processSseEvent(
           event as unknown as Record<string, unknown>,
-          { isMulti: false, activeModel: '', updateBranch: noopBranch as never },
+          { conversationId, isMulti: false, activeModel: '', updateBranch: noopBranch as never },
         );
       }
     } catch (err) {
@@ -434,10 +457,10 @@ export function useStreaming() {
       }
     }
 
-    useStore.getState().setAbortController(null);
+    useStore.getState().setConversationAbortController(conversationId, null);
     await reloadConversation(conversationId);
-    useStore.getState().resetStreaming();
-    useStore.getState().setIsStreaming(false);
+    useStore.getState().resetConversationStreaming(conversationId);
+    useStore.getState().setConversationIsStreaming(conversationId, false);
   }, []);
 
   return { streamSend, streamRegenerate };

@@ -191,6 +191,12 @@ export const useStore = create<AppState & AppActions>((set) => ({
     set((state) => ({
       activeConversationId: id,
       messages: id ? (state.messagesByConversation[id] || []) : [],
+      sandboxStatus: 'none',
+      sandboxId: null,
+      activeLeafId: null,
+      conversationTree: null,
+      artifacts: [],
+      previewUrl: null,
       abortController: id ? (state.abortControllersByConversation[id] || null) : null,
       isStreaming: id ? state.streamingConversationIds.includes(id) : false,
       streaming: id ? (state.streamingByConversation[id] || cloneEmptyStreaming()) : cloneEmptyStreaming(),
