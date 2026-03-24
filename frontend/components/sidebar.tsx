@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useStore } from '@/lib/store';
 import * as api from '@/lib/api';
 import type { Conversation } from '@/lib/types';
-import { Plus, Search, X, Download, Pin, PinOff, Trash2, CheckSquare, Square } from 'lucide-react';
+import { Plus, Search, X, Download, Pin, PinOff, Trash2, CheckSquare, Square, Bot } from 'lucide-react';
 import { toast } from './toast';
 
 function getPinnedIds(): Set<string> {
@@ -243,13 +243,13 @@ export default function Sidebar() {
   }, [conversations, today, yesterday, weekAgo]);
 
   return (
-    <div className="relative flex flex-col w-[85vw] sm:w-[260px] max-w-[320px] bg-surface-0 border-r border-border-default shrink-0 h-full">
+    <div className="relative flex flex-col w-[85vw] sm:w-[272px] max-w-[320px] bg-surface-0 border-r border-border-default shrink-0 h-full">
       <div className="absolute inset-0 grid-texture opacity-10 pointer-events-none" />
 
       {/* Header */}
-      <div className="flex items-center gap-1.5 p-2">
-        <div className="flex-1 flex items-center gap-1.5 px-2.5 py-1.5 bg-surface-1 border border-border-default rounded-lg">
-          <Search size={12} className="text-text-tertiary shrink-0" />
+      <div className="flex items-center gap-1.5 px-3 py-2.5">
+        <div className="flex-1 flex items-center gap-2 px-2.5 py-2 bg-surface-1 border border-border-default rounded-lg">
+          <Search size={13} className="text-text-tertiary shrink-0" />
           <input
             type="text"
             placeholder="Search..."
@@ -262,14 +262,14 @@ export default function Sidebar() {
               onClick={() => handleSearch('')}
               className="text-text-tertiary hover:text-text-secondary cursor-pointer shrink-0"
             >
-              <X size={11} />
+              <X size={12} />
             </button>
           )}
         </div>
         <button
           onClick={() => { setBulkMode(!bulkMode); setSelectedIds(new Set()); }}
           title={bulkMode ? 'Exit select mode' : 'Select multiple'}
-          className={`w-8 h-8 flex items-center justify-center border rounded-lg cursor-pointer transition-colors ${
+          className={`w-8 h-8 flex items-center justify-center border rounded-lg cursor-pointer transition-colors shrink-0 ${
             bulkMode
               ? 'bg-accent/10 border-accent/30 text-accent'
               : 'bg-surface-1 border-border-default text-text-tertiary hover:text-text-secondary hover:border-border-focus'
@@ -280,7 +280,7 @@ export default function Sidebar() {
         <button
           onClick={handleNew}
           title="New conversation (Cmd+N)"
-          className="w-8 h-8 flex items-center justify-center bg-surface-1 border border-border-default rounded-lg text-text-tertiary hover:text-accent hover:border-accent/30 cursor-pointer transition-colors"
+          className="w-8 h-8 flex items-center justify-center bg-surface-1 border border-border-default rounded-lg text-text-tertiary hover:text-accent hover:border-accent/30 cursor-pointer transition-colors shrink-0"
         >
           <Plus size={14} />
         </button>
@@ -315,7 +315,7 @@ export default function Sidebar() {
       )}
 
       {/* Conversation list */}
-      <div className="flex-1 overflow-y-auto px-1.5 pb-4">
+      <div className="flex-1 overflow-y-auto px-2 pb-4">
         {conversations.length === 0 ? (
           <div className="p-6 text-center text-text-tertiary text-xs">
             {search.trim() ? 'No conversations found' : 'No conversations'}
@@ -346,7 +346,7 @@ export default function Sidebar() {
                   onDoubleClick={(e) => { if (!bulkMode) startRename(conv, e); }}
                   onMouseEnter={(e) => handleHoverStart(conv, e)}
                   onMouseLeave={handleHoverEnd}
-                  className={`group flex items-center gap-2 px-2.5 py-2 cursor-pointer text-xs rounded-md transition-colors mb-0.5 ${
+                  className={`group flex items-center gap-2 px-2.5 py-2.5 cursor-pointer text-xs rounded-lg transition-colors mb-0.5 ${
                     bulkMode && selectedIds.has(conv.id)
                       ? 'bg-accent/8 text-text-primary border-l-2 border-accent'
                       : conv.id === activeConversationId
@@ -410,6 +410,13 @@ export default function Sidebar() {
             </div>
           ))
         )}
+      </div>
+
+      {/* Manage Agents link */}
+      <div className="px-2 pb-2 border-t border-border-default pt-2">
+        <a href="/agents" className="flex items-center gap-2 px-3 py-2 text-[11px] text-text-tertiary hover:text-text-secondary cursor-pointer transition-colors">
+          <Bot size={12} /> Manage Agents
+        </a>
       </div>
 
       {/* Preview tooltip */}

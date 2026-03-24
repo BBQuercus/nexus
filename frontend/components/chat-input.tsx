@@ -5,7 +5,7 @@ import { useStore } from '@/lib/store';
 import * as api from '@/lib/api';
 import type { Message } from '@/lib/types';
 import { MODELS } from '@/lib/types';
-import { ArrowUp, Square, Paperclip, X, Terminal, Trash2, HelpCircle, Download, Cpu, FileSpreadsheet, FileImage, FileText, File } from 'lucide-react';
+import { ArrowUp, Square, Paperclip, X, Terminal, Trash2, HelpCircle, Download, Cpu, FileSpreadsheet, FileImage, FileText, File, Settings2, Upload, MessageSquare } from 'lucide-react';
 import ModelPicker from './model-picker';
 import { toast } from './toast';
 import { useStreaming } from '@/lib/useStreaming';
@@ -144,12 +144,68 @@ function saveDraft(conversationId: string | null, content: string) {
   } catch {}
 }
 
+function ChatSettings({ numResponses, setNumResponses }: { numResponses: number; setNumResponses: (n: number) => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('click', handler);
+    return () => document.removeEventListener('click', handler);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative ml-auto hidden sm:block">
+      <button
+        onClick={() => setOpen(!open)}
+        className={`flex items-center justify-center w-7 h-7 rounded-lg border transition-all cursor-pointer ${
+          open || numResponses > 1
+            ? 'text-accent bg-accent/10 border-accent/30'
+            : 'text-text-tertiary bg-surface-1 border-border-default hover:border-border-focus hover:text-text-secondary'
+        }`}
+        title="Chat settings"
+      >
+        <Settings2 size={13} />
+      </button>
+
+      {open && (
+        <div className="absolute bottom-full right-0 mb-1.5 w-48 bg-surface-0 border border-border-default rounded-lg shadow-2xl shadow-black/40 z-50 p-3">
+          <div className="text-[10px] font-medium text-text-tertiary uppercase tracking-wider mb-2">Responses per turn</div>
+          <div className="flex items-center gap-1.5">
+            {RESPONSE_COUNTS.map((n) => (
+              <button
+                key={n}
+                onClick={() => setNumResponses(n)}
+                className={`flex-1 px-2 py-1.5 text-xs font-mono rounded-lg border cursor-pointer transition-all ${
+                  numResponses === n
+                    ? 'text-accent bg-accent/10 border-accent/30'
+                    : 'text-text-tertiary bg-surface-1 border-border-default hover:border-border-focus hover:text-text-secondary'
+                }`}
+              >
+                {n}x
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ChatInput() {
   const [content, setContent] = useState('');
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [numResponses, setNumResponses] = useState<number>(1);
   const [slashMenuOpen, setSlashMenuOpen] = useState(false);
   const [slashHighlightIndex, setSlashHighlightIndex] = useState(0);
+  const [mentionMenuOpen, setMentionMenuOpen] = useState(false);
+  const [mentionHighlightIndex, setMentionHighlightIndex] = useState(0);
+  const [mentionResults, setMentionResults] = useState<{ id: string; title: string }[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragCounterRef = useRef(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const draftTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -273,6 +329,50 @@ export default function ChatInput() {
       setSlashMenuOpen(false);
     }
   }, [content]);
+
+  // Detect @ mentions for conversation context injection
+  useEffect(() => {
+    // Check if the cursor is right after an @query pattern
+    const match = content.match(/@(\S*)$/);
+    if (match) {
+      const query = match[1];
+      setMentionMenuOpen(true);
+      setMentionHighlightIndex(0);
+      // Search conversations
+      const conversations = useStore.getState().conversations;
+      const filtered = conversations
+        .filter((c) => c.title && c.id !== activeConversationId)
+        .filter((c) => !query || c.title.toLowerCase().includes(query.toLowerCase()))
+        .slice(0, 8)
+        .map((c) => ({ id: c.id, title: c.title || 'Untitled' }));
+      setMentionResults(filtered);
+    } else {
+      setMentionMenuOpen(false);
+    }
+  }, [content, activeConversationId]);
+
+  const insertMention = async (conv: { id: string; title: string }) => {
+    // Replace @query with @title and inject conversation context
+    const newContent = content.replace(/@\S*$/, `@${conv.title} `);
+    setContent(newContent);
+    setMentionMenuOpen(false);
+
+    // Fetch the conversation's messages and append as context
+    try {
+      const data = await api.getConversation(conv.id);
+      const msgs = (data.messages as Array<Record<string, unknown>>) || [];
+      const context = msgs
+        .filter((m) => m.role === 'user' || m.role === 'assistant')
+        .map((m) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${(m.content as string || '').slice(0, 500)}`)
+        .join('\n');
+      if (context) {
+        setContent((prev) => prev + `\n\n[Context from "${conv.title}"]\n${context}\n\n`);
+      }
+      toast.success(`Added context from "${conv.title}"`);
+    } catch {
+      toast.error('Failed to load conversation context');
+    }
+  };
 
   // Pick up pending prompt from empty state starters
   useEffect(() => {
@@ -476,6 +576,13 @@ export default function ChatInput() {
   }, [setBranchingFromId]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    // @ mention navigation
+    if (mentionMenuOpen && mentionResults.length > 0) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); setMentionHighlightIndex((i) => Math.min(i + 1, mentionResults.length - 1)); return; }
+      if (e.key === 'ArrowUp') { e.preventDefault(); setMentionHighlightIndex((i) => Math.max(i - 1, 0)); return; }
+      if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); insertMention(mentionResults[mentionHighlightIndex]); return; }
+      if (e.key === 'Escape') { e.preventDefault(); setMentionMenuOpen(false); return; }
+    }
     if (slashMenuOpen && filteredSlashCommands.length > 0) {
       if (e.key === 'ArrowDown') {
         e.preventDefault();
@@ -512,7 +619,9 @@ export default function ChatInput() {
   const hasContent = content.trim() || pendingFiles.length > 0;
 
   return (
-    <div className="shrink-0 border-t border-border-default bg-surface-0 px-3 sm:px-4 py-2 sm:py-3 safe-bottom">
+    <div className="shrink-0 border-t border-border-default bg-surface-0 px-3 sm:px-5 pt-4 sm:pt-5 safe-bottom"
+      style={{ '--safe-bottom-pad': '1.25rem' } as React.CSSProperties}
+    >
       {pendingFiles.length > 0 && (
         <div className="flex flex-wrap gap-2 mb-2">
           {pendingFiles.map((file, i) => (
@@ -522,6 +631,30 @@ export default function ChatInput() {
       )}
 
       <div className="relative">
+        {/* @ mention dropdown */}
+        {mentionMenuOpen && mentionResults.length > 0 && (
+          <div className="absolute bottom-full left-0 right-0 mb-1 bg-surface-0 border border-border-default rounded-lg shadow-xl overflow-hidden z-20 animate-fade-in-up" style={{ animationDuration: '0.1s' }}>
+            <div className="py-1">
+              <div className="px-3 py-1.5 text-[10px] uppercase tracking-[0.1em] text-text-tertiary font-mono">
+                Reference a conversation
+              </div>
+              {mentionResults.map((conv, idx) => (
+                <button
+                  key={conv.id}
+                  onClick={() => insertMention(conv)}
+                  onMouseEnter={() => setMentionHighlightIndex(idx)}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs cursor-pointer transition-colors ${
+                    idx === mentionHighlightIndex ? 'bg-accent/10 text-text-primary' : 'text-text-secondary hover:bg-surface-1'
+                  }`}
+                >
+                  <MessageSquare size={12} className="text-text-tertiary shrink-0" />
+                  <span className="truncate">{conv.title}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Slash command dropdown */}
         {slashMenuOpen && filteredSlashCommands.length > 0 && (
           <div className="absolute bottom-full left-0 right-0 mb-1 bg-surface-0 border border-border-default rounded-lg shadow-xl overflow-hidden z-20 animate-fade-in-up" style={{ animationDuration: '0.1s' }}>
@@ -550,10 +683,23 @@ export default function ChatInput() {
         )}
 
         <div
-          className="flex items-center gap-2 bg-surface-1 border border-border-default rounded-xl px-3 py-2 min-h-[44px] focus-within:border-accent/30 focus-within:shadow-[0_0_16px_-4px_var(--color-accent-dim)] transition-all"
-          onDrop={(e) => { e.preventDefault(); if (e.dataTransfer.files.length > 0) setPendingFiles((prev) => [...prev, ...Array.from(e.dataTransfer.files)]); }}
-          onDragOver={(e) => e.preventDefault()}
+          className={`relative flex items-center gap-2 bg-surface-1 border rounded-xl px-3 py-2 min-h-[44px] transition-all ${
+            isDragging
+              ? 'border-accent border-dashed shadow-[0_0_24px_-4px_var(--color-accent-dim)]'
+              : 'border-border-default focus-within:border-accent/30 focus-within:shadow-[0_0_16px_-4px_var(--color-accent-dim)]'
+          }`}
+          onDragEnter={(e) => { e.preventDefault(); dragCounterRef.current++; setIsDragging(true); }}
+          onDragLeave={(e) => { e.preventDefault(); dragCounterRef.current--; if (dragCounterRef.current === 0) setIsDragging(false); }}
+          onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }}
+          onDrop={(e) => { e.preventDefault(); dragCounterRef.current = 0; setIsDragging(false); if (e.dataTransfer.files.length > 0) setPendingFiles((prev) => [...prev, ...Array.from(e.dataTransfer.files)]); }}
         >
+          {/* Drop overlay */}
+          {isDragging && (
+            <div className="absolute inset-0 flex items-center justify-center gap-2 bg-accent/5 rounded-xl z-10 pointer-events-none">
+              <Upload size={16} className="text-accent" />
+              <span className="text-xs font-medium text-accent">Drop files here</span>
+            </div>
+          )}
           <textarea
             ref={textareaRef}
             value={content}
@@ -598,25 +744,11 @@ export default function ChatInput() {
         </div>
       </div>
 
-      <div className="mt-1.5 px-1 flex items-center gap-3">
+      <div className="mt-2.5 px-1 flex items-center gap-3">
         <ModelPicker />
         <TokenIndicator messages={messages} />
         {!isStreaming && (
-          <div className="hidden sm:flex items-center gap-1 ml-auto">
-            {RESPONSE_COUNTS.map((n) => (
-              <button
-                key={n}
-                onClick={() => setNumResponses(n)}
-                className={`px-2 py-0.5 text-[10px] font-mono rounded-md border cursor-pointer transition-all ${
-                  numResponses === n
-                    ? 'text-accent bg-accent/10 border-accent/30'
-                    : 'text-text-tertiary bg-surface-1 border-border-default hover:border-border-focus hover:text-text-secondary'
-                }`}
-              >
-                {n}x
-              </button>
-            ))}
-          </div>
+          <ChatSettings numResponses={numResponses} setNumResponses={setNumResponses} />
         )}
       </div>
     </div>
