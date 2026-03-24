@@ -6,7 +6,7 @@ import { MODELS } from '@/lib/types';
 import { logout as apiLogout } from '@/lib/api';
 import { clearToken } from '@/lib/auth';
 import { toast } from './toast';
-import { Search, Terminal, FolderOpen, Eye, Layers, LogOut, Users, Plus, MessageSquare, Cpu, Trash2, HelpCircle, Download } from 'lucide-react';
+import { Search, Terminal, FolderOpen, Eye, Layers, LogOut, Users, Plus, MessageSquare, Cpu, Trash2, HelpCircle, Download, ClipboardCopy, RefreshCw, Pin, Hash, GitCompare, ScrollText, FileText } from 'lucide-react';
 import { ProviderLogo } from './provider-logos';
 
 interface CommandAction {
@@ -76,6 +76,58 @@ export default function CommandPalette() {
       a.click();
       URL.revokeObjectURL(url);
       toast.success('Conversation exported');
+    }},
+    { id: 'slash-copy', label: '/copy — Copy last response', icon: <ClipboardCopy size={13} />, category: 'Slash Commands', handler: () => {
+      const msgs = useStore.getState().messages;
+      const last = [...msgs].reverse().find((m) => m.role === 'assistant');
+      if (!last) { toast.info('No assistant response to copy'); return; }
+      navigator.clipboard.writeText(last.content).then(() => toast.success('Copied to clipboard')).catch(() => toast.error('Failed to copy'));
+    }},
+    { id: 'slash-retry', label: '/retry — Regenerate last response', icon: <RefreshCw size={13} />, category: 'Slash Commands', handler: () => {
+      const { messages: msgs, activeConversationId: convId } = useStore.getState();
+      const last = [...msgs].reverse().find((m) => m.role === 'assistant');
+      if (!last || !convId) { toast.info('Nothing to regenerate'); return; }
+      window.dispatchEvent(new CustomEvent('nexus:regenerate', { detail: { conversationId: convId, messageId: last.id } }));
+    }},
+    { id: 'slash-pin', label: '/pin — Pin/unpin conversation', icon: <Pin size={13} />, category: 'Slash Commands', handler: () => {
+      const convId = useStore.getState().activeConversationId;
+      if (!convId) { toast.info('No active conversation'); return; }
+      useStore.getState().togglePinConversation(convId);
+      const conv = useStore.getState().conversations.find((c) => c.id === convId);
+      toast.success(conv?.pinned ? 'Conversation pinned' : 'Conversation unpinned');
+    }},
+    { id: 'slash-system', label: '/system — Set system prompt', icon: <ScrollText size={13} />, category: 'Slash Commands', handler: () => {
+      const ta = document.querySelector('textarea') as HTMLTextAreaElement;
+      if (ta) { ta.focus(); const nativeSet = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set; nativeSet?.call(ta, '/system '); ta.dispatchEvent(new Event('input', { bubbles: true })); }
+    }},
+    { id: 'slash-search', label: '/search — Search messages', icon: <Search size={13} />, category: 'Slash Commands', handler: () => {
+      const ta = document.querySelector('textarea') as HTMLTextAreaElement;
+      if (ta) { ta.focus(); const nativeSet = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set; nativeSet?.call(ta, '/search '); ta.dispatchEvent(new Event('input', { bubbles: true })); }
+    }},
+    { id: 'slash-tokens', label: '/tokens — Show token usage', icon: <Hash size={13} />, category: 'Slash Commands', handler: () => {
+      const msgs = useStore.getState().messages;
+      if (msgs.length === 0) { toast.info('No messages yet'); return; }
+      let inputTokens = 0, outputTokens = 0, totalCost = 0, counted = 0;
+      for (const m of msgs) { if (m.cost) { inputTokens += m.cost.inputTokens; outputTokens += m.cost.outputTokens; totalCost += m.cost.totalCost || 0; counted++; } }
+      if (counted === 0) { toast.info('No token usage data available'); return; }
+      const parts = [`${(inputTokens + outputTokens).toLocaleString()} tokens`, `(${inputTokens.toLocaleString()} in / ${outputTokens.toLocaleString()} out)`];
+      if (totalCost > 0) parts.push(`· $${totalCost.toFixed(4)}`);
+      toast.info(parts.join(' '));
+    }},
+    { id: 'slash-summarize', label: '/summarize — Summarize conversation', icon: <FileText size={13} />, category: 'Slash Commands', handler: () => {
+      const ta = document.querySelector('textarea') as HTMLTextAreaElement;
+      if (ta) { ta.focus(); const nativeSet = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set; nativeSet?.call(ta, '/summarize'); ta.dispatchEvent(new Event('input', { bubbles: true })); }
+      // Trigger send after a tick
+      setTimeout(() => { const btn = document.querySelector('[data-send-button]') as HTMLButtonElement; btn?.click(); }, 100);
+    }},
+    { id: 'slash-diff', label: '/diff — Compare branched responses', icon: <GitCompare size={13} />, category: 'Slash Commands', handler: () => {
+      const ta = document.querySelector('textarea') as HTMLTextAreaElement;
+      if (ta) { ta.focus(); const nativeSet = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set; nativeSet?.call(ta, '/diff'); ta.dispatchEvent(new Event('input', { bubbles: true })); }
+      setTimeout(() => { const btn = document.querySelector('[data-send-button]') as HTMLButtonElement; btn?.click(); }, 100);
+    }},
+    { id: 'slash-compare', label: '/compare — Compare models side-by-side', icon: <GitCompare size={13} />, category: 'Slash Commands', handler: () => {
+      const ta = document.querySelector('textarea') as HTMLTextAreaElement;
+      if (ta) { ta.focus(); const nativeSet = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set; nativeSet?.call(ta, '/compare '); ta.dispatchEvent(new Event('input', { bubbles: true })); }
     }},
     { id: 'logout', label: 'Log Out', icon: <LogOut size={13} />, category: 'Account', handler: async () => { try { await apiLogout(); } catch {} clearToken(); useStore.getState().reset(); window.location.href = '/login'; } },
   ], [setActiveModel, setRightPanelTab, setRightPanelOpen, rightPanelOpen]);

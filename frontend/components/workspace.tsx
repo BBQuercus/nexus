@@ -19,6 +19,7 @@ import ToastContainer from './toast';
 import ErrorBoundary from './error-boundary';
 import KeyboardShortcuts from './keyboard-shortcuts';
 import HealthBanner from './health-banner';
+import DiffViewer from './diff-viewer';
 import { Upload } from 'lucide-react';
 import * as api from '@/lib/api';
 import { MODELS } from '@/lib/types';
@@ -358,6 +359,7 @@ export default function Workspace() {
 
       {commandPaletteOpen && <CommandPalette />}
       {shortcutsOpen && <KeyboardShortcuts onClose={() => setShortcutsOpen(false)} />}
+      <DiffViewer />
       <ToastContainer />
       <ConfirmDialog
         open={confirmDialog.open}

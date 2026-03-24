@@ -698,6 +698,7 @@ async def run_multi_agent_loop(
     sandbox_id: Optional[str],
     leaf_message_id: uuid.UUID,
     num_responses: int,
+    compare_models: Optional[list[str]] = None,
 ) -> AsyncGenerator[dict, None]:
     """Run N agent loops in parallel, yielding multiplexed SSE events tagged with branch_index."""
     from backend.db import async_session
@@ -706,12 +707,13 @@ async def run_multi_agent_loop(
     message_ids: list[Optional[str]] = [None] * num_responses
 
     async def run_branch(branch_idx: int):
+        branch_model = compare_models[branch_idx] if compare_models else model
         try:
             async with async_session() as branch_db:
                 async for event in run_agent_loop(
                     conversation_id=conversation_id,
                     user_message=user_message,
-                    model=model,
+                    model=branch_model,
                     mode=mode,
                     persona=persona,
                     sandbox_id=sandbox_id,

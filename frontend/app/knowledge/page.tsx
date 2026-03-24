@@ -11,7 +11,7 @@ export default function KnowledgePage() {
   const router = useRouter();
   const setUser = useStore((s) => s.setUser);
   const user = useStore((s) => s.user);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!user);
 
   useEffect(() => {
     async function checkAuth() {

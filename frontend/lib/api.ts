@@ -271,6 +271,10 @@ export async function getConversationTree(conversationId: string): Promise<Conve
   return apiFetch<ConversationTree>(`/api/conversations/${conversationId}/tree`);
 }
 
+export async function getMessageSiblings(conversationId: string, messageId: string): Promise<Record<string, unknown>[]> {
+  return apiFetch<Record<string, unknown>[]>(`/api/conversations/${conversationId}/messages/${messageId}/siblings`);
+}
+
 export async function switchBranch(conversationId: string, leafId: string): Promise<{
   active_leaf_id: string;
   messages: Record<string, unknown>[];

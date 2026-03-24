@@ -48,6 +48,7 @@ class SendMessageRequest(BaseModel):
     mode: Optional[str] = None
     parent_id: Optional[uuid.UUID] = None
     num_responses: Optional[int] = 1  # 1-5 parallel responses
+    compare_models: Optional[list[str]] = None  # Run same prompt against multiple models
     context_conversation_ids: Optional[list[uuid.UUID]] = None  # @mentioned conversations
     agent_persona_id: Optional[uuid.UUID] = None  # Override persona for this message
     knowledge_base_ids: Optional[list[uuid.UUID]] = None  # Attach KBs for RAG
@@ -387,7 +388,8 @@ async def send_message(
         )
         persona = p_result.scalar_one_or_none()
 
-    num_responses = max(1, min(5, body.num_responses or 1))
+    compare_models = body.compare_models[:5] if body.compare_models else None
+    num_responses = len(compare_models) if compare_models else max(1, min(5, body.num_responses or 1))
 
     # Build context from @mentioned conversations
     context_text = ""
@@ -441,6 +443,7 @@ async def send_message(
                 sandbox_id=conv.sandbox_id,
                 leaf_message_id=user_msg.id,
                 num_responses=num_responses,
+                compare_models=compare_models,
             ):
                 # Capture active_leaf_id from all_done event
                 if event.get("event") == "all_done":
@@ -824,6 +827,35 @@ async def get_conversation_tree(
         "nodes": nodes,
         "activeLeafId": str(conv.active_leaf_id) if conv.active_leaf_id else None,
     }
+
+
+@router.get("/{conversation_id}/messages/{message_id}/siblings")
+async def get_message_siblings(
+    conversation_id: uuid.UUID,
+    message_id: uuid.UUID,
+    user_id: uuid.UUID = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get all sibling messages (messages sharing the same parent)."""
+    conv = (await db.execute(
+        select(Conversation).where(Conversation.id == conversation_id, Conversation.user_id == user_id)
+    )).scalar_one_or_none()
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    # Find the target message to get its parent_id
+    target = (await db.execute(select(Message).where(Message.id == message_id))).scalar_one_or_none()
+    if not target or not target.parent_id:
+        raise HTTPException(status_code=404, detail="Message not found or has no parent")
+
+    # Fetch all siblings (same parent)
+    siblings = (await db.execute(
+        select(Message)
+        .where(Message.parent_id == target.parent_id, Message.conversation_id == conversation_id)
+        .order_by(Message.branch_index, Message.created_at)
+    )).scalars().all()
+
+    return [_serialize_message(m) for m in siblings]
 
 
 @router.post("/{conversation_id}/switch-branch")
