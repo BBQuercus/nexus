@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useStore } from '@/lib/store';
 import { useIsMobile, useIsDesktop } from '@/lib/useMediaQuery';
 import { initMarkdown } from '@/lib/markdown';
@@ -24,6 +24,9 @@ import { MODELS } from '@/lib/types';
 
 export default function Workspace() {
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [focusMode, setFocusMode] = useState(false);
+  const focusModeRef = useRef(false);
+  focusModeRef.current = focusMode;
   const activeConversationId = useStore((s) => s.activeConversationId);
   const sidebarOpen = useStore((s) => s.sidebarOpen);
   const rightPanelOpen = useStore((s) => s.rightPanelOpen);
@@ -69,12 +72,21 @@ export default function Workspace() {
     const target = e.target as HTMLElement;
     const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
 
+    if (meta && e.shiftKey && e.key === 'f') {
+      e.preventDefault();
+      setFocusMode((prev) => !prev);
+      return;
+    }
     if (meta && e.key === 'k') {
       e.preventDefault();
       useStore.getState().setCommandPaletteOpen(!useStore.getState().commandPaletteOpen);
       return;
     }
     if (e.key === 'Escape') {
+      if (focusModeRef.current) {
+        setFocusMode(false);
+        return;
+      }
       if (useStore.getState().commandPaletteOpen) {
         useStore.getState().setCommandPaletteOpen(false);
       } else if (useStore.getState().sidebarOpen && !useStore.getState().commandPaletteOpen) {
@@ -179,11 +191,11 @@ export default function Workspace() {
 
   return (
     <div className="relative flex flex-col h-screen w-screen bg-bg overflow-hidden noise-overlay">
-      <HealthBanner />
-      <TopBar />
+      {!focusMode && <HealthBanner />}
+      {!focusMode && <TopBar />}
       <div className="flex flex-1 min-h-0 relative">
         {/* Sidebar — inline on desktop, overlay on mobile/tablet */}
-        {sidebarOpen && (
+        {!focusMode && sidebarOpen && (
           <>
             {sidebarIsOverlay && (
               <div
@@ -215,7 +227,7 @@ export default function Workspace() {
         </div>
 
         {/* Right panel — inline on desktop, overlay on mobile/tablet */}
-        {rightPanelOpen && (
+        {!focusMode && rightPanelOpen && (
           <>
             {rightPanelIsOverlay && (
               <div
@@ -237,6 +249,16 @@ export default function Workspace() {
           </>
         )}
       </div>
+
+      {/* Focus mode hint */}
+      {focusMode && (
+        <div className="fixed top-3 right-3 z-50 animate-focus-fade-in">
+          <div className="px-2.5 py-1 bg-surface-1/80 backdrop-blur-sm border border-border-default rounded-md text-[10px] text-text-tertiary font-mono">
+            ESC to exit focus
+          </div>
+        </div>
+      )}
+
       {commandPaletteOpen && <CommandPalette />}
       {shortcutsOpen && <KeyboardShortcuts onClose={() => setShortcutsOpen(false)} />}
       <ToastContainer />
