@@ -312,6 +312,13 @@ async def run_agent_loop(
                             except Exception as img_err:
                                 logger.error("image_read_failed", file=f, error=str(img_err))
                                 yield _sse_event("image_output", {"filename": f, "sandbox_id": sandbox_id})
+                        elif f.lower().endswith((".pptx", ".xlsx", ".pdf", ".docx", ".csv")):
+                            # Emit file artifact event for downloadable files
+                            yield _sse_event("file_output", {
+                                "filename": f,
+                                "sandbox_id": sandbox_id,
+                                "file_type": f.rsplit(".", 1)[-1].lower(),
+                            })
 
                     # Detect tables
                     if result.stdout:
