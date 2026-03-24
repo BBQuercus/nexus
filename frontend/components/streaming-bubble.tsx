@@ -133,7 +133,7 @@ function StreamingChartCard({ spec, title }: { spec: Record<string, unknown>; ti
       <div className="px-3 py-2 bg-surface-1 text-[11px] font-mono text-text-secondary">
         {title || 'Interactive Chart'}
       </div>
-      <VegaChart spec={spec} className="overflow-x-auto p-2" />
+      <VegaChart spec={spec} className="overflow-hidden p-2" />
     </div>
   );
 }
