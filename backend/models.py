@@ -127,6 +127,7 @@ class Message(Base):
     tool_calls: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
     tool_result: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
     images: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
+    charts: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
     attachments: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
     citations: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
     feedback: Mapped[Optional[str]] = mapped_column(String, nullable=True)
