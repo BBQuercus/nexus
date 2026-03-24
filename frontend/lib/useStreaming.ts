@@ -261,7 +261,7 @@ export function useStreaming() {
 
     try {
       const response = await api.sendMessage(
-        convId, text, opts.attachmentIds, opts.model, 'code',
+        convId, text, opts.attachmentIds, opts.model,
         opts.parentId, opts.numResponses, controller.signal,
         opts.contextIds,
       );
@@ -313,8 +313,13 @@ export function useStreaming() {
       useStore.getState().resetStreaming();
       useStore.getState().setIsStreaming(false);
 
-      api.listConversations().then((r) => useStore.getState().setConversations(r.conversations));
-      api.getConversationTree(convId).then((tree) => useStore.getState().setConversationTree(tree)).catch(() => {});
+      // If this was a branch (edit/branch send), do a full reload so sibling nav appears immediately
+      if (opts.parentId) {
+        await reloadConversation(convId);
+      } else {
+        api.listConversations().then((r) => useStore.getState().setConversations(r.conversations));
+        api.getConversationTree(convId).then((tree) => useStore.getState().setConversationTree(tree)).catch(() => {});
+      }
     }
   }, []);
 
