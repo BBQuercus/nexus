@@ -1,6 +1,7 @@
 # Nexus — Master Plan
 
-**Last updated:** 2026-03-24
+**Last updated:** 2026-03-25
+**Status:** All 10 initiatives implemented (see Implementation Log below)
 **Goal:** Build the de-facto gold standard AI chat application.
 **Sources:** Codebase audit, competitive analysis (ChatGPT, Claude.ai, Cursor, TypingMind, OpenWebUI, LibreChat), internal competitor teardown, colleague review, and tool implementation specs.
 
@@ -1504,3 +1505,33 @@ It should win by becoming the most trustworthy and legible environment for doing
 - Better extensibility than walled-garden products
 
 That is the path from "pretty decent tool" to "gold standard."
+
+---
+
+## Implementation Log
+
+All 10 initiatives were implemented on 2026-03-24/25. Each produced atomic commits.
+
+| # | Initiative | Commit | Key Deliverables |
+|---|-----------|--------|-----------------|
+| 1 | Reliability Baseline | `a6af9c3` | CI/CD (GitHub Actions), 145 backend + 77 frontend tests, OpenTelemetry + Prometheus metrics, circuit breakers, retry policies, Redis integration, background cleanup |
+| 2 | Architectural Bottlenecks | `5537a8f` | agent.py → agent/ package, chat-input.tsx → 10 files, message-bubble.tsx → 9 files, sidebar.tsx → 5 files, workspace.tsx → 4 files, Zustand store → 8 slices, per-panel error boundaries |
+| 3 | Platform Primitives | `af479b1` | 11 tool contracts, artifact model (type/source/lineage/versioning), audit event system + DB table, request lifecycle types, useApi/useOptimistic hooks |
+| 4 | Execution Legibility | `3cbea6d` | ExecutionTimeline, ProvenanceIndicator, RunSummary, ConfidenceIndicator components |
+| 5 | Workspace Structure | `3cbea6d` | Project model + CRUD API, full-text search API + SearchPanel, ProjectSwitcher, ContextWindowViz |
+| 6 | Memory & Knowledge | `4c31dd0` | Memory model + CRUD API + service, MemoryPanel, CitationDetailPanel/Popover |
+| 7 | Interactive Workflows | `4c31dd0` | create_ui tool (10 field types), FormRenderer, ArtifactCenter, SSE integration |
+| 8 | Open Platform | `3030539` | Background job system, MCP client, plugin registry, Jobs + Integrations APIs |
+| 9 | Enterprise & Governance | `3030539` | RBAC (4 roles), compliance API (audit log, data export), admin analytics |
+| 10 | Frontier Differentiators | `570dbfa` | Multi-agent orchestration, accessibility (SkipNav, LiveRegion, FocusTrap, reduced-motion), RunComparison |
+
+### Notes from implementation
+
+- **Redis fallback**: All Redis-dependent features (rate limiting, caching) gracefully fall back to in-memory when Redis is unavailable. This means the dev experience doesn't require Redis running.
+- **Tool contracts**: The 11 registered contracts cover all existing tools. New tools should use `register_tool()` to ensure consistent timeout/retry/redaction behavior.
+- **Audit events**: Events are buffered in memory and flushed to DB in batches of 50. The `record_audit_event()` function always logs immediately regardless of buffer state.
+- **RBAC backward compatibility**: The new `role` field coexists with `is_admin`. The RBAC system checks `role` first, falls back to `is_admin`-based role inference.
+- **create_ui forms**: V1 uses JSON-schema forms injected as user messages on submission. The plan's V2 (dedicated endpoint) and V3 (sandboxed iframe) paths remain future work.
+- **MCP client**: Implements the basic tool discovery + execution protocol. Full MCP spec compliance (resources, prompts, sampling) is future work.
+- **Multi-agent**: The orchestration layer supports 4 strategies but the actual parallel execution reuses existing `run_multi_agent_loop`. Deep multi-step debate/merge is future work.
+- **Migrations**: 4 new Alembic migrations added (audit_events, projects, memories, user roles). Run `alembic upgrade head` to apply.
