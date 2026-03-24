@@ -304,12 +304,32 @@ async def send_message(
     else:
         sibling_count = 0
 
+    # Build context references for persistence
+    context_refs = None
+    if body.context_conversation_ids:
+        context_refs = []
+        for ctx_id in body.context_conversation_ids[:3]:
+            try:
+                ctx_result = await db.execute(
+                    select(Conversation).where(Conversation.id == ctx_id)
+                )
+                ctx_conv = ctx_result.scalar_one_or_none()
+                if ctx_conv:
+                    context_refs.append({"id": str(ctx_id), "title": ctx_conv.title or "Untitled"})
+            except Exception:
+                continue
+
     # Save user message
+    # Store context_refs alongside file attachments in the attachments JSON
+    msg_attachments = body.attachments
+    if context_refs:
+        msg_attachments = (msg_attachments or []) + [{"type": "context", "contexts": context_refs}]
+
     user_msg = Message(
         conversation_id=conversation_id,
         role="user",
         content=body.content,
-        attachments=body.attachments,
+        attachments=msg_attachments,
         parent_id=parent_id,
         branch_index=sibling_count,
     )
