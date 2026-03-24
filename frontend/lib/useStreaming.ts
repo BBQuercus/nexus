@@ -8,20 +8,33 @@ import { toast } from '@/components/toast';
 
 /** Map raw API message objects to typed Message[] */
 export function mapRawMessages(raw: Array<Record<string, unknown>>, conversationId: string): Message[] {
-  return raw.map((m) => ({
-    id: (m.id as string) || '',
-    conversationId,
-    role: (m.role as 'user' | 'assistant' | 'system') || 'user',
-    content: (m.content as string) || '',
-    createdAt: (m.created_at as string) || (m.createdAt as string) || '',
-    reasoning: (m.reasoning as string) || undefined,
-    toolCalls: (m.tool_calls as Message['toolCalls']) || undefined,
-    images: (m.images as Message['images']) || undefined,
-    files: (m.files as Message['files']) || undefined,
-    feedback: (m.feedback as Message['feedback']) || undefined,
-    parentId: (m.parent_id as string) || undefined,
-    branchIndex: (m.branch_index as number) ?? undefined,
-  }));
+  return raw.map((m) => {
+    // Extract context references from attachments
+    const rawAttachments = m.attachments as Array<Record<string, unknown>> | undefined;
+    let contexts: Message['contexts'] = undefined;
+    if (rawAttachments) {
+      const ctxEntry = rawAttachments.find((a) => a.type === 'context');
+      if (ctxEntry && Array.isArray(ctxEntry.contexts)) {
+        contexts = ctxEntry.contexts as { id: string; title: string }[];
+      }
+    }
+
+    return {
+      id: (m.id as string) || '',
+      conversationId,
+      role: (m.role as 'user' | 'assistant' | 'system') || 'user',
+      content: (m.content as string) || '',
+      createdAt: (m.created_at as string) || (m.createdAt as string) || '',
+      reasoning: (m.reasoning as string) || undefined,
+      toolCalls: (m.tool_calls as Message['toolCalls']) || undefined,
+      images: (m.images as Message['images']) || undefined,
+      files: (m.files as Message['files']) || undefined,
+      feedback: (m.feedback as Message['feedback']) || undefined,
+      contexts,
+      parentId: (m.parent_id as string) || undefined,
+      branchIndex: (m.branch_index as number) ?? undefined,
+    };
+  });
 }
 
 /** Process a single SSE event into the appropriate store state */

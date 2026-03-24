@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useStore } from '@/lib/store';
 import * as api from '@/lib/api';
 import type { AgentPersona, AgentMode } from '@/lib/types';
-import { Zap, ArrowLeft, X, Plus, Save, Play, Trash2, Globe, Lock } from 'lucide-react';
+import { X, Plus, Save, Play, Trash2, Globe, Lock } from 'lucide-react';
+import PageShell from './page-shell';
 import ConfirmDialog from './confirm-dialog';
 
 const EMOJI_OPTIONS = ['🤖', '🧑‍💻', '👨‍🔬', '👩‍🎨', '⚙️', '📚', '🚀', '🧠', '🔮', '🎯', '💡', '🔥', '🌟', '⚡', '🧙', '👾'];
@@ -92,24 +93,15 @@ export default function AgentsView() {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-bg">
-      {/* Header - matches admin page pattern */}
-      <div className="flex items-center h-11 px-3 bg-surface-0 border-b border-border-default shrink-0">
-        <button onClick={() => router.push('/')} className="flex items-center gap-1.5 cursor-pointer mr-4">
-          <Zap size={14} className="text-accent" />
-          <span className="text-sm font-bold tracking-[0.12em] uppercase">Nexus</span>
-        </button>
-        <div className="h-4 w-px bg-border-default mr-3" />
-        <span className="text-[11px] text-text-tertiary uppercase tracking-wider mr-6">Agents</span>
+    <PageShell title="Agents">
+      {/* Toolbar */}
+      <div className="flex items-center h-10 px-4 border-b border-border-default shrink-0">
         <div className="flex-1" />
         <button
           onClick={() => setEditing({ ...emptyAgent })}
-          className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium bg-accent text-bg rounded-md hover:bg-accent-hover cursor-pointer transition-colors mr-3"
+          className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium bg-accent text-bg rounded-lg hover:bg-accent-hover cursor-pointer transition-colors"
         >
           <Plus size={12} /> New Agent
-        </button>
-        <button onClick={() => router.push('/')} className="flex items-center gap-1 text-[11px] text-text-tertiary hover:text-text-secondary cursor-pointer">
-          <ArrowLeft size={11} /> Workspace
         </button>
       </div>
 
@@ -176,7 +168,7 @@ export default function AgentsView() {
                 <div className="flex flex-wrap gap-1">
                   {EMOJI_OPTIONS.map((e) => (
                     <button key={e} onClick={() => setEditing({ ...editing, icon: e })}
-                      className={`w-7 h-7 flex items-center justify-center cursor-pointer text-sm rounded-md transition-colors ${editing.icon === e ? 'bg-accent/20 border border-accent' : 'border border-border-default hover:bg-surface-2'}`}
+                      className={`w-7 h-7 flex items-center justify-center cursor-pointer text-sm rounded-lg transition-colors ${editing.icon === e ? 'bg-accent/20 border border-accent' : 'border border-border-default hover:bg-surface-2'}`}
                     >{e}</button>
                   ))}
                 </div>
@@ -185,25 +177,25 @@ export default function AgentsView() {
               <div>
                 <label className="block text-[10px] text-text-tertiary mb-1.5 uppercase tracking-wide">Name</label>
                 <input value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} placeholder="Agent name"
-                  className="w-full px-3 py-2 bg-surface-1 border border-border-default rounded-md text-xs text-text-primary outline-none focus:border-border-focus transition-colors" />
+                  className="w-full px-3 py-2 bg-surface-1 border border-border-default rounded-lg text-xs text-text-primary outline-none focus:border-border-focus transition-colors" />
               </div>
 
               <div>
                 <label className="block text-[10px] text-text-tertiary mb-1.5 uppercase tracking-wide">Description</label>
                 <input value={editing.description} onChange={(e) => setEditing({ ...editing, description: e.target.value })} placeholder="Brief description"
-                  className="w-full px-3 py-2 bg-surface-1 border border-border-default rounded-md text-xs text-text-primary outline-none focus:border-border-focus transition-colors" />
+                  className="w-full px-3 py-2 bg-surface-1 border border-border-default rounded-lg text-xs text-text-primary outline-none focus:border-border-focus transition-colors" />
               </div>
 
               <div>
                 <label className="block text-[10px] text-text-tertiary mb-1.5 uppercase tracking-wide">System Prompt</label>
                 <textarea value={editing.systemPrompt} onChange={(e) => setEditing({ ...editing, systemPrompt: e.target.value })} placeholder="Instructions..." rows={6}
-                  className="w-full px-3 py-2 bg-surface-1 border border-border-default rounded-md text-xs text-text-primary outline-none focus:border-border-focus resize-none font-mono transition-colors" />
+                  className="w-full px-3 py-2 bg-surface-1 border border-border-default rounded-lg text-xs text-text-primary outline-none focus:border-border-focus resize-none font-mono transition-colors" />
               </div>
 
               <div>
                 <label className="block text-[10px] text-text-tertiary mb-1.5 uppercase tracking-wide">Default Model</label>
                 <select value={editing.defaultModel} onChange={(e) => setEditing({ ...editing, defaultModel: e.target.value })}
-                  className="w-full px-3 py-2 bg-surface-1 border border-border-default rounded-md text-xs text-text-primary outline-none focus:border-border-focus transition-colors">
+                  className="w-full px-3 py-2 bg-surface-1 border border-border-default rounded-lg text-xs text-text-primary outline-none focus:border-border-focus transition-colors">
                   {MODEL_OPTIONS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
                 </select>
               </div>
@@ -211,7 +203,7 @@ export default function AgentsView() {
               <div>
                 <label className="block text-[10px] text-text-tertiary mb-1.5 uppercase tracking-wide">Default Mode</label>
                 <select value={editing.defaultMode} onChange={(e) => setEditing({ ...editing, defaultMode: e.target.value as AgentMode })}
-                  className="w-full px-3 py-2 bg-surface-1 border border-border-default rounded-md text-xs text-text-primary outline-none focus:border-border-focus transition-colors">
+                  className="w-full px-3 py-2 bg-surface-1 border border-border-default rounded-lg text-xs text-text-primary outline-none focus:border-border-focus transition-colors">
                   <option value="chat">Chat</option>
                   <option value="code">Code</option>
                   <option value="architect">Architect</option>
@@ -227,16 +219,16 @@ export default function AgentsView() {
               </div>
 
               <div className="flex gap-1.5 pt-2">
-                <button onClick={handleSave} className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-accent text-bg text-[11px] font-medium rounded-md hover:bg-accent-hover cursor-pointer transition-colors">
+                <button onClick={handleSave} className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-accent text-bg text-[11px] font-medium rounded-lg hover:bg-accent-hover cursor-pointer transition-colors">
                   <Save size={12} /> Save
                 </button>
                 {editing.id && (
-                  <button onClick={handleTry} className="flex items-center justify-center gap-1.5 px-4 py-2 bg-surface-1 border border-border-default text-text-primary text-[11px] rounded-md hover:bg-surface-2 cursor-pointer transition-colors">
+                  <button onClick={handleTry} className="flex items-center justify-center gap-1.5 px-4 py-2 bg-surface-1 border border-border-default text-text-primary text-[11px] rounded-lg hover:bg-surface-2 cursor-pointer transition-colors">
                     <Play size={12} /> Try
                   </button>
                 )}
                 {editing.id && (
-                  <button onClick={handleDelete} className="flex items-center justify-center gap-1.5 px-4 py-2 text-error text-[11px] rounded-md hover:bg-error/10 cursor-pointer transition-colors">
+                  <button onClick={handleDelete} className="flex items-center justify-center gap-1.5 px-4 py-2 text-error text-[11px] rounded-lg hover:bg-error/10 cursor-pointer transition-colors">
                     <Trash2 size={12} />
                   </button>
                 )}
@@ -254,6 +246,6 @@ export default function AgentsView() {
         onConfirm={() => resolveConfirm(true)}
         onCancel={() => resolveConfirm(false)}
       />
-    </div>
+    </PageShell>
   );
 }
