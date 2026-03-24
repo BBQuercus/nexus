@@ -18,10 +18,14 @@ from backend.logging_config import get_logger, setup_logging
 from backend.middleware import GlobalExceptionMiddleware, MetricsMiddleware, RequestIdMiddleware, SecurityHeadersMiddleware
 from backend.models import FrontendError
 from backend.routers.admin import router as admin_router
+from backend.routers.admin_analytics import router as admin_analytics_router
 from backend.routers.agents import router as agents_router
 from backend.routers.analytics import router as analytics_router
 from backend.routers.chat import artifact_router, router as chat_router
+from backend.routers.compliance import router as compliance_router
 from backend.routers.feedback import router as feedback_router
+from backend.routers.integrations import router as integrations_router
+from backend.routers.jobs import router as jobs_router
 from backend.routers.knowledge import router as knowledge_router, doc_router as knowledge_doc_router, retrieval_router as knowledge_retrieval_router
 from backend.routers.media import router as media_router
 from backend.routers.memory import router as memory_router
@@ -47,6 +51,7 @@ async def lifespan(app: FastAPI):
     import asyncio
     from backend.redis import get_redis, close_redis
     from backend.services.cleanup import start_cleanup_loop
+    from backend.services.jobs import start_job_worker
 
     should_manage_schema = settings.AUTO_APPLY_DB_SCHEMA or bool(os.environ.get("DEV_MODE"))
     if not should_manage_schema:
@@ -54,11 +59,17 @@ async def lifespan(app: FastAPI):
         await get_redis()
         setup_telemetry(app=app, db_engine=engine)
         cleanup_task = asyncio.create_task(start_cleanup_loop())
+        job_worker_task = await start_job_worker()
         yield
         logger.info("graceful_shutdown_started")
         cleanup_task.cancel()
+        job_worker_task.cancel()
         try:
             await cleanup_task
+        except asyncio.CancelledError:
+            pass
+        try:
+            await job_worker_task
         except asyncio.CancelledError:
             pass
         await close_redis()
@@ -112,11 +123,17 @@ async def lifespan(app: FastAPI):
     await get_redis()
     setup_telemetry(app=app, db_engine=engine)
     cleanup_task = asyncio.create_task(start_cleanup_loop())
+    job_worker_task = await start_job_worker()
     yield
     logger.info("graceful_shutdown_started")
     cleanup_task.cancel()
+    job_worker_task.cancel()
     try:
         await cleanup_task
+    except asyncio.CancelledError:
+        pass
+    try:
+        await job_worker_task
     except asyncio.CancelledError:
         pass
     await close_redis()
@@ -179,6 +196,10 @@ app.include_router(media_router)
 app.include_router(memory_router)
 app.include_router(projects_router)
 app.include_router(search_router)
+app.include_router(integrations_router)
+app.include_router(jobs_router)
+app.include_router(compliance_router)
+app.include_router(admin_analytics_router)
 
 
 # ── Prometheus Metrics ──

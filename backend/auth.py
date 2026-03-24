@@ -329,5 +329,6 @@ async def me(
         "name": user.name,
         "avatarUrl": user.avatar_url,
         "isAdmin": user.is_admin,
+        "role": user.role or ("admin" if user.is_admin else "editor"),
         "created_at": user.created_at.isoformat() if user.created_at else None,
     }
