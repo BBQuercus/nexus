@@ -44,6 +44,7 @@ class SendMessageRequest(BaseModel):
     mode: Optional[str] = None
     parent_id: Optional[uuid.UUID] = None
     num_responses: Optional[int] = 1  # 1-5 parallel responses
+    context_conversation_ids: Optional[list[uuid.UUID]] = None  # @mentioned conversations
 
 
 class SwitchBranchRequest(BaseModel):
@@ -336,6 +337,44 @@ async def send_message(
 
     num_responses = max(1, min(5, body.num_responses or 1))
 
+    # Build context from @mentioned conversations
+    context_text = ""
+    if body.context_conversation_ids:
+        context_parts = []
+        for ctx_id in body.context_conversation_ids[:3]:  # Max 3 contexts
+            try:
+                ctx_result = await db.execute(
+                    select(Conversation).where(
+                        Conversation.id == ctx_id, Conversation.user_id == user_id
+                    )
+                )
+                ctx_conv = ctx_result.scalar_one_or_none()
+                if not ctx_conv:
+                    continue
+                # Get last 10 messages from referenced conversation
+                ctx_msgs = await db.execute(
+                    select(Message)
+                    .where(Message.conversation_id == ctx_id)
+                    .order_by(Message.created_at.desc())
+                    .limit(10)
+                )
+                msgs = list(reversed(list(ctx_msgs.scalars().all())))
+                if msgs:
+                    summary = "\n".join(
+                        f"{'User' if m.role == 'user' else 'Assistant'}: {(m.content or '')[:300]}"
+                        for m in msgs if m.role in ("user", "assistant")
+                    )
+                    context_parts.append(
+                        f'[Context from conversation "{ctx_conv.title or "Untitled"}"]\n{summary}'
+                    )
+            except Exception:
+                continue
+        if context_parts:
+            context_text = "\n\n".join(context_parts) + "\n\n---\n\n"
+
+    # The user message content sent to the LLM includes context, but DB stores clean text
+    llm_user_content = context_text + body.content if context_text else body.content
+
     async def event_generator():
         assistant_msg_id = None
 
@@ -343,7 +382,7 @@ async def send_message(
             # Multi-response: run N parallel agent loops
             async for event in run_multi_agent_loop(
                 conversation_id=conversation_id,
-                user_message=body.content,
+                user_message=llm_user_content,
                 model=model,
                 mode=mode,
                 persona=persona,
@@ -364,7 +403,7 @@ async def send_message(
             try:
                 async for event in run_agent_loop(
                     conversation_id=conversation_id,
-                    user_message=body.content,
+                    user_message=llm_user_content,
                     model=model,
                     mode=mode,
                     persona=persona,

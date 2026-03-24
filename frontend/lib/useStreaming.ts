@@ -215,6 +215,7 @@ export function useStreaming() {
       model: string;
       parentId?: string;
       numResponses: number;
+      contextIds?: string[];
     },
   ) => {
     const store = useStore.getState();
@@ -249,6 +250,7 @@ export function useStreaming() {
       const response = await api.sendMessage(
         convId, text, opts.attachmentIds, opts.model, 'code',
         opts.parentId, opts.numResponses, controller.signal,
+        opts.contextIds,
       );
       for await (const event of streamSSE(response)) {
         const result = processSseEvent(

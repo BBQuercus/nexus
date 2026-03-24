@@ -180,6 +180,7 @@ export async function sendMessage(
   parentId?: string,
   numResponses?: number,
   signal?: AbortSignal,
+  contextIds?: string[],
 ): Promise<Response> {
   const token = getToken();
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -193,6 +194,7 @@ export async function sendMessage(
       content, attachments, model, mode,
       parent_id: parentId,
       ...(numResponses && numResponses > 1 ? { num_responses: numResponses } : {}),
+      ...(contextIds && contextIds.length > 0 ? { context_conversation_ids: contextIds } : {}),
     }),
   });
   if (!response.ok) {
