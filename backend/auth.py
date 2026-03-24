@@ -120,10 +120,8 @@ async def get_current_user(request: Request) -> uuid.UUID:
         if user_id is None:
             raise HTTPException(status_code=401, detail="Invalid token")
 
-        # Accept both access and refresh tokens for API calls
-        # (refresh tokens work as a fallback when access token expires)
         token_type = payload.get("type", "access")
-        if token_type not in ("access", "refresh"):
+        if token_type != "access":
             raise HTTPException(status_code=401, detail="Invalid token type")
 
         return uuid.UUID(user_id)
@@ -210,9 +208,25 @@ async def callback(code: str, db: AsyncSession = Depends(get_db)):
     refresh_token = create_refresh_token(str(user.id), user.email)
 
     frontend_url = _get_frontend_url()
-    redirect_url = f"{frontend_url}/auth/callback?token={access_token}&refresh_token={refresh_token}"
+    response = RedirectResponse(url=f"{frontend_url}/auth/callback")
+    secure = frontend_url.startswith("https")
 
-    response = RedirectResponse(url=redirect_url)
+    response.set_cookie(
+        "session",
+        access_token,
+        httponly=True,
+        samesite="lax",
+        secure=secure,
+        max_age=settings.JWT_ACCESS_TOKEN_MINUTES * 60,
+    )
+    response.set_cookie(
+        "refresh_token",
+        refresh_token,
+        httponly=True,
+        samesite="lax",
+        secure=secure,
+        max_age=settings.JWT_REFRESH_TOKEN_DAYS * 86400,
+    )
 
     # Set CSRF cookie
     csrf_token = generate_csrf_token(str(user.id))
@@ -220,8 +234,8 @@ async def callback(code: str, db: AsyncSession = Depends(get_db)):
         "csrf_token",
         csrf_token,
         httponly=False,  # Needs to be readable by JS
-        samesite="strict",
-        secure=frontend_url.startswith("https"),
+        samesite="lax",
+        secure=secure,
         max_age=settings.JWT_REFRESH_TOKEN_DAYS * 86400,
     )
 
@@ -229,15 +243,20 @@ async def callback(code: str, db: AsyncSession = Depends(get_db)):
 
 
 class RefreshRequest(BaseModel):
-    refresh_token: str
+    refresh_token: str | None = None
 
 
 @router.post("/refresh")
-async def refresh_token(body: RefreshRequest):
+async def refresh_token(request: Request, response: Response, body: RefreshRequest | None = None):
     """Exchange a valid refresh token for a new access token."""
+    refresh_token_value = body.refresh_token if body and body.refresh_token else None
+    if not refresh_token_value and request is not None:
+        refresh_token_value = request.cookies.get("refresh_token")
+    if not refresh_token_value:
+        raise HTTPException(status_code=401, detail="Refresh token missing")
     try:
         payload = jwt.decode(
-            body.refresh_token,
+            refresh_token_value,
             settings.SERVER_SECRET,
             algorithms=[settings.JWT_ENCODING_ALGORITHM],
         )
@@ -260,10 +279,28 @@ async def refresh_token(body: RefreshRequest):
 
     logger.info("token_refreshed", user_id=user_id)
 
+    if response is not None:
+        secure = _get_frontend_url().startswith("https")
+        response.set_cookie(
+            "session",
+            new_access,
+            httponly=True,
+            samesite="lax",
+            secure=secure,
+            max_age=settings.JWT_ACCESS_TOKEN_MINUTES * 60,
+        )
+        response.set_cookie(
+            "refresh_token",
+            new_refresh,
+            httponly=True,
+            samesite="lax",
+            secure=secure,
+            max_age=settings.JWT_REFRESH_TOKEN_DAYS * 86400,
+        )
+
     return {
-        "access_token": new_access,
-        "refresh_token": new_refresh,
         "expires_in": settings.JWT_ACCESS_TOKEN_MINUTES * 60,
+        "ok": True,
     }
 
 
@@ -271,6 +308,7 @@ async def refresh_token(body: RefreshRequest):
 async def logout_endpoint(response: Response):
     """Clear session cookie and CSRF cookie."""
     response.delete_cookie("session")
+    response.delete_cookie("refresh_token")
     response.delete_cookie("csrf_token")
     return {"ok": True}
 

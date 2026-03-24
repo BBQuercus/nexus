@@ -1,5 +1,3 @@
-import { getToken } from './auth';
-
 export type TerminalEventHandler = (data: string) => void;
 export type ConnectionEventHandler = () => void;
 
@@ -32,9 +30,7 @@ export class TerminalSocket {
 
     this.shouldReconnect = true;
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const token = getToken();
-    const tokenParam = token ? `?token=${encodeURIComponent(token)}` : '';
-    const url = `${protocol}//${WS_BASE}/ws/sandbox/${this.sandboxId}/terminal${tokenParam}`;
+    const url = `${protocol}//${WS_BASE}/ws/sandbox/${this.sandboxId}/terminal`;
 
     try {
       this.ws = new WebSocket(url);

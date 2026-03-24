@@ -8,6 +8,26 @@ function escapeHtml(text: string): string {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+function sanitizeUrl(url: string, { allowData = false }: { allowData?: boolean } = {}): string {
+  const trimmed = url.trim();
+  if (!trimmed) return '#';
+  if (trimmed.startsWith('#') || trimmed.startsWith('/')) return trimmed;
+  if (trimmed.startsWith('./') || trimmed.startsWith('../')) return trimmed;
+  if (allowData && (trimmed.startsWith('data:') || trimmed.startsWith('blob:'))) return trimmed;
+
+  try {
+    const parsed = new URL(trimmed, 'https://nexus.local');
+    const protocol = parsed.protocol.toLowerCase();
+    if (protocol === 'http:' || protocol === 'https:' || protocol === 'mailto:') {
+      return trimmed;
+    }
+  } catch {
+    return '#';
+  }
+
+  return '#';
+}
+
 export async function initMarkdown(): Promise<void> {
   if (shikiHighlighter || shikiLoading) return;
   shikiLoading = (async () => {
@@ -44,7 +64,7 @@ export function highlightCode(code: string, language: string): string {
 
 function renderKatex(tex: string, displayMode: boolean): string {
   try {
-    return katex.renderToString(tex, { displayMode, throwOnError: false, trust: true });
+    return katex.renderToString(tex, { displayMode, throwOnError: false, trust: false });
   } catch {
     return `<code>${escapeHtml(tex)}</code>`;
   }
@@ -59,6 +79,9 @@ export function renderMarkdown(text: string): string {
   );
 
   const renderer = new Renderer();
+  renderer.html = function ({ raw, text }: { raw?: string; text?: string }) {
+    return escapeHtml(raw || text || '');
+  };
   renderer.code = function ({ text: code, lang }: { text: string; lang?: string | undefined }) {
     const language = lang || '';
     if (language === 'mermaid') {
@@ -67,22 +90,23 @@ export function renderMarkdown(text: string): string {
     }
     const highlighted = highlightCode(code, language);
     const langLabel = language ? `<span class="code-lang-label">${escapeHtml(language)}</span>` : '';
-    return `<div class="code-block-wrapper"><div class="code-block-header">${langLabel}<button class="code-copy-btn" data-code="${escapeHtml(code)}" onclick="(function(btn){navigator.clipboard.writeText(btn.dataset.code).then(function(){btn.textContent='Copied!';setTimeout(function(){btn.textContent='Copy'},1500)});})(this)">Copy</button></div>${highlighted}</div>`;
+    return `<div class="code-block-wrapper"><div class="code-block-header">${langLabel}<button type="button" class="code-copy-btn" data-code="${escapeHtml(code)}">Copy</button></div>${highlighted}</div>`;
   };
   renderer.image = function ({ href, title, text }: { href: string; title?: string | null | undefined; text: string }) {
     const alt = text || '';
     const titleAttr = title ? ` title="${escapeHtml(title)}"` : '';
+    const safeHref = sanitizeUrl(href, { allowData: true });
     return `<div class="my-3 border border-[var(--color-border-default)] overflow-hidden">
-      <img src="${escapeHtml(href)}" alt="${escapeHtml(alt)}"${titleAttr} class="w-full max-h-[500px] object-contain" style="background:#121214" loading="lazy" />
+      <img src="${escapeHtml(safeHref)}" alt="${escapeHtml(alt)}"${titleAttr} class="w-full max-h-[500px] object-contain" style="background:#121214" loading="lazy" />
       ${alt ? `<div class="flex items-center justify-between px-3 py-1.5 text-[11px] font-mono" style="background:var(--color-surface-1);color:var(--color-text-tertiary)">
         <span>${escapeHtml(alt)}</span>
-        <a href="${escapeHtml(href)}" download="${escapeHtml(alt)}" style="color:var(--color-text-tertiary)">Save</a>
+        <a href="${escapeHtml(safeHref)}" download="${escapeHtml(alt)}" style="color:var(--color-text-tertiary)">Save</a>
       </div>` : ''}
     </div>`;
   };
   renderer.link = function ({ href, title, text }: { href: string; title?: string | null | undefined; text: string }) {
     const titleAttr = title ? ` title="${escapeHtml(title)}"` : '';
-    return `<a href="${escapeHtml(href)}"${titleAttr} target="_blank" rel="noopener noreferrer">${text}</a>`;
+    return `<a href="${escapeHtml(sanitizeUrl(href))}"${titleAttr} target="_blank" rel="noopener noreferrer">${text}</a>`;
   };
 
   marked.setOptions({ renderer, gfm: true, breaks: true });

@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import uuid
 from dataclasses import dataclass
 from typing import Optional
 
@@ -65,17 +66,21 @@ async def create_sandbox(
         )
 
     # Auto-cleanup: delete stopped sandboxes before creating a new one
+    owner_id = (labels or {}).get("user_id")
     try:
         result = await asyncio.to_thread(daytona.list)
         items = list(getattr(result, 'items', result))
         for s in items:
             state = str(getattr(s, 'state', ''))
-            if 'STOPPED' in state:
-                try:
-                    await asyncio.to_thread(daytona.delete, s)
-                    logger.info(f"Auto-cleaned stopped sandbox: {s.id}")
-                except Exception:
-                    pass
+            if 'STOPPED' not in state:
+                continue
+            if owner_id and get_sandbox_owner_id(s) != owner_id:
+                continue
+            try:
+                await asyncio.to_thread(daytona.delete, s)
+                logger.info(f"Auto-cleaned stopped sandbox: {s.id}")
+            except Exception:
+                pass
     except Exception as e:
         logger.warning(f"Sandbox auto-cleanup failed: {e}")
 
@@ -186,6 +191,48 @@ async def get_sandbox(sandbox_id: str):
     if daytona is None:
         raise RuntimeError("Daytona SDK not configured")
     return await asyncio.to_thread(daytona.get_current_sandbox, sandbox_id)
+
+
+def get_sandbox_owner_id(sandbox: object) -> str | None:
+    """Best-effort extraction of the owner label from a Daytona sandbox object."""
+    candidates = [
+        getattr(sandbox, "labels", None),
+        getattr(getattr(sandbox, "info", None), "labels", None),
+        getattr(getattr(sandbox, "state", None), "labels", None),
+        getattr(getattr(sandbox, "metadata", None), "labels", None),
+    ]
+    for labels in candidates:
+        if isinstance(labels, dict):
+            owner_id = labels.get("user_id")
+            if owner_id:
+                return str(owner_id)
+    return None
+
+
+async def ensure_sandbox_access(sandbox_id: str, user_id: uuid.UUID, db=None):
+    """Load a sandbox and verify that the authenticated user owns it."""
+    sandbox = await get_sandbox(sandbox_id)
+    owner_id = get_sandbox_owner_id(sandbox)
+    if owner_id:
+        if owner_id != str(user_id):
+            raise PermissionError("Sandbox access denied")
+        return sandbox
+
+    if db is not None:
+        from sqlalchemy import select
+
+        from backend.models import Conversation
+
+        result = await db.execute(
+            select(Conversation.user_id).where(Conversation.sandbox_id == sandbox_id).limit(1)
+        )
+        conversation_owner = result.scalar_one_or_none()
+        if conversation_owner is not None:
+            if conversation_owner != user_id:
+                raise PermissionError("Sandbox access denied")
+            return sandbox
+
+    raise PermissionError("Sandbox owner could not be verified")
 
 
 async def stop_sandbox(sandbox) -> None:

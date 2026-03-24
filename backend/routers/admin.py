@@ -141,26 +141,35 @@ async def admin_list_feedback(
     result = await db.execute(query)
     feedbacks = result.scalars().all()
 
+    user_ids = list({f.user_id for f in feedbacks})
+    message_ids = list({f.message_id for f in feedbacks})
+
+    user_names: dict[uuid.UUID, str] = {}
+    if user_ids:
+        user_result = await db.execute(
+            select(User.id, User.name).where(User.id.in_(user_ids))
+        )
+        user_names = {user_id: name or "Unknown" for user_id, name in user_result.all()}
+
+    message_previews: dict[uuid.UUID, str] = {}
+    if message_ids:
+        msg_result = await db.execute(
+            select(Message.id, Message.content).where(Message.id.in_(message_ids))
+        )
+        message_previews = {
+            message_id: (content or "")[:200]
+            for message_id, content in msg_result.all()
+        }
+
     items = []
     for f in feedbacks:
-        # Fetch user name
-        user_result = await db.execute(select(User.name).where(User.id == f.user_id))
-        user_name = user_result.scalar() or "Unknown"
-
-        # Fetch message preview
-        msg_result = await db.execute(
-            select(Message.content).where(Message.id == f.message_id)
-        )
-        msg_content = msg_result.scalar() or ""
-        message_preview = msg_content[:200] if msg_content else ""
-
         items.append(
             {
                 "id": str(f.id),
                 "user_id": str(f.user_id),
-                "user_name": user_name,
+                "user_name": user_names.get(f.user_id, "Unknown"),
                 "message_id": str(f.message_id),
-                "message_preview": message_preview,
+                "message_preview": message_previews.get(f.message_id, ""),
                 "conversation_id": str(f.conversation_id),
                 "rating": f.rating,
                 "tags": f.tags,

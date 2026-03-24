@@ -2,24 +2,21 @@ const TOKEN_KEY = 'nexus_session';
 const REFRESH_TOKEN_KEY = 'nexus_refresh_token';
 
 export function getToken(): string | null {
-  if (typeof window === 'undefined') return null;
-  return localStorage.getItem(TOKEN_KEY);
+  return null;
 }
 
-export function setToken(token: string): void {
-  localStorage.setItem(TOKEN_KEY, token);
+export function setToken(_token: string): void {
 }
 
 export function getRefreshToken(): string | null {
-  if (typeof window === 'undefined') return null;
-  return localStorage.getItem(REFRESH_TOKEN_KEY);
+  return null;
 }
 
-export function setRefreshToken(token: string): void {
-  localStorage.setItem(REFRESH_TOKEN_KEY, token);
+export function setRefreshToken(_token: string): void {
 }
 
 export function clearToken(): void {
+  if (typeof window === 'undefined') return;
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(REFRESH_TOKEN_KEY);
 }
@@ -28,29 +25,10 @@ export function getLoginUrl(): string {
   return '/auth/login';
 }
 
-/**
- * Decode JWT payload without verification (just for client-side expiry checks).
- */
-function decodePayload(token: string): Record<string, unknown> | null {
-  try {
-    const parts = token.split('.');
-    if (parts.length !== 3) return null;
-    const payload = JSON.parse(atob(parts[1]));
-    return payload;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Get seconds until the access token expires. Returns -1 if no token or can't decode.
- */
-export function getTokenExpirySeconds(): number {
-  const token = getToken();
-  if (!token) return -1;
-  const payload = decodePayload(token);
-  if (!payload || typeof payload.exp !== 'number') return -1;
-  return payload.exp - Math.floor(Date.now() / 1000);
+export function getCsrfToken(): string | null {
+  if (typeof document === 'undefined') return null;
+  const csrfMatch = document.cookie.match(/csrf_token=([^;]+)/);
+  return csrfMatch?.[1] || null;
 }
 
 /**
@@ -58,29 +36,22 @@ export function getTokenExpirySeconds(): number {
  * Returns true on success, false on failure.
  */
 export async function refreshAccessToken(): Promise<boolean> {
-  const refreshToken = getRefreshToken();
-  if (!refreshToken) return false;
-
   try {
-    // Hit backend directly
     const base = typeof window !== 'undefined' && window.location.port === '5173'
       ? 'http://localhost:8000'
       : '';
+    const csrfToken = getCsrfToken();
     const resp = await fetch(`${base}/auth/refresh`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refresh_token: refreshToken }),
+      headers: csrfToken ? { 'X-CSRF-Token': csrfToken } : {},
+      credentials: 'include',
     });
 
     if (!resp.ok) {
-      // Refresh failed — clear tokens
       clearToken();
       return false;
     }
 
-    const data = await resp.json();
-    setToken(data.access_token);
-    setRefreshToken(data.refresh_token);
     return true;
   } catch {
     return false;
@@ -102,17 +73,11 @@ export function startTokenRefreshTimer(onExpiringSoon?: () => void): void {
   if (_refreshTimer) clearInterval(_refreshTimer);
 
   _refreshTimer = setInterval(async () => {
-    const secondsLeft = getTokenExpirySeconds();
-    if (secondsLeft < 0) return; // No token
-
-    // Refresh when <5 minutes remaining
-    if (secondsLeft < 300 && secondsLeft > 0) {
-      const success = await refreshAccessToken();
-      if (!success && _onSessionExpiringSoon) {
-        _onSessionExpiringSoon();
-      }
+    const success = await refreshAccessToken();
+    if (!success && _onSessionExpiringSoon) {
+      _onSessionExpiringSoon();
     }
-  }, 30_000); // Check every 30 seconds
+  }, 30 * 60_000);
 }
 
 export function stopTokenRefreshTimer(): void {

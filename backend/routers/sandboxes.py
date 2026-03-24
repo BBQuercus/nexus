@@ -56,13 +56,16 @@ async def create_sandbox(
 async def get_sandbox_status(
     sandbox_id: str,
     user_id: uuid.UUID = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     try:
-        sandbox = await sandbox_service.get_sandbox(sandbox_id)
+        sandbox = await sandbox_service.ensure_sandbox_access(sandbox_id, user_id, db)
         return {
             "id": sandbox_id,
             "status": "running",
         }
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -72,15 +75,18 @@ async def execute_code(
     sandbox_id: str,
     body: ExecuteCodeRequest,
     user_id: uuid.UUID = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     try:
-        sandbox = await sandbox_service.get_sandbox(sandbox_id)
+        sandbox = await sandbox_service.ensure_sandbox_access(sandbox_id, user_id, db)
         result = await sandbox_service.execute_code(sandbox, body.language, body.code)
         return {
             "stdout": result.stdout,
             "stderr": result.stderr,
             "exit_code": result.exit_code,
         }
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -90,11 +96,14 @@ async def list_files(
     sandbox_id: str,
     path: str = Query("/home/daytona"),
     user_id: uuid.UUID = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     try:
-        sandbox = await sandbox_service.get_sandbox(sandbox_id)
+        sandbox = await sandbox_service.ensure_sandbox_access(sandbox_id, user_id, db)
         files = await sandbox_service.list_files(sandbox, path)
         return {"path": path, "files": files}
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -104,11 +113,14 @@ async def read_file(
     sandbox_id: str,
     path: str = Query(...),
     user_id: uuid.UUID = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     try:
-        sandbox = await sandbox_service.get_sandbox(sandbox_id)
+        sandbox = await sandbox_service.ensure_sandbox_access(sandbox_id, user_id, db)
         content = await sandbox_service.read_file(sandbox, path)
         return {"path": path, "content": content}
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -118,11 +130,14 @@ async def write_file(
     sandbox_id: str,
     body: WriteFileRequest,
     user_id: uuid.UUID = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     try:
-        sandbox = await sandbox_service.get_sandbox(sandbox_id)
+        sandbox = await sandbox_service.ensure_sandbox_access(sandbox_id, user_id, db)
         await sandbox_service.write_file(sandbox, body.path, body.content)
         return {"ok": True, "path": body.path}
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -138,9 +153,10 @@ async def upload_files(
     files: list[UploadFile] = File(...),
     path: str = Query("/home/daytona"),
     user_id: uuid.UUID = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     try:
-        sandbox = await sandbox_service.get_sandbox(sandbox_id)
+        sandbox = await sandbox_service.ensure_sandbox_access(sandbox_id, user_id, db)
         uploaded = []
         total_size = 0
         for file in files:
@@ -178,6 +194,8 @@ async def upload_files(
             )
             uploaded.append(file_path)
         return {"uploaded": uploaded}
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     except HTTPException:
         raise
     except Exception as e:
@@ -197,12 +215,15 @@ async def download_sandbox(
 async def list_output_files(
     sandbox_id: str,
     user_id: uuid.UUID = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     try:
-        sandbox = await sandbox_service.get_sandbox(sandbox_id)
+        sandbox = await sandbox_service.ensure_sandbox_access(sandbox_id, user_id, db)
         from backend.services.media import list_output_files
         files = await list_output_files(sandbox)
         return {"files": files}
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -212,21 +233,23 @@ async def serve_output_file(
     sandbox_id: str,
     filename: str,
     user_id: uuid.UUID = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     try:
-        sandbox = await sandbox_service.get_sandbox(sandbox_id)
+        sandbox = await sandbox_service.ensure_sandbox_access(sandbox_id, user_id, db)
         from backend.services.media import get_output_file
         content = await get_output_file(sandbox, filename)
 
         # Determine content type
         content_type = "application/octet-stream"
+        headers = {}
         lower = filename.lower()
         if lower.endswith(".png"):
             content_type = "image/png"
         elif lower.endswith((".jpg", ".jpeg")):
             content_type = "image/jpeg"
         elif lower.endswith(".svg"):
-            content_type = "image/svg+xml"
+            headers["Content-Disposition"] = f'attachment; filename="{filename}"'
         elif lower.endswith(".gif"):
             content_type = "image/gif"
         elif lower.endswith(".webp"):
@@ -240,9 +263,11 @@ async def serve_output_file(
         elif lower.endswith((".txt", ".log", ".md")):
             content_type = "text/plain"
         elif lower.endswith((".html", ".htm")):
-            content_type = "text/html"
+            headers["Content-Disposition"] = f'attachment; filename="{filename}"'
 
-        return Response(content=content, media_type=content_type)
+        return Response(content=content, media_type=content_type, headers=headers)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -251,11 +276,14 @@ async def serve_output_file(
 async def stop_sandbox(
     sandbox_id: str,
     user_id: uuid.UUID = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     try:
-        sandbox = await sandbox_service.get_sandbox(sandbox_id)
+        sandbox = await sandbox_service.ensure_sandbox_access(sandbox_id, user_id, db)
         await sandbox_service.stop_sandbox(sandbox)
         return {"ok": True, "status": "stopped"}
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -264,11 +292,14 @@ async def stop_sandbox(
 async def start_sandbox(
     sandbox_id: str,
     user_id: uuid.UUID = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     try:
-        sandbox = await sandbox_service.get_sandbox(sandbox_id)
+        sandbox = await sandbox_service.ensure_sandbox_access(sandbox_id, user_id, db)
         await sandbox_service.start_sandbox(sandbox)
         return {"ok": True, "status": "running"}
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -277,10 +308,13 @@ async def start_sandbox(
 async def delete_sandbox_endpoint(
     sandbox_id: str,
     user_id: uuid.UUID = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     try:
-        sandbox = await sandbox_service.get_sandbox(sandbox_id)
+        sandbox = await sandbox_service.ensure_sandbox_access(sandbox_id, user_id, db)
         await sandbox_service.delete_sandbox(sandbox)
         return {"ok": True}
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

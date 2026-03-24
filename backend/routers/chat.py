@@ -319,7 +319,10 @@ async def send_message(
         for ctx_id in body.context_conversation_ids[:3]:
             try:
                 ctx_result = await db.execute(
-                    select(Conversation).where(Conversation.id == ctx_id)
+                    select(Conversation).where(
+                        Conversation.id == ctx_id,
+                        Conversation.user_id == user_id,
+                    )
                 )
                 ctx_conv = ctx_result.scalar_one_or_none()
                 if ctx_conv:

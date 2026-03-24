@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { getToken, clearToken } from '@/lib/auth';
+import { clearToken } from '@/lib/auth';
 import { getCurrentUser } from '@/lib/api';
 import { useStore } from '@/lib/store';
 import Workspace from '@/components/workspace';
@@ -16,11 +16,6 @@ export default function HomePage() {
 
   useEffect(() => {
     async function checkAuth() {
-      const token = getToken();
-      if (!token) {
-        router.replace('/login');
-        return;
-      }
       try {
         const u = await getCurrentUser();
         setUser(u);

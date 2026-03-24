@@ -8,7 +8,7 @@ import {
   Loader2, Search,
 } from 'lucide-react';
 import { toast } from './toast';
-import { getToken } from '@/lib/auth';
+import { getCsrfToken, getToken } from '@/lib/auth';
 import PageShell from './page-shell';
 import ConfirmDialog from './confirm-dialog';
 import { useStore } from '@/lib/store';
@@ -25,6 +25,10 @@ async function directUpload(url: string, files: File[]): Promise<{ documents: Re
   const headers: Record<string, string> = {};
   const token = getToken();
   if (token) headers['Authorization'] = `Bearer ${token}`;
+  if (!token) {
+    const csrfToken = getCsrfToken();
+    if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
+  }
   const resp = await fetch(`${UPLOAD_BASE}${url}`, {
     method: 'POST',
     headers,
