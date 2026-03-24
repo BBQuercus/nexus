@@ -12,15 +12,12 @@ export interface Conversation {
   createdAt: string;
   updatedAt: string;
   model?: string;
-  mode?: AgentMode;
   personaId?: string;
   sandboxId?: string;
   messageCount?: number;
   pinned?: boolean;
   preview?: string;
 }
-
-export type AgentMode = 'chat' | 'code' | 'architect';
 
 export interface MessageAttachment {
   id: string;
@@ -104,7 +101,7 @@ export interface AgentPersona {
   description: string;
   systemPrompt: string;
   defaultModel?: string;
-  defaultMode?: AgentMode;
+  defaultMode?: string;
   tools?: string[];
   isPublic?: boolean;
   authorId?: string;
