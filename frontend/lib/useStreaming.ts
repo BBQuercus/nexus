@@ -326,6 +326,7 @@ export function useStreaming() {
       contextIds?: string[];
       agentPersonaId?: string;
       knowledgeBaseIds?: string[];
+      compareModels?: string[];
     },
   ) => {
     const store = useStore.getState();
@@ -334,15 +335,17 @@ export function useStreaming() {
     store.setConversationIsStreaming(convId, true);
     store.resetConversationStreaming(convId);
 
-    const isMulti = opts.numResponses > 1;
+    const branchCount = opts.compareModels?.length || opts.numResponses;
+    const isMulti = branchCount > 1;
 
     if (isMulti) {
         const emptyBranch: StreamingState = { content: '', reasoning: '', toolCalls: [], images: [], files: [], tables: [], charts: [], citations: [], retrievalResult: null };
       store.setConversationMultiStreaming(convId, {
-        branches: Array.from({ length: opts.numResponses }, () => ({ ...emptyBranch })),
+        branches: Array.from({ length: branchCount }, () => ({ ...emptyBranch })),
         activeBranchIndex: 0,
-        branchCount: opts.numResponses,
+        branchCount,
         completedBranches: [],
+        branchModels: opts.compareModels,
       });
     }
 
@@ -361,6 +364,7 @@ export function useStreaming() {
         convId, text, opts.attachmentIds, opts.model,
         opts.parentId, opts.numResponses, controller.signal,
         opts.contextIds, opts.agentPersonaId, opts.knowledgeBaseIds,
+        opts.compareModels,
       );
       for await (const event of streamSSE(response)) {
         const result = processSseEvent(

@@ -23,22 +23,28 @@ export default function ModelPicker({
   value,
   onChange,
   disabled = false,
+  disabledReason,
 }: {
   models?: ModelOption[];
   value?: string;
   onChange?: (model: string) => void;
   disabled?: boolean;
+  disabledReason?: string;
 }) {
   const activeModel = useStore((s) => s.activeModel);
   const setActiveModel = useStore((s) => s.setActiveModel);
   const [open, setOpen] = useState(false);
+  const [showDisabledHint, setShowDisabledHint] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const selectedModel = value ?? activeModel;
   const handleChange = onChange ?? setActiveModel;
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+        setShowDisabledHint(false);
+      }
     };
     document.addEventListener('click', handler);
     return () => document.removeEventListener('click', handler);
@@ -63,11 +69,13 @@ export default function ModelPicker({
   return (
     <div ref={ref} className="relative">
       <button
-        onClick={() => setOpen(!open)}
-        disabled={disabled}
+        onClick={() => {
+          if (disabled && disabledReason) setShowDisabledHint((v) => !v);
+          else setOpen(!open);
+        }}
         className={`flex items-center gap-2 px-2.5 py-1.5 text-xs bg-surface-1 border rounded-lg transition-all glow-hover ${
           disabled
-            ? 'text-text-tertiary/50 border-border-default cursor-not-allowed opacity-60'
+            ? 'text-text-tertiary/50 border-border-default cursor-default opacity-60'
             : 'text-text-secondary hover:text-text-primary border-border-default hover:border-border-focus cursor-pointer'
         }`}
       >
@@ -77,6 +85,12 @@ export default function ModelPicker({
         <span className="truncate">{displayName}</span>
         <ChevronDown size={12} className={`text-text-tertiary transition-transform shrink-0 ${open ? 'rotate-180' : ''}`} />
       </button>
+
+      {showDisabledHint && disabledReason && (
+        <div className="absolute bottom-full left-0 mb-1.5 px-2.5 py-1.5 bg-surface-0 border border-border-default rounded-lg shadow-lg shadow-black/30 z-50 whitespace-nowrap text-[11px] text-text-secondary">
+          {disabledReason}
+        </div>
+      )}
 
       {open && !disabled && (
         <div className="absolute bottom-full left-0 mb-1.5 w-72 max-h-80 overflow-y-auto bg-surface-0 border border-border-default rounded-lg shadow-2xl shadow-black/40 z-50">

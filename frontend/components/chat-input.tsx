@@ -5,7 +5,7 @@ import { useStore } from '@/lib/store';
 import * as api from '@/lib/api';
 import type { Message } from '@/lib/types';
 import { IMAGE_MODELS, MODELS } from '@/lib/types';
-import { ArrowUp, Square, Paperclip, X, Terminal, Trash2, HelpCircle, Download, Cpu, FileSpreadsheet, FileImage, FileText, File as FileIcon, Settings2, MessageSquare, BookOpen, Mic, MicOff, ImagePlus, LoaderCircle } from 'lucide-react';
+import { ArrowUp, Square, Paperclip, X, Terminal, Trash2, HelpCircle, Download, Cpu, FileSpreadsheet, FileImage, FileText, File as FileIcon, Settings2, MessageSquare, BookOpen, Mic, MicOff, ImagePlus, LoaderCircle, Search, ClipboardCopy, RefreshCw, Pin, Hash, GitCompare, ScrollText } from 'lucide-react';
 import type { KnowledgeBase } from '@/lib/types';
 import ModelPicker from './model-picker';
 import AgentPicker from './agent-picker';
@@ -255,6 +255,7 @@ interface SlashCommand {
   description: string;
   icon: React.ReactNode;
   execute: (args: string) => void;
+  hint?: string; // Shown as placeholder when command is staged in input
 }
 
 function getDraftKey(conversationId: string | null): string {
@@ -337,6 +338,7 @@ export default function ChatInput() {
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
+  const [compareModels, setCompareModels] = useState<string[]>([]);
   const [slashMenuOpen, setSlashMenuOpen] = useState(false);
   const [slashHighlightIndex, setSlashHighlightIndex] = useState(0);
   const [mentionMenuOpen, setMentionMenuOpen] = useState(false);
@@ -393,6 +395,7 @@ export default function ChatInput() {
       name: 'model',
       description: 'Switch model — /model <name>',
       icon: <Cpu size={13} />,
+      hint: 'Type a model name, e.g. sonnet, opus, gpt-4o',
       execute: (args: string) => {
         const q = args.trim().toLowerCase();
         if (!q) {
@@ -465,6 +468,167 @@ export default function ChatInput() {
         toast.success('Conversation exported');
       },
     },
+    {
+      name: 'copy',
+      description: 'Copy last response to clipboard',
+      icon: <ClipboardCopy size={13} />,
+      execute: () => {
+        const msgs = useStore.getState().messages;
+        const last = [...msgs].reverse().find((m) => m.role === 'assistant');
+        if (!last) { toast.info('No assistant response to copy'); return; }
+        navigator.clipboard.writeText(last.content).then(() => toast.success('Copied to clipboard')).catch(() => toast.error('Failed to copy'));
+      },
+    },
+    {
+      name: 'retry',
+      description: 'Regenerate the last response',
+      icon: <RefreshCw size={13} />,
+      execute: () => {
+        const { messages: msgs, activeConversationId: convId } = useStore.getState();
+        const last = [...msgs].reverse().find((m) => m.role === 'assistant');
+        if (!last || !convId) { toast.info('Nothing to regenerate'); return; }
+        window.dispatchEvent(new CustomEvent('nexus:regenerate', { detail: { conversationId: convId, messageId: last.id } }));
+      },
+    },
+    {
+      name: 'pin',
+      description: 'Pin or unpin the current conversation',
+      icon: <Pin size={13} />,
+      execute: () => {
+        const convId = useStore.getState().activeConversationId;
+        if (!convId) { toast.info('No active conversation'); return; }
+        useStore.getState().togglePinConversation(convId);
+        const conv = useStore.getState().conversations.find((c) => c.id === convId);
+        toast.success(conv?.pinned ? 'Conversation pinned' : 'Conversation unpinned');
+      },
+    },
+    {
+      name: 'system',
+      description: 'Set a system prompt — /system <prompt>',
+      icon: <ScrollText size={13} />,
+      hint: 'Type the system prompt for this conversation',
+      execute: (args: string) => {
+        const prompt = args.trim();
+        if (!prompt) { toast.info('Usage: /system <prompt>'); return; }
+        const convId = useStore.getState().activeConversationId;
+        if (!convId) { toast.info('Start a conversation first'); return; }
+        api.updateConversation(convId, { system_prompt: prompt })
+          .then(() => toast.success('System prompt set'))
+          .catch(() => toast.error('Failed to set system prompt'));
+      },
+    },
+    {
+      name: 'summarize',
+      description: 'Summarize the conversation so far',
+      icon: <FileText size={13} />,
+      execute: () => {
+        const msgs = useStore.getState().messages;
+        if (msgs.length === 0) { toast.info('No messages to summarize'); return; }
+        const summary = msgs.map((m) => `${m.role}: ${m.content}`).join('\n').slice(0, 12000);
+        setContent(`Please provide a concise summary of our conversation so far:\n\n${summary}`);
+        // Auto-send by scheduling a click on the send button
+        setTimeout(() => {
+          const btn = document.querySelector('[data-send-button]') as HTMLButtonElement;
+          btn?.click();
+        }, 50);
+      },
+    },
+    {
+      name: 'search',
+      description: 'Search messages — /search <query>',
+      icon: <Search size={13} />,
+      hint: 'Type a search term to find in messages',
+      execute: (args: string) => {
+        const query = args.trim().toLowerCase();
+        if (!query) { toast.info('Usage: /search <query>'); return; }
+        const msgs = useStore.getState().messages;
+        const matches = msgs.filter((m) => m.content.toLowerCase().includes(query));
+        if (matches.length === 0) { toast.info(`No matches for "${args.trim()}"`); return; }
+        // Scroll to the first match and highlight it
+        const firstMatch = matches[0];
+        const el = document.querySelector(`[data-message-id="${firstMatch.id}"]`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          el.classList.add('search-highlight');
+          setTimeout(() => el.classList.remove('search-highlight'), 2000);
+        }
+        toast.success(`Found ${matches.length} match${matches.length === 1 ? '' : 'es'}`);
+      },
+    },
+    {
+      name: 'tokens',
+      description: 'Show token usage for this conversation',
+      icon: <Hash size={13} />,
+      execute: () => {
+        const msgs = useStore.getState().messages;
+        if (msgs.length === 0) { toast.info('No messages yet'); return; }
+        let inputTokens = 0, outputTokens = 0, totalCost = 0;
+        let counted = 0;
+        for (const m of msgs) {
+          if (m.cost) {
+            inputTokens += m.cost.inputTokens;
+            outputTokens += m.cost.outputTokens;
+            totalCost += m.cost.totalCost || 0;
+            counted++;
+          }
+        }
+        if (counted === 0) { toast.info('No token usage data available'); return; }
+        const parts = [
+          `${(inputTokens + outputTokens).toLocaleString()} tokens`,
+          `(${inputTokens.toLocaleString()} in / ${outputTokens.toLocaleString()} out)`,
+        ];
+        if (totalCost > 0) parts.push(`· $${totalCost.toFixed(4)}`);
+        toast.info(parts.join(' '));
+      },
+    },
+    {
+      name: 'diff',
+      description: 'Compare branched responses side-by-side',
+      icon: <GitCompare size={13} />,
+      execute: () => {
+        const { conversationTree: tree, messages: msgs, activeConversationId: convId } = useStore.getState();
+        if (!convId) { toast.info('No active conversation'); return; }
+
+        const lastAssistant = [...msgs].reverse().find((m) => m.role === 'assistant');
+        if (!lastAssistant) { toast.info('No assistant responses'); return; }
+
+        const treeNodes = tree?.nodes || [];
+        const parentId = lastAssistant.parentId;
+        const siblings = parentId ? treeNodes.filter((n) => n.parentId === parentId && n.role === 'assistant') : [];
+
+        if (siblings.length < 2) { toast.info('No branched responses to compare — use /compare to generate multi-model responses'); return; }
+
+        toast.info('Loading branches...');
+        api.getMessageSiblings(convId, lastAssistant.id).then((raw) => {
+          const siblingMsgs = raw.filter((m) => (m.role as string) === 'assistant');
+          if (siblingMsgs.length < 2) { toast.info('No branched responses to compare'); return; }
+          useStore.getState().setDiffView({
+            columns: siblingMsgs.map((m, i) => ({
+              label: ((m.model as string) || '').split('/').pop() || `Response ${i + 1}`,
+              content: (m.content as string) || '',
+            })),
+          });
+        }).catch(() => toast.error('Failed to load branches'));
+      },
+    },
+    {
+      name: 'compare',
+      description: 'Compare models — /compare model1, model2, ...',
+      icon: <GitCompare size={13} />,
+      hint: 'List models separated by commas, e.g. sonnet, opus, gpt-4o',
+      execute: (args: string) => {
+        const names = args.split(/[,\s]+/).map((s) => s.trim().toLowerCase()).filter(Boolean);
+        if (names.length < 2) { toast.info('Usage: /compare sonnet, opus, gpt-4o'); return; }
+        const resolved: string[] = [];
+        for (const q of names) {
+          const match = MODELS.find((m) => m.name.toLowerCase().includes(q) || m.id.toLowerCase().includes(q));
+          if (!match) { toast.error(`Model "${q}" not found`); return; }
+          resolved.push(match.id);
+        }
+        setCompareModels(resolved);
+        toast.success(`Compare mode: ${resolved.map((id) => id.split('/').pop()).join(' vs ')}`);
+      },
+    },
   ], []);
 
   // Filter slash commands based on input
@@ -478,6 +642,14 @@ export default function ChatInput() {
       (cmd) => cmd.name.toLowerCase().includes(query) || cmd.description.toLowerCase().includes(query)
     );
   }, [content, slashMenuOpen, slashCommands]);
+
+  // Detect active slash command with hint (e.g. "/search some query")
+  const activeSlashHint = useMemo(() => {
+    const match = content.match(/^\/(\S+)\s/);
+    if (!match) return null;
+    const cmd = slashCommands.find((c) => c.name === match[1]);
+    return cmd?.hint ? cmd : null;
+  }, [content, slashCommands]);
 
   // Update slash menu state on content change
   useEffect(() => {
@@ -697,10 +869,12 @@ export default function ChatInput() {
       contextIds: contextIds.length > 0 ? contextIds : undefined,
       agentPersonaId: activePersona?.id,
       knowledgeBaseIds: activeKBIds.length > 0 ? activeKBIds : undefined,
+      compareModels: compareModels.length > 1 ? compareModels : undefined,
     });
+    if (compareModels.length > 0) setCompareModels([]);
   }, [content, pendingFiles, attachedContexts, isStreaming, activeConversationId, activeModel, activePersona, sandboxId, messages,
     setActiveConversationId, setMessages, setConversations, branchingFromId, setBranchingFromId,
-    numResponses, setConversationMessages, streamSend, slashCommands]);
+    numResponses, setConversationMessages, streamSend, slashCommands, compareModels]);
 
   // Handle regenerate events from message bubbles
   useEffect(() => {
@@ -913,7 +1087,13 @@ export default function ChatInput() {
       }
       if (e.key === 'Enter') {
         e.preventDefault();
-        executeSlashCommand(filteredSlashCommands[slashHighlightIndex]);
+        const cmd = filteredSlashCommands[slashHighlightIndex];
+        if (cmd.hint) {
+          setContent(`/${cmd.name} `);
+          setSlashMenuOpen(false);
+        } else {
+          executeSlashCommand(cmd);
+        }
         return;
       }
       if (e.key === 'Escape') {
@@ -1010,6 +1190,27 @@ export default function ChatInput() {
         </div>
       )}
 
+      {compareModels.length > 1 && (
+        <div className="mb-2 flex items-center gap-2 px-3 py-2 bg-accent/8 border border-accent/20 rounded-lg">
+          <GitCompare size={12} className="text-accent shrink-0" />
+          <span className="text-[11px] text-text-secondary">Comparing:</span>
+          <div className="flex items-center gap-1.5 flex-wrap flex-1">
+            {compareModels.map((id) => (
+              <span key={id} className="px-1.5 py-0.5 text-[10px] font-medium bg-accent/10 text-accent rounded border border-accent/20">
+                {MODELS.find((m) => m.id === id)?.name || id.split('/').pop()}
+              </span>
+            ))}
+          </div>
+          <button
+            onClick={() => setCompareModels([])}
+            className="text-text-tertiary hover:text-text-secondary cursor-pointer shrink-0"
+            title="Cancel compare"
+          >
+            <X size={12} />
+          </button>
+        </div>
+      )}
+
       <div className="relative">
         {/* @ mention dropdown */}
         {mentionMenuOpen && mentionResults.length > 0 && (
@@ -1045,7 +1246,15 @@ export default function ChatInput() {
               {filteredSlashCommands.map((cmd, idx) => (
                 <button
                   key={cmd.name}
-                  onClick={() => executeSlashCommand(cmd)}
+                  onClick={() => {
+                    if (cmd.hint) {
+                      setContent(`/${cmd.name} `);
+                      setSlashMenuOpen(false);
+                      textareaRef.current?.focus();
+                    } else {
+                      executeSlashCommand(cmd);
+                    }
+                  }}
                   onMouseEnter={() => setSlashHighlightIndex(idx)}
                   className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs cursor-pointer transition-colors ${
                     idx === slashHighlightIndex
@@ -1059,6 +1268,16 @@ export default function ChatInput() {
                 </button>
               ))}
             </div>
+          </div>
+        )}
+
+        {activeSlashHint && (
+          <div className="flex items-center gap-2 mb-1.5 px-1">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-mono font-medium bg-accent/10 text-accent border border-accent/20 rounded-md">
+              {activeSlashHint.icon}
+              /{activeSlashHint.name}
+            </span>
+            <span className="text-[11px] text-text-tertiary">{activeSlashHint.hint}</span>
           </div>
         )}
 
@@ -1142,16 +1361,11 @@ export default function ChatInput() {
       </div>
 
       <div className="mt-2 flex items-center gap-3 pb-0.5">
-        <ModelPicker disabled={composeMode === 'image'} />
+        <ModelPicker disabled={composeMode === 'image'} disabledReason="Locked while in image mode" />
         <AgentPicker />
         <KBPicker />
         {composeMode === 'image' && (
-          <>
-            <div className="px-2 py-1 bg-accent/10 border border-accent/20 rounded-lg text-[11px] text-accent font-medium">
-              Image mode locks the main chat model
-            </div>
-            <ModelPicker models={IMAGE_MODELS} value={imageModel} onChange={setImageModel} />
-          </>
+          <ModelPicker models={IMAGE_MODELS} value={imageModel} onChange={setImageModel} />
         )}
         <div className="flex-1" />
         {!isStreaming && (

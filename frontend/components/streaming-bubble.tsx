@@ -309,7 +309,7 @@ export default function StreamingBubble() {
                   ) : (
                     <Loader2 size={10} className="animate-spin" />
                   )}
-                  <span>Response {i + 1}</span>
+                  <span>{multi.branchModels?.[i]?.split('/').pop() || `Response ${i + 1}`}</span>
                 </button>
               );
             })}

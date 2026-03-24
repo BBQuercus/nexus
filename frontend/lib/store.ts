@@ -30,6 +30,7 @@ export interface MultiStreamingState {
   activeBranchIndex: number;
   branchCount: number;
   completedBranches: number[];
+  branchModels?: string[];
 }
 
 export interface ConfirmState {
@@ -71,6 +72,7 @@ export interface AppState {
   pendingPrompt: string | null;
   confirmDialog: ConfirmState;
   activeKnowledgeBaseIds: string[];
+  diffView: { columns: { label: string; content: string }[] } | null;
 }
 
 export interface AppActions {
@@ -113,6 +115,7 @@ export interface AppActions {
   resolveConfirm: (confirmed: boolean) => void;
   setActiveKnowledgeBaseIds: (ids: string[]) => void;
   toggleKnowledgeBase: (id: string) => void;
+  setDiffView: (diff: AppState['diffView']) => void;
   reset: () => void;
 }
 
@@ -179,6 +182,7 @@ const initialState: AppState = {
   pendingPrompt: null,
   confirmDialog: { ...emptyConfirm },
   activeKnowledgeBaseIds: [],
+  diffView: null,
 };
 
 export const useStore = create<AppState & AppActions>((set) => ({
@@ -419,6 +423,7 @@ export const useStore = create<AppState & AppActions>((set) => ({
         : [...ids, id],
     };
   }),
+  setDiffView: (diff) => set({ diffView: diff }),
   reset: () => {
     try { localStorage.removeItem('nexus:activeConversationId'); } catch {}
     set(initialState);
