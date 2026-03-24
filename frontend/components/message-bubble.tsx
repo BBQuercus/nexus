@@ -4,7 +4,7 @@ import { useMemo, useRef, useEffect, useState } from 'react';
 import type { Message, CostData, ToolCall, Citation } from '@/lib/types';
 import { CitationBar, ConfidenceBadge } from './citation-chip';
 import { MODELS } from '@/lib/types';
-import { renderMarkdown } from '@/lib/markdown';
+import MarkdownContent from './markdown-content';
 import { useStore } from '@/lib/store';
 import * as api from '@/lib/api';
 import { mapRawMessages } from '@/lib/useStreaming';
@@ -528,7 +528,7 @@ function FeedbackPanel({ message }: { message: Message }) {
 }
 
 export default function MessageBubble({ message }: { message: Message }) {
-  const contentRef = useRef<HTMLDivElement>(null);
+
   const activeConversationId = useStore((s) => s.activeConversationId);
   const isStreaming = useStore((s) => s.isStreaming);
   const sandboxId = useStore((s) => s.sandboxId);
@@ -544,58 +544,15 @@ export default function MessageBubble({ message }: { message: Message }) {
     };
   }, [audioUrl]);
 
-  const renderedHtml = useMemo(() => {
-    if (message.role === 'user') return null;
-    if (!message.content) return '';
-    let html = renderMarkdown(message.content);
-    // Convert [Source N] and [Source N — filename] references into styled badges
-    html = html.replace(
+  const sourcePostProcess = useMemo(() => (html: string) => {
+    return html.replace(
       /\[Source\s+(\d+)(?:\s*[—–-]\s*([^\]]+))?\]/gi,
-      (_match, num, filename) => {
+      (_match: string, num: string, filename: string) => {
         const label = filename ? `${filename.trim()}` : `Source ${num}`;
         return `<span class="inline-flex items-center gap-1 px-1.5 py-0.5 mx-0.5 rounded text-[10px] font-mono bg-accent/10 text-accent border border-accent/20 align-middle" title="Source ${num}${filename ? `: ${filename.trim()}` : ''}"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>${label}</span>`;
       },
     );
-    return html;
-  }, [message.content, message.role]);
-
-  // Post-process mermaid
-  useEffect(() => {
-    if (!contentRef.current || message.role === 'user') return;
-    const root = contentRef.current;
-    const handleCodeCopy = (event: Event) => {
-      const target = event.target;
-      if (!(target instanceof HTMLElement)) return;
-      const button = target.closest('.code-copy-btn');
-      if (!(button instanceof HTMLButtonElement)) return;
-      const code = button.dataset.code || '';
-      navigator.clipboard.writeText(code).then(() => {
-        const previous = button.textContent;
-        button.textContent = 'Copied!';
-        window.setTimeout(() => {
-          button.textContent = previous || 'Copy';
-        }, 1500);
-      }).catch(console.error);
-    };
-
-    root.addEventListener('click', handleCodeCopy);
-
-    const mermaidContainers = root.querySelectorAll('[data-mermaid-source]');
-    if (mermaidContainers.length === 0) {
-      return () => root.removeEventListener('click', handleCodeCopy);
-    }
-    (async () => {
-      try {
-        const mermaid = await import('mermaid');
-        mermaid.default.initialize({ startOnLoad: false, theme: 'dark', darkMode: true, themeVariables: { primaryColor: '#222225', primaryTextColor: '#F0F0F2', primaryBorderColor: '#333338', lineColor: '#636369' }, securityLevel: 'strict' });
-        for (const el of mermaidContainers) {
-          const source = el.getAttribute('data-mermaid-source');
-          if (source) { const id = `mermaid-${Math.random().toString(36).slice(2, 10)}`; const { svg } = await mermaid.default.render(id, source); el.innerHTML = svg; el.removeAttribute('data-mermaid-source'); }
-        }
-      } catch (e) { console.warn('Mermaid rendering failed:', e); }
-    })();
-    return () => root.removeEventListener('click', handleCodeCopy);
-  }, [renderedHtml, message.role]);
+  }, []);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(message.content).then(() => {
@@ -705,8 +662,12 @@ export default function MessageBubble({ message }: { message: Message }) {
             ))}
           </div>
         )}
-        {renderedHtml && (
-          <div ref={contentRef} className="markdown-content text-sm text-text-primary" dangerouslySetInnerHTML={{ __html: renderedHtml }} />
+        {message.content && (
+          <MarkdownContent
+            text={message.content}
+            className="markdown-content text-sm text-text-primary"
+            postProcess={sourcePostProcess}
+          />
         )}
         {message.citations && message.citations.length > 0 && (
           <CitationBar citations={message.citations} />

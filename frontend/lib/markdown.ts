@@ -70,13 +70,85 @@ function renderKatex(tex: string, displayMode: boolean): string {
   }
 }
 
-export function renderMarkdown(text: string): string {
-  let processed = text.replace(/\$\$([\s\S]*?)\$\$/g, (_m, tex: string) =>
-    `<div class="katex-display">${renderKatex(tex.trim(), true)}</div>`
-  );
-  processed = processed.replace(/(?<!\$)\$(?!\$)([^\n$]+?)\$(?!\$)/g, (_m, tex: string) =>
-    renderKatex(tex, false)
-  );
+function normalizeEmbeddedKatexHtml(text: string): string {
+  if (typeof DOMParser === 'undefined' || !/class=["'][^"']*katex/.test(text)) {
+    return text;
+  }
+
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(`<div id="__nexus_katex_root__">${text}</div>`, 'text/html');
+    const root = doc.getElementById('__nexus_katex_root__');
+    if (!root) return text;
+
+    const katexNodes = Array.from(root.querySelectorAll('.katex-display, .katex')).filter((node) => {
+      if (!(node instanceof HTMLElement)) return false;
+      return !node.parentElement?.closest('.katex-display, .katex');
+    });
+
+    for (const node of katexNodes) {
+      if (!(node instanceof HTMLElement)) continue;
+      const tex = node.querySelector('annotation[encoding="application/x-tex"]')?.textContent?.trim();
+      if (!tex) continue;
+      const displayMode = node.classList.contains('katex-display');
+      node.outerHTML = displayMode
+        ? `\n\n$$${tex}$$\n\n`
+        : `$${tex}$`;
+    }
+
+    return root.innerHTML;
+  } catch {
+    return text;
+  }
+}
+
+export function enhanceRenderedMarkdown(root: HTMLElement): () => void {
+  const handleCodeCopy = (event: Event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    const button = target.closest('.code-copy-btn');
+    if (!(button instanceof HTMLButtonElement)) return;
+    const code = button.dataset.code || '';
+    navigator.clipboard.writeText(code).then(() => {
+      const previous = button.textContent;
+      button.textContent = 'Copied!';
+      window.setTimeout(() => {
+        button.textContent = previous || 'Copy';
+      }, 1500);
+    }).catch(console.error);
+  };
+
+  root.addEventListener('click', handleCodeCopy);
+
+  return () => {
+    root.removeEventListener('click', handleCodeCopy);
+  };
+}
+
+export type MermaidBlock = { index: number; source: string };
+
+const MERMAID_PH = '\x00MERMAID';
+
+export function renderMarkdown(text: string): { html: string; mermaidBlocks: MermaidBlock[] } {
+  let processed = normalizeEmbeddedKatexHtml(text);
+
+  // Replace KaTeX expressions with placeholders so marked doesn't escape the HTML
+  const katexSlots: string[] = [];
+  const KATEX_PH = '\x00KATEX';
+
+  processed = processed.replace(/\$\$([\s\S]*?)\$\$/g, (_m, tex: string) => {
+    const idx = katexSlots.length;
+    katexSlots.push(`<div class="katex-display">${renderKatex(tex.trim(), true)}</div>`);
+    return `${KATEX_PH}${idx}\x00`;
+  });
+  processed = processed.replace(/(?<!\$)\$(?!\$)([^\n$]+?)\$(?!\$)/g, (_m, tex: string) => {
+    const idx = katexSlots.length;
+    katexSlots.push(renderKatex(tex, false));
+    return `${KATEX_PH}${idx}\x00`;
+  });
+
+  // Collect mermaid blocks as placeholders — they'll be rendered by React components
+  const mermaidBlocks: MermaidBlock[] = [];
 
   const renderer = new Renderer();
   renderer.html = function ({ raw, text }: { raw?: string; text?: string }) {
@@ -85,8 +157,9 @@ export function renderMarkdown(text: string): string {
   renderer.code = function ({ text: code, lang }: { text: string; lang?: string | undefined }) {
     const language = lang || '';
     if (language === 'mermaid') {
-      const id = `mermaid-${Math.random().toString(36).slice(2, 10)}`;
-      return `<div class="mermaid-embed"><div class="mermaid-container" data-mermaid-id="${id}" data-mermaid-source="${escapeHtml(code)}">${escapeHtml(code)}</div></div>`;
+      const idx = mermaidBlocks.length;
+      mermaidBlocks.push({ index: idx, source: code });
+      return `${MERMAID_PH}${idx}\x00`;
     }
     const highlighted = highlightCode(code, language);
     const langLabel = language ? `<span class="code-lang-label">${escapeHtml(language)}</span>` : '';
@@ -110,5 +183,43 @@ export function renderMarkdown(text: string): string {
   };
 
   marked.setOptions({ renderer, gfm: true, breaks: true });
-  return marked.parse(processed) as string;
+  let html = marked.parse(processed) as string;
+
+  // Restore KaTeX HTML from placeholders
+  if (katexSlots.length > 0) {
+    html = html.replace(/\x00KATEX(\d+)\x00/g, (_m, idx: string) => katexSlots[parseInt(idx, 10)] || '');
+  }
+
+  return { html, mermaidBlocks };
+}
+
+export type MarkdownSegment =
+  | { type: 'html'; content: string }
+  | { type: 'mermaid'; source: string };
+
+export function splitMarkdownSegments(html: string, mermaidBlocks: MermaidBlock[]): MarkdownSegment[] {
+  if (mermaidBlocks.length === 0) return [{ type: 'html', content: html }];
+
+  const segments: MarkdownSegment[] = [];
+  const regex = /\x00MERMAID(\d+)\x00/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(html)) !== null) {
+    if (match.index > lastIndex) {
+      segments.push({ type: 'html', content: html.slice(lastIndex, match.index) });
+    }
+    const idx = parseInt(match[1], 10);
+    const block = mermaidBlocks[idx];
+    if (block) {
+      segments.push({ type: 'mermaid', source: block.source });
+    }
+    lastIndex = regex.lastIndex;
+  }
+
+  if (lastIndex < html.length) {
+    segments.push({ type: 'html', content: html.slice(lastIndex) });
+  }
+
+  return segments;
 }

@@ -45,6 +45,107 @@ declare global {
   }
 }
 
+/**
+ * Real-time microphone waveform rendered as a mirrored amplitude bar chart.
+ * Uses frequency data smoothed by the AnalyserNode, then applies additional
+ * frame-to-frame lerp so the bars glide rather than jump.
+ */
+function LiveWaveform({ stream }: { stream: MediaStream | null }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const stateRef = useRef<{
+    analyser: AnalyserNode;
+    audioCtx: AudioContext;
+    freq: Uint8Array<ArrayBuffer>;
+    smoothed: Float32Array;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!stream) return;
+    const audioCtx = new AudioContext();
+    const source = audioCtx.createMediaStreamSource(stream);
+    const analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 256;
+    analyser.smoothingTimeConstant = 0.82;
+    source.connect(analyser);
+    const freq = new Uint8Array(analyser.frequencyBinCount) as Uint8Array<ArrayBuffer>;
+    const smoothed = new Float32Array(analyser.frequencyBinCount);
+    stateRef.current = { analyser, audioCtx, freq, smoothed };
+
+    const BARS = 64;
+    const LERP = 0.25; // frame-to-frame smoothing (0 = frozen, 1 = instant)
+    let accent = '';
+    let raf = 0;
+
+    const draw = () => {
+      raf = requestAnimationFrame(draw);
+      const canvas = canvasRef.current;
+      const state = stateRef.current;
+      if (!canvas || !state) return;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      state.analyser.getByteFrequencyData(state.freq);
+
+      // Resolve accent color once (or if CSS changes)
+      if (!accent) accent = getComputedStyle(canvas).getPropertyValue('color').trim() || '#6366f1';
+
+      const dpr = window.devicePixelRatio || 1;
+      const w = canvas.clientWidth;
+      const h = canvas.clientHeight;
+      if (canvas.width !== w * dpr || canvas.height !== h * dpr) {
+        canvas.width = w * dpr;
+        canvas.height = h * dpr;
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, w, h);
+
+      // Bin frequency data into BARS buckets, weighted toward lower frequencies
+      const binCount = state.freq.length;
+      const gap = 1.5;
+      const barW = Math.max(1, (w - gap * (BARS - 1)) / BARS);
+      const midY = h / 2;
+
+      for (let i = 0; i < BARS; i++) {
+        // Map bar index to frequency range (log-ish distribution)
+        const lo = Math.floor((i / BARS) ** 1.4 * binCount);
+        const hi = Math.max(lo + 1, Math.floor(((i + 1) / BARS) ** 1.4 * binCount));
+        let sum = 0;
+        for (let j = lo; j < hi; j++) sum += state.freq[j];
+        const raw = sum / (hi - lo) / 255; // 0..1
+
+        // Smooth across frames
+        state.smoothed[i] += (raw - state.smoothed[i]) * LERP;
+        const amp = state.smoothed[i];
+
+        const barH = Math.max(1, amp * midY * 0.92);
+        const x = i * (barW + gap);
+
+        ctx.fillStyle = accent;
+        ctx.globalAlpha = 0.35 + amp * 0.65;
+        // Top half (mirrored upward)
+        ctx.beginPath();
+        ctx.roundRect(x, midY - barH, barW, barH, barW / 2);
+        ctx.fill();
+        // Bottom half (mirrored downward)
+        ctx.beginPath();
+        ctx.roundRect(x, midY, barW, barH, barW / 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    };
+    raf = requestAnimationFrame(draw);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      source.disconnect();
+      void audioCtx.close();
+      stateRef.current = null;
+    };
+  }, [stream]);
+
+  return <canvas ref={canvasRef} className="h-6 flex-1 text-accent" />;
+}
+
 function estimateTokens(text: string): number {
   // Rough estimate: ~4 chars per token for English text
   return Math.ceil(text.length / 4);
@@ -235,6 +336,7 @@ export default function ChatInput() {
   const [imageModel, setImageModel] = useState(IMAGE_MODELS[0].id);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
   const [slashMenuOpen, setSlashMenuOpen] = useState(false);
   const [slashHighlightIndex, setSlashHighlightIndex] = useState(0);
   const [mentionMenuOpen, setMentionMenuOpen] = useState(false);
@@ -643,17 +745,18 @@ export default function ChatInput() {
     mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
   }, []);
 
-  const flushTranscriptionChunks = useCallback(async () => {
-    if (isProcessingChunkRef.current || transcriptionChunksRef.current.length === 0) return;
+  const flushTranscription = useCallback(async () => {
+    const chunks = transcriptionChunksRef.current;
+    transcriptionChunksRef.current = [];
+    if (chunks.length === 0) return;
 
-    const nextChunk = transcriptionChunksRef.current.shift();
-    if (!nextChunk || nextChunk.size === 0) return;
+    const mimeType = recordingMimeTypeRef.current;
+    const ext = mimeType.includes('ogg') ? 'ogg' : 'webm';
+    const blob = new Blob(chunks, { type: mimeType });
+    const file = new File([blob], `recording.${ext}`, { type: mimeType });
 
-    isProcessingChunkRef.current = true;
+    setIsTranscribing(true);
     try {
-      const file = new File([nextChunk], `recording.${recordingMimeTypeRef.current.includes('ogg') ? 'ogg' : 'webm'}`, {
-        type: nextChunk.type || recordingMimeTypeRef.current,
-      });
       const result = await api.transcribeAudio(file);
       const transcript = result.text.trim();
       if (transcript) {
@@ -666,10 +769,7 @@ export default function ChatInput() {
     } catch (e) {
       console.error('Transcription failed', e);
     } finally {
-      isProcessingChunkRef.current = false;
-      if (transcriptionChunksRef.current.length > 0) {
-        void flushTranscriptionChunks();
-      }
+      setIsTranscribing(false);
     }
   }, []);
 
@@ -723,21 +823,25 @@ export default function ChatInput() {
       recorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
           transcriptionChunksRef.current.push(event.data);
-          void flushTranscriptionChunks();
         }
       };
       recorder.onstop = () => {
         mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
         mediaStreamRef.current = null;
-        setTimeout(() => textareaRef.current?.focus(), 0);
+        // ondataavailable fires before onstop per spec, but use setTimeout
+        // to ensure the final chunk has been pushed before we flush.
+        setTimeout(() => {
+          void flushTranscription();
+          textareaRef.current?.focus();
+        }, 0);
       };
-      recorder.start(1200);
+      recorder.start();
       setIsRecording(true);
     } catch (e) {
       console.error('Recording failed', e);
       toast.error('Could not access microphone');
     }
-  }, [content, flushTranscriptionChunks, isRecording]);
+  }, [content, flushTranscription, isRecording]);
 
   // Handle edit-message events from message bubble Edit button
   useEffect(() => {
@@ -888,16 +992,7 @@ export default function ChatInput() {
 
       {isRecording && (
         <div className="mb-2 flex items-center justify-between gap-3 px-3 py-2.5 bg-accent/10 border border-accent/20 rounded-lg">
-          <div className="flex items-end gap-1 h-6">
-            {[36, 78, 52, 94, 64, 82, 40, 72].map((height, index) => (
-              <span
-                // Keep the waveform intentionally simple and prominent.
-                key={`${height}-${index}`}
-                className="w-1.5 rounded-full bg-accent animate-pulse"
-                style={{ height: `${height}%`, animationDelay: `${index * 0.08}s` }}
-              />
-            ))}
-          </div>
+          <LiveWaveform stream={mediaStreamRef.current} />
           <button
             onClick={() => void toggleRecording()}
             className="px-2.5 py-1.5 text-[11px] font-medium rounded-lg bg-error text-white hover:bg-error/90 cursor-pointer shrink-0"
@@ -905,6 +1000,13 @@ export default function ChatInput() {
           >
             Stop
           </button>
+        </div>
+      )}
+
+      {isTranscribing && (
+        <div className="mb-2 flex items-center gap-2.5 px-3 py-2.5 bg-surface-1 border border-border-default rounded-lg">
+          <LoaderCircle size={14} className="text-accent animate-spin" />
+          <span className="text-[11px] text-text-secondary">Transcribing audio...</span>
         </div>
       )}
 

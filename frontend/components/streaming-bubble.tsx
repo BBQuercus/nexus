@@ -6,6 +6,7 @@ import type { StreamingState } from '@/lib/store';
 import { Zap, Terminal, Play, Download, Check, ChevronDown, Loader2, FileSpreadsheet, FileText, Presentation, File as FileIcon } from 'lucide-react';
 import type { ToolCall } from '@/lib/types';
 import VegaChart from './vega-chart';
+import MarkdownContent from './markdown-content';
 
 function StreamingExecBlock({ tool }: { tool: ToolCall }) {
   const lang = tool.language || tool.name || 'code';
@@ -143,7 +144,7 @@ function StreamingChartCard({ spec, title }: { spec: Record<string, unknown>; ti
  * buffer grows large so the animation never falls far behind the stream.
  * This prevents the "half rendered then pops" effect.
  */
-function SmoothText({ text, showCursor }: { text: string; showCursor: boolean }) {
+function SmoothMarkdown({ text, showCursor }: { text: string; showCursor: boolean }) {
   const [displayed, setDisplayed] = useState('');
   const targetRef = useRef(text);
   const displayedRef = useRef('');
@@ -197,8 +198,10 @@ function SmoothText({ text, showCursor }: { text: string; showCursor: boolean })
   }, [text]);
 
   return (
-    <div className="text-sm text-text-primary whitespace-pre-wrap break-words leading-relaxed">
-      {displayed}
+    <div className="markdown-content text-sm text-text-primary break-words leading-relaxed">
+      {displayed && (
+        <MarkdownContent text={displayed} />
+      )}
       {showCursor && <span className="inline-block w-0.5 h-4 bg-accent ml-0.5 align-text-bottom animate-pulse" />}
     </div>
   );
@@ -257,7 +260,7 @@ function BranchContent({ state, showCursor }: { state: StreamingState; showCurso
         <StreamingChartCard key={i} spec={chart.spec} title={chart.title} />
       ))}
       {state.content && (
-        <SmoothText text={state.content} showCursor={showCursor} />
+        <SmoothMarkdown text={state.content} showCursor={showCursor} />
       )}
     </>
   );
