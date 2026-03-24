@@ -52,7 +52,7 @@ export default function ConfirmDialog({
     <div className="fixed inset-0 z-[60] flex items-center justify-center">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onCancel} />
       <div
-        className="relative w-full max-w-sm bg-surface-0 border border-border-default rounded-xl shadow-2xl overflow-hidden animate-fade-in-up"
+        className="relative w-full max-w-sm bg-surface-0 border border-border-default rounded-lg shadow-2xl overflow-hidden animate-fade-in-up"
         style={{ animationDuration: '0.12s' }}
       >
         <div className="px-5 pt-5 pb-4">

@@ -72,7 +72,7 @@ function WelcomeScreen() {
       {/* Hero */}
       <div className="relative flex flex-col items-center gap-4 animate-fade-in-up">
         <div className="relative">
-          <div className="absolute inset-0 w-16 h-16 -m-3 rounded-2xl bg-accent/8 animate-pulse" />
+          <div className="absolute inset-0 w-16 h-16 -m-3 rounded-lg bg-accent/8 animate-pulse" />
           <div className="relative flex items-center gap-2.5 z-10">
             <Zap size={28} className="text-accent" />
             <span className="text-2xl sm:text-3xl font-bold tracking-[0.15em] uppercase">Nexus</span>
@@ -97,7 +97,7 @@ function WelcomeScreen() {
           <button
             key={card.title}
             onClick={() => setPendingPrompt(card.prompt)}
-            className={`relative flex flex-col items-start gap-2.5 p-4 ${card.bg} border ${card.border} rounded-xl text-left cursor-pointer transition-all group overflow-hidden`}
+            className={`relative flex flex-col items-start gap-2.5 p-4 ${card.bg} border ${card.border} rounded-lg text-left cursor-pointer transition-all group overflow-hidden`}
           >
             <span className="absolute left-0 top-0 bottom-0 w-0.5 rounded-r bg-current scale-y-0 group-hover:scale-y-100 transition-transform origin-top" style={{ color: 'inherit' }} />
             <span className={card.color}>{card.icon}</span>
@@ -115,7 +115,7 @@ function WelcomeScreen() {
           <button
             key={t.label}
             onClick={() => setPendingPrompt(t.prompt)}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 text-[11px] tracking-wide uppercase bg-surface-1 border border-border-default rounded-md text-text-tertiary hover:text-accent hover:border-accent/30 transition-all cursor-pointer glow-hover"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 text-[11px] tracking-wide uppercase bg-surface-1 border border-border-default rounded-lg text-text-tertiary hover:text-accent hover:border-accent/30 transition-all cursor-pointer glow-hover"
           >
             {t.icon}
             {t.label}
@@ -147,7 +147,7 @@ function ReturningUserScreen() {
       {/* Logo */}
       <div className="relative flex flex-col items-center gap-4 animate-fade-in-up">
         <div className="relative">
-          <div className="absolute inset-0 w-14 h-14 -m-2 rounded-2xl bg-accent/5 animate-pulse" />
+          <div className="absolute inset-0 w-14 h-14 -m-2 rounded-lg bg-accent/5 animate-pulse" />
           <div className="relative flex items-center gap-2 z-10">
             <Zap size={24} className="text-accent" />
             <span className="text-2xl sm:text-3xl font-bold tracking-[0.15em] uppercase">Nexus</span>
@@ -170,7 +170,7 @@ function ReturningUserScreen() {
           <button
             key={t.label}
             onClick={() => setPendingPrompt(t.prompt)}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 text-[11px] tracking-wide uppercase bg-surface-1 border border-border-default rounded-md text-text-tertiary hover:text-accent hover:border-accent/30 transition-all cursor-pointer glow-hover"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 text-[11px] tracking-wide uppercase bg-surface-1 border border-border-default rounded-lg text-text-tertiary hover:text-accent hover:border-accent/30 transition-all cursor-pointer glow-hover"
           >
             {t.icon}
             {t.label}

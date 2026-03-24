@@ -88,9 +88,10 @@ function StreamingFileCard({ filename, fileType }: { filename: string; fileType:
 }
 
 /**
- * Reveals text smoothly character-by-character using requestAnimationFrame.
- * As new content arrives from SSE, it drains the buffer at a steady rate
- * so the text appears to flow naturally rather than arriving in chunks.
+ * Reveals text smoothly using requestAnimationFrame.
+ * Uses adaptive speed: base rate is fast, but accelerates when the
+ * buffer grows large so the animation never falls far behind the stream.
+ * This prevents the "half rendered then pops" effect.
  */
 function SmoothText({ text, showCursor }: { text: string; showCursor: boolean }) {
   const [displayed, setDisplayed] = useState('');
@@ -99,9 +100,12 @@ function SmoothText({ text, showCursor }: { text: string; showCursor: boolean })
   const rafRef = useRef<number>(0);
   const lastTimeRef = useRef(0);
 
-  // Characters to reveal per millisecond (tune for feel)
-  // ~120 chars/sec feels fast but readable
-  const CHARS_PER_MS = 0.15;
+  // Base speed: ~600 chars/sec — fast enough to keep up with most streams
+  const BASE_CHARS_PER_MS = 0.6;
+  // When buffer exceeds this, start accelerating
+  const BUFFER_THRESHOLD = 80;
+  // Max multiplier for catch-up speed
+  const MAX_SPEED_MULT = 8;
 
   targetRef.current = text;
 
@@ -112,10 +116,14 @@ function SmoothText({ text, showCursor }: { text: string; showCursor: boolean })
 
     const target = targetRef.current;
     const current = displayedRef.current;
+    const behind = target.length - current.length;
 
-    if (current.length < target.length) {
-      // Reveal proportional to elapsed time, minimum 1 char
-      const charsToAdd = Math.max(1, Math.floor(dt * CHARS_PER_MS));
+    if (behind > 0) {
+      // Adaptive speed: accelerate proportionally when buffer is large
+      const speedMult = behind > BUFFER_THRESHOLD
+        ? Math.min(MAX_SPEED_MULT, 1 + (behind - BUFFER_THRESHOLD) / 60)
+        : 1;
+      const charsToAdd = Math.max(1, Math.floor(dt * BASE_CHARS_PER_MS * speedMult));
       const nextLen = Math.min(current.length + charsToAdd, target.length);
       const next = target.slice(0, nextLen);
       displayedRef.current = next;
@@ -130,10 +138,9 @@ function SmoothText({ text, showCursor }: { text: string; showCursor: boolean })
     return () => cancelAnimationFrame(rafRef.current);
   }, [tick]);
 
-  // If target jumps ahead significantly (e.g. large chunk), catch up
+  // Content was reset (new message)
   useEffect(() => {
     if (text.length < displayedRef.current.length) {
-      // Content was reset
       displayedRef.current = '';
       setDisplayed('');
     }
@@ -254,13 +261,6 @@ export default function StreamingBubble() {
           state={activeState}
           showCursor={isMulti ? !multi.completedBranches.includes(multi.activeBranchIndex) : true}
         />
-
-        {/* Accent shimmer bar */}
-        {(activeState.content || activeState.toolCalls.length > 0) && (
-          <div className="h-px mt-3 rounded-full overflow-hidden">
-            <div className="h-full w-full shimmer" style={{ background: 'linear-gradient(90deg, transparent, var(--color-accent), transparent)', backgroundSize: '200% 100%' }} />
-          </div>
-        )}
 
         <div ref={bottomRef} />
       </div>

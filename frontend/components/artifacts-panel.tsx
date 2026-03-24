@@ -278,7 +278,7 @@ export default function ArtifactsPanel() {
           <button
             key={opt.key}
             onClick={() => setFilter(opt.key)}
-            className={`px-2 py-0.5 text-[10px] font-medium rounded-md border cursor-pointer transition-all ${
+            className={`px-2 py-0.5 text-[10px] font-medium rounded-lg border cursor-pointer transition-all ${
               filter === opt.key
                 ? 'text-accent bg-accent/10 border-accent/30'
                 : 'text-text-tertiary bg-surface-1 border-border-default hover:border-border-focus hover:text-text-secondary'

@@ -81,7 +81,7 @@ export default function KeyboardShortcuts({ onClose }: KeyboardShortcutsProps) {
     <div className="fixed inset-0 z-50 flex items-center justify-center px-3 sm:px-0">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
       <div
-        className="relative w-full max-w-lg bg-surface-0 border border-border-default rounded-xl shadow-2xl overflow-hidden animate-fade-in-up"
+        className="relative w-full max-w-lg bg-surface-0 border border-border-default rounded-lg shadow-2xl overflow-hidden animate-fade-in-up"
         style={{ animationDuration: '0.15s' }}
       >
         {/* Header */}
@@ -89,7 +89,7 @@ export default function KeyboardShortcuts({ onClose }: KeyboardShortcutsProps) {
           <h2 className="text-sm font-semibold text-text-primary">Keyboard Shortcuts</h2>
           <button
             onClick={onClose}
-            className="p-1 text-text-tertiary hover:text-text-secondary rounded-md hover:bg-surface-1 transition-colors cursor-pointer"
+            className="p-1 text-text-tertiary hover:text-text-secondary rounded-lg hover:bg-surface-1 transition-colors cursor-pointer"
           >
             <X size={14} />
           </button>

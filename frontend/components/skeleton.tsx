@@ -5,7 +5,7 @@ export function MessageSkeleton() {
     <div className="space-y-4 max-w-4xl mx-auto px-4 py-6 animate-fade-in-up" style={{ animationDuration: '0.15s' }}>
       {/* User message skeleton */}
       <div className="flex justify-end">
-        <div className="w-[45%] h-10 rounded-2xl rounded-br-sm shimmer" />
+        <div className="w-[45%] h-10 rounded-xl rounded-br-sm shimmer" />
       </div>
       {/* Assistant message skeleton */}
       <div className="flex justify-start">
@@ -18,7 +18,7 @@ export function MessageSkeleton() {
       </div>
       {/* Another user message */}
       <div className="flex justify-end">
-        <div className="w-[35%] h-10 rounded-2xl rounded-br-sm shimmer" />
+        <div className="w-[35%] h-10 rounded-xl rounded-br-sm shimmer" />
       </div>
       {/* Another assistant */}
       <div className="flex justify-start">

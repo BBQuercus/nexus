@@ -22,6 +22,7 @@ from backend.routers.agents import router as agents_router
 from backend.routers.analytics import router as analytics_router
 from backend.routers.chat import artifact_router, router as chat_router
 from backend.routers.feedback import router as feedback_router
+from backend.routers.knowledge import router as knowledge_router, doc_router as knowledge_doc_router, retrieval_router as knowledge_retrieval_router
 from backend.routers.sandboxes import router as sandboxes_router
 from backend.routers.tts import router as tts_router
 from backend.routers.users import router as users_router
@@ -35,9 +36,50 @@ logger = get_logger("main")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    from sqlalchemy import text as sa_text
+
+    # Try to enable pgvector in its own transaction.
+    pgvector_ok = False
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(sa_text("CREATE EXTENSION IF NOT EXISTS vector"))
+        pgvector_ok = True
+    except Exception as e:
+        logger.warning("pgvector_extension_unavailable", error=str(e),
+                       hint="Install pgvector for RAG features. RAG will be disabled without it.")
+
+    # Create all tables.  If pgvector is missing, exclude the chunks table
+    # (which depends on the VECTOR type) so the rest of the app still starts.
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    logger.info("database_tables_ensured")
+        if pgvector_ok:
+            await conn.run_sync(Base.metadata.create_all)
+        else:
+            from backend.models import Chunk
+            tables_without_vector = [
+                t for t in Base.metadata.sorted_tables if t.name != Chunk.__tablename__
+            ]
+            await conn.run_sync(
+                lambda sync_conn: Base.metadata.create_all(sync_conn, tables=tables_without_vector)
+            )
+
+    # Migrate existing tables: add columns that create_all won't add to
+    # already-existing tables.  Each runs in its own transaction so a
+    # "column already exists" error doesn't poison the next statement.
+    migrations = [
+        ("conversations", "knowledge_base_ids", "JSON"),
+        ("agent_personas", "knowledge_base_ids", "JSON"),
+        ("messages", "citations", "JSON"),
+    ]
+    for table, column, col_type in migrations:
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(sa_text(
+                    f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {col_type}"
+                ))
+        except Exception:
+            pass  # table might not exist yet either — harmless
+
+    logger.info("database_tables_ensured", pgvector=pgvector_ok)
     yield
     logger.info("graceful_shutdown_started")
     import asyncio
@@ -89,6 +131,9 @@ app.include_router(tts_router)
 app.include_router(feedback_router)
 app.include_router(analytics_router)
 app.include_router(admin_router)
+app.include_router(knowledge_router)
+app.include_router(knowledge_doc_router)
+app.include_router(knowledge_retrieval_router)
 
 
 # ── Health Check (deep) ──

@@ -19,12 +19,17 @@ import ToastContainer from './toast';
 import ErrorBoundary from './error-boundary';
 import KeyboardShortcuts from './keyboard-shortcuts';
 import HealthBanner from './health-banner';
+import KnowledgeBasePanel from './knowledge-base';
+import { Upload } from 'lucide-react';
 import * as api from '@/lib/api';
 import { MODELS } from '@/lib/types';
 
 export default function Workspace() {
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [kbPanelOpen, setKbPanelOpen] = useState(false);
+  const dragCounterRef = useRef(0);
   const focusModeRef = useRef(false);
   focusModeRef.current = focusMode;
   const activeConversationId = useStore((s) => s.activeConversationId);
@@ -53,6 +58,13 @@ export default function Workspace() {
     const handler = () => setShortcutsOpen(true);
     window.addEventListener('nexus:open-shortcuts', handler);
     return () => window.removeEventListener('nexus:open-shortcuts', handler);
+  }, []);
+
+  // Listen for open-knowledge-bases event from sidebar
+  useEffect(() => {
+    const handler = () => setKbPanelOpen(true);
+    window.addEventListener('nexus:open-knowledge-bases', handler);
+    return () => window.removeEventListener('nexus:open-knowledge-bases', handler);
   }, []);
 
   // Auto-close sidebar on mobile when selecting a conversation
@@ -110,7 +122,6 @@ export default function Workspace() {
         try {
           const conv = await api.createConversation({
             model: useStore.getState().activeModel,
-            agent_mode: useStore.getState().activeMode,
           });
           useStore.getState().setActiveConversationId(conv.id);
           useStore.getState().setMessages([]);
@@ -189,30 +200,78 @@ export default function Workspace() {
   const sidebarIsOverlay = !isDesktop;
   const rightPanelIsOverlay = !isDesktop;
 
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    // Only show overlay if files are being dragged (not text selections etc.)
+    if (e.dataTransfer.types.includes('Files')) {
+      dragCounterRef.current++;
+      setIsDragging(true);
+    }
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounterRef.current--;
+    if (dragCounterRef.current === 0) setIsDragging(false);
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounterRef.current = 0;
+    setIsDragging(false);
+    if (e.dataTransfer.files.length > 0) {
+      window.dispatchEvent(new CustomEvent('nexus:drop-files', {
+        detail: { files: Array.from(e.dataTransfer.files) },
+      }));
+    }
+  }, []);
+
   return (
-    <div className="relative flex flex-col h-screen w-screen bg-bg overflow-hidden noise-overlay">
+    <div
+      className="relative flex flex-col h-dvh w-screen bg-bg overflow-hidden noise-overlay"
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+    >
       {!focusMode && <HealthBanner />}
       {!focusMode && <TopBar />}
       <div className="flex flex-1 min-h-0 relative">
-        {/* Sidebar — inline on desktop, overlay on mobile/tablet */}
-        {!focusMode && sidebarOpen && (
-          <>
-            {sidebarIsOverlay && (
-              <div
-                className="fixed inset-0 bg-black/60 backdrop-blur-sm z-30 lg:hidden"
-                onClick={() => setSidebarOpen(false)}
-              />
-            )}
-            <div className={
-              sidebarIsOverlay
-                ? 'fixed left-0 top-11 bottom-0 z-40 animate-slide-in-left'
-                : ''
-            }>
-              <ErrorBoundary fallbackMessage="Sidebar crashed">
-                <Sidebar />
-              </ErrorBoundary>
+        {/* Sidebar — slides on desktop, overlay on mobile/tablet */}
+        {!focusMode && (
+          sidebarIsOverlay ? (
+            // Mobile/tablet: overlay with backdrop
+            sidebarOpen && (
+              <>
+                <div
+                  className="fixed inset-0 bg-black/60 backdrop-blur-sm z-30 lg:hidden"
+                  onClick={() => setSidebarOpen(false)}
+                />
+                <div className="fixed left-0 top-12 bottom-0 z-40 animate-slide-in-left">
+                  <ErrorBoundary fallbackMessage="Sidebar crashed">
+                    <Sidebar />
+                  </ErrorBoundary>
+                </div>
+              </>
+            )
+          ) : (
+            // Desktop: always mounted, animate width
+            <div
+              className="h-full shrink-0 overflow-hidden transition-[width] duration-200 ease-in-out"
+              style={{ width: sidebarOpen ? '272px' : '0px' }}
+            >
+              <div className="h-full w-[272px]">
+                <ErrorBoundary fallbackMessage="Sidebar crashed">
+                  <Sidebar />
+                </ErrorBoundary>
+              </div>
             </div>
-          </>
+          )
         )}
 
         {/* Main chat area */}
@@ -238,9 +297,9 @@ export default function Workspace() {
             <div className={
               rightPanelIsOverlay
                 ? (isMobile
-                    ? 'fixed left-0 right-0 bottom-0 top-[35%] z-40 animate-slide-up rounded-t-xl overflow-hidden'
-                    : 'fixed right-0 top-11 bottom-0 z-40 animate-slide-in-right')
-                : ''
+                    ? 'fixed left-0 right-0 bottom-0 top-[35%] z-40 animate-slide-up rounded-t-lg overflow-hidden'
+                    : 'fixed right-0 top-12 bottom-0 z-40 animate-slide-in-right')
+                : 'h-full'
             }>
               <ErrorBoundary fallbackMessage="Panel crashed">
                 <RightPanel />
@@ -253,14 +312,61 @@ export default function Workspace() {
       {/* Focus mode hint */}
       {focusMode && (
         <div className="fixed top-3 right-3 z-50 animate-focus-fade-in">
-          <div className="px-2.5 py-1 bg-surface-1/80 backdrop-blur-sm border border-border-default rounded-md text-[10px] text-text-tertiary font-mono">
+          <div className="px-2.5 py-1 bg-surface-1/80 backdrop-blur-sm border border-border-default rounded-lg text-[10px] text-text-tertiary font-mono">
             ESC to exit focus
+          </div>
+        </div>
+      )}
+
+      {/* Full-screen drop overlay */}
+      {isDragging && (
+        <div className="fixed inset-0 z-[70] pointer-events-none animate-focus-fade-in" style={{ animationDuration: '0.15s' }}>
+          {/* Backdrop */}
+          <div className="absolute inset-0 bg-bg/80 backdrop-blur-sm" />
+
+          {/* Inset border frame */}
+          <div className="absolute inset-5 sm:inset-8">
+            {/* Border lines */}
+            <div className="absolute inset-0 border border-accent/40" />
+
+            {/* Corner accents — top-left */}
+            <div className="absolute -top-px -left-px w-5 h-5">
+              <div className="absolute top-0 left-0 w-full h-px bg-accent" />
+              <div className="absolute top-0 left-0 h-full w-px bg-accent" />
+            </div>
+            {/* Corner accents — top-right */}
+            <div className="absolute -top-px -right-px w-5 h-5">
+              <div className="absolute top-0 right-0 w-full h-px bg-accent" />
+              <div className="absolute top-0 right-0 h-full w-px bg-accent" />
+            </div>
+            {/* Corner accents — bottom-left */}
+            <div className="absolute -bottom-px -left-px w-5 h-5">
+              <div className="absolute bottom-0 left-0 w-full h-px bg-accent" />
+              <div className="absolute bottom-0 left-0 h-full w-px bg-accent" />
+            </div>
+            {/* Corner accents — bottom-right */}
+            <div className="absolute -bottom-px -right-px w-5 h-5">
+              <div className="absolute bottom-0 right-0 w-full h-px bg-accent" />
+              <div className="absolute bottom-0 right-0 h-full w-px bg-accent" />
+            </div>
+
+            {/* Center content */}
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
+              <div className="w-14 h-14 rounded-lg bg-accent/10 border border-accent/20 flex items-center justify-center">
+                <Upload size={24} className="text-accent" />
+              </div>
+              <div className="flex flex-col items-center gap-1.5">
+                <span className="text-sm font-semibold text-text-primary">Drop files to attach</span>
+                <span className="text-xs text-text-tertiary">Images, documents, spreadsheets, and more</span>
+              </div>
+            </div>
           </div>
         </div>
       )}
 
       {commandPaletteOpen && <CommandPalette />}
       {shortcutsOpen && <KeyboardShortcuts onClose={() => setShortcutsOpen(false)} />}
+      {kbPanelOpen && <KnowledgeBasePanel onClose={() => setKbPanelOpen(false)} />}
       <ToastContainer />
       <ConfirmDialog
         open={confirmDialog.open}

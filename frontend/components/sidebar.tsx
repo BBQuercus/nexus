@@ -4,8 +4,9 @@ import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useStore } from '@/lib/store';
 import * as api from '@/lib/api';
 import type { Conversation } from '@/lib/types';
-import { Plus, Search, X, Download, Pin, PinOff, Trash2, CheckSquare, Square, Bot } from 'lucide-react';
+import { Plus, Search, X, Download, Pin, PinOff, Trash2, CheckSquare, Square, BookOpen } from 'lucide-react';
 import { toast } from './toast';
+import UserDropdown from './user-dropdown';
 
 function getPinnedIds(): Set<string> {
   try {
@@ -22,7 +23,6 @@ export default function Sidebar() {
   const setActiveConversationId = useStore((s) => s.setActiveConversationId);
   const setMessages = useStore((s) => s.setMessages);
   const activeModel = useStore((s) => s.activeModel);
-  const activeMode = useStore((s) => s.activeMode);
   const togglePinConversation = useStore((s) => s.togglePinConversation);
   const [search, setSearch] = useState('');
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -74,7 +74,7 @@ export default function Sidebar() {
 
   const handleNew = async () => {
     try {
-      const conv = await api.createConversation({ title: 'New conversation', model: activeModel, mode: activeMode });
+      const conv = await api.createConversation({ title: 'New conversation', model: activeModel });
       setActiveConversationId(conv.id);
       setMessages([]);
       loadConversations();
@@ -243,7 +243,7 @@ export default function Sidebar() {
   }, [conversations, today, yesterday, weekAgo]);
 
   return (
-    <div className="relative flex flex-col w-[85vw] sm:w-[272px] max-w-[320px] bg-surface-0 border-r border-border-default shrink-0 h-full">
+    <div className="relative flex flex-col w-[85vw] sm:w-[272px] max-w-[320px] bg-surface-0 border-r border-border-default shrink-0 h-full min-w-0 sm:min-w-[272px]">
       <div className="absolute inset-0 grid-texture opacity-10 pointer-events-none" />
 
       {/* Header */}
@@ -292,13 +292,13 @@ export default function Sidebar() {
           <span className="text-[10px] text-text-tertiary font-mono flex-1">{selectedIds.size} selected</span>
           <button
             onClick={handleBulkExport}
-            className="flex items-center gap-1 px-2 py-1 text-[10px] bg-surface-1 border border-border-default rounded-md text-text-secondary hover:text-accent hover:border-accent/30 cursor-pointer transition-colors"
+            className="flex items-center gap-1 px-2 py-1 text-[10px] bg-surface-1 border border-border-default rounded-lg text-text-secondary hover:text-accent hover:border-accent/30 cursor-pointer transition-colors"
           >
             <Download size={10} /> Export
           </button>
           <button
             onClick={handleBulkDelete}
-            className="flex items-center gap-1 px-2 py-1 text-[10px] bg-surface-1 border border-border-default rounded-md text-text-secondary hover:text-error hover:border-error/30 cursor-pointer transition-colors"
+            className="flex items-center gap-1 px-2 py-1 text-[10px] bg-surface-1 border border-border-default rounded-lg text-text-secondary hover:text-error hover:border-error/30 cursor-pointer transition-colors"
           >
             <Trash2 size={10} /> Delete
           </button>
@@ -412,11 +412,20 @@ export default function Sidebar() {
         )}
       </div>
 
-      {/* Manage Agents link */}
-      <div className="px-2 pb-2 border-t border-border-default pt-2">
-        <a href="/agents" className="flex items-center gap-2 px-3 py-2 text-[11px] text-text-tertiary hover:text-text-secondary cursor-pointer transition-colors">
-          <Bot size={12} /> Manage Agents
-        </a>
+      {/* Knowledge Bases link */}
+      <div className="px-2 pt-1.5 border-t border-border-default">
+        <button
+          onClick={() => window.dispatchEvent(new CustomEvent('nexus:open-knowledge-bases'))}
+          className="w-full flex items-center gap-2 px-2.5 py-2 text-xs text-text-tertiary hover:text-text-secondary hover:bg-surface-1 rounded-lg transition-colors cursor-pointer"
+        >
+          <BookOpen size={13} />
+          Knowledge Bases
+        </button>
+      </div>
+
+      {/* User dropdown */}
+      <div className="px-3 pb-3 pt-1">
+        <UserDropdown />
       </div>
 
       {/* Preview tooltip */}

@@ -35,6 +35,17 @@ class Settings(BaseSettings):
     AZURE_SPEECH_KEY: str = ""
     AZURE_SPEECH_LOCATION: str = "switzerlandnorth"
 
+    # RAG Configuration
+    EMBEDDING_MODEL: str = "text-embedding-3-small"
+    EMBEDDING_DIMENSIONS: int = 1536
+    RERANK_MODEL: str = ""  # empty = disabled, e.g. "rerank-v3.5"
+    COHERE_API_KEY: str = ""
+    RAG_CHUNK_SIZE: int = 512  # tokens per chunk
+    RAG_CHUNK_OVERLAP: int = 50
+    RAG_MAX_DOCUMENT_TOKENS: int = 100_000
+    RAG_CONFIDENCE_THRESHOLD: float = 0.3
+    RAG_CONTEXTUAL_MODEL: str = "gpt-4.1-nano-swc"  # cheap model for context prefixes
+
     PORT: int = 8000
 
 

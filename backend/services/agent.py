@@ -114,8 +114,39 @@ async def run_agent_loop(
         )
         existing_messages = list(result.scalars().all())
 
+    # Load conversation early — needed for KB detection and sandbox_id updates
+    conv_result = await db.execute(
+        select(Conversation).where(Conversation.id == conversation_id)
+    )
+    conversation = conv_result.scalar_one()
+
+    # Determine if knowledge bases/documents are available
+    has_knowledge = False
+    knowledge_base_ids: list[uuid.UUID] = []
+
+    # Check conversation-level KB attachments
+    if conversation.knowledge_base_ids:
+        knowledge_base_ids.extend(
+            uuid.UUID(kid) for kid in conversation.knowledge_base_ids if kid
+        )
+
+    # Check agent persona KB attachments
+    if persona and hasattr(persona, "knowledge_base_ids") and persona.knowledge_base_ids:
+        knowledge_base_ids.extend(
+            uuid.UUID(kid) for kid in persona.knowledge_base_ids if kid
+        )
+
+    # Check if conversation has any scoped documents
+    from backend.models import Document as DocumentModel
+    conv_doc_count = await db.scalar(
+        select(func.count()).select_from(DocumentModel).where(
+            DocumentModel.conversation_id == conversation_id
+        )
+    )
+    has_knowledge = bool(knowledge_base_ids) or (conv_doc_count or 0) > 0
+
     # Build message history for LLM
-    system_prompt = build_system_prompt(mode, persona)
+    system_prompt = build_system_prompt(mode, persona, has_knowledge=has_knowledge)
     llm_messages: list[dict] = [{"role": "system", "content": system_prompt}]
 
     for msg in existing_messages:
@@ -144,7 +175,7 @@ async def run_agent_loop(
     tools_enabled = None
     if persona and hasattr(persona, "tools_enabled"):
         tools_enabled = persona.tools_enabled
-    tools = get_tools_for_mode(mode, tools_enabled)
+    tools = get_tools_for_mode(mode, tools_enabled, has_knowledge=has_knowledge)
     logger.info("agent_loop_start", mode=mode, model=model, tool_count=len(tools) if tools else 0, conversation_id=str(conversation_id))
 
     # Track sandbox and known output files
@@ -158,12 +189,6 @@ async def run_agent_loop(
         except Exception:
             pass
 
-    # Load conversation for sandbox_id updates
-    conv_result = await db.execute(
-        select(Conversation).where(Conversation.id == conversation_id)
-    )
-    conversation = conv_result.scalar_one()
-
     total_input_tokens = 0
     total_output_tokens = 0
     max_iterations = 15
@@ -173,6 +198,8 @@ async def run_agent_loop(
     all_tool_calls_raw: list[dict] = []
     enriched_tool_calls: list[dict] = []
     collected_images: list[dict] = []
+    rag_citations: list[dict] = []
+    retrieval_log_ids: list[uuid.UUID] = []
 
     while iteration < max_iterations:
         iteration += 1
@@ -381,6 +408,64 @@ async def run_agent_loop(
                         yield _sse_event("preview", {"url": url, "port": port})
                     yield _sse_event("tool_output", {"tool": func_name, "output": tool_output, "tool_call_id": tool_call_id})
 
+                elif func_name == "knowledge_search":
+                    from backend.services.rag.retrieval import SearchScope, retrieve
+                    from backend.services.rag.citations import (
+                        build_citations_json,
+                        build_retrieval_sse_event,
+                        format_retrieval_context,
+                    )
+                    from backend.models import RetrievalLog
+
+                    # Determine search scope
+                    search_kb_ids = knowledge_base_ids
+                    if args.get("knowledge_base_ids"):
+                        search_kb_ids = [uuid.UUID(kid) for kid in args["knowledge_base_ids"]]
+
+                    scope = SearchScope(
+                        knowledge_base_ids=search_kb_ids,
+                        conversation_id=conversation_id if has_knowledge else None,
+                    )
+
+                    result = await retrieve(
+                        db=db,
+                        query=args.get("query", user_message),
+                        scope=scope,
+                        top_k=5,
+                    )
+
+                    # Format context for LLM
+                    context_text, confidence = format_retrieval_context(result)
+                    tool_output = context_text if context_text else "No relevant documents found."
+
+                    # Emit retrieval results SSE event for frontend citations
+                    yield _sse_event("retrieval_results", build_retrieval_sse_event(result))
+
+                    # Store retrieval log for observability
+                    retrieval_log = RetrievalLog(
+                        query=args.get("query", user_message),
+                        chunks_retrieved=[
+                            {
+                                "chunk_id": str(c.id),
+                                "document_id": str(c.document_id),
+                                "score": round(c.score, 3),
+                                "rerank_score": round(c.rerank_score, 3) if c.rerank_score else None,
+                            }
+                            for c in result.chunks
+                        ],
+                        total_candidates=result.total_candidates,
+                        retrieval_time_ms=result.retrieval_time_ms,
+                        rerank_time_ms=result.rerank_time_ms,
+                    )
+                    db.add(retrieval_log)
+                    await db.flush()
+
+                    # Accumulate citations for attachment to assistant message
+                    rag_citations.extend(build_citations_json(result))
+                    retrieval_log_ids.append(retrieval_log.id)
+
+                    yield _sse_event("tool_output", {"tool": func_name, "output": tool_output, "tool_call_id": tool_call_id})
+
                 else:
                     tool_output = f"Unknown tool: {func_name}"
                     yield _sse_event("tool_output", {"tool": func_name, "output": tool_output, "tool_call_id": tool_call_id})
@@ -429,6 +514,7 @@ async def run_agent_loop(
         reasoning=assistant_reasoning or None,
         tool_calls=enriched_tool_calls if enriched_tool_calls else None,
         images=collected_images if collected_images else None,
+        citations=rag_citations if rag_citations else None,
         token_count=(total_input_tokens + total_output_tokens) if (total_input_tokens + total_output_tokens) > 0 else None,
         cost_usd=llm_service.calculate_cost(model, total_input_tokens, total_output_tokens) if total_input_tokens > 0 else None,
         parent_id=assistant_parent_id,
@@ -436,6 +522,16 @@ async def run_agent_loop(
     )
     db.add(assistant_msg_obj)
     await db.flush()
+
+    # Link retrieval logs to the assistant message
+    if retrieval_log_ids:
+        from backend.models import RetrievalLog
+        from sqlalchemy import update as sa_update
+        await db.execute(
+            sa_update(RetrievalLog)
+            .where(RetrievalLog.id.in_(retrieval_log_ids))
+            .values(message_id=assistant_msg_obj.id)
+        )
 
     # Extract and save artifacts
     artifacts_data = extraction.extract_artifacts(assistant_content, all_tool_calls_raw)

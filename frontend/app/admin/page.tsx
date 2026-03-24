@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Zap, Shield, ArrowLeft, Users, MessageSquare, ThumbsUp, ThumbsDown, AlertTriangle, Cpu, RefreshCw } from 'lucide-react';
+import { Shield, Users, MessageSquare, ThumbsUp, ThumbsDown, AlertTriangle, Cpu, RefreshCw, BarChart3 } from 'lucide-react';
+import PageShell from '@/components/page-shell';
 import * as api from '@/lib/api';
 
 type Tab = 'overview' | 'feedback' | 'users' | 'errors';
@@ -38,41 +39,52 @@ export default function AdminPage() {
     </div>
   );
 
-  const tabs: { id: Tab; label: string }[] = [
-    { id: 'overview', label: 'Overview' },
-    { id: 'feedback', label: 'Feedback' },
-    { id: 'users', label: 'Users' },
-    { id: 'errors', label: 'Errors' },
+  const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
+    { id: 'overview', label: 'Overview', icon: <BarChart3 size={13} /> },
+    { id: 'feedback', label: 'Feedback', icon: <ThumbsUp size={13} /> },
+    { id: 'users', label: 'Users', icon: <Users size={13} /> },
+    { id: 'errors', label: 'Errors', icon: <AlertTriangle size={13} /> },
   ];
 
-  return (
-    <div className="h-screen bg-bg flex flex-col">
-      <div className="flex items-center h-11 px-3 bg-surface-0 border-b border-border-default shrink-0">
-        <button onClick={() => router.push('/')} className="flex items-center gap-1.5 cursor-pointer mr-4">
-          <Zap size={14} className="text-accent" />
-          <span className="text-sm font-bold tracking-[0.12em] uppercase">Nexus</span>
-        </button>
-        <div className="h-4 w-px bg-border-default mr-3" />
-        <span className="text-[11px] text-text-tertiary uppercase tracking-wider mr-6">Admin</span>
-        <div className="flex gap-1">
-          {tabs.map((t) => (
-            <button key={t.id} onClick={() => setTab(t.id)}
-              className={`px-2.5 py-1 text-[11px] rounded-md cursor-pointer transition-colors ${tab === t.id ? 'bg-surface-2 text-text-primary' : 'text-text-tertiary hover:text-text-secondary'}`}
-            >{t.label}</button>
-          ))}
-        </div>
-        <div className="flex-1" />
-        <button onClick={() => router.push('/')} className="flex items-center gap-1 text-[11px] text-text-tertiary hover:text-text-secondary cursor-pointer">
-          <ArrowLeft size={11} /> Workspace
-        </button>
+  const adminSidebar = (
+    <>
+      <div className="px-2 py-2.5 flex flex-col gap-0.5">
+        {tabs.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={`w-full flex items-center gap-2.5 px-2.5 py-2.5 text-xs rounded-lg cursor-pointer transition-colors ${
+              tab === t.id
+                ? 'bg-accent/8 text-text-primary border-l-2 border-accent'
+                : 'text-text-secondary hover:bg-surface-1 hover:text-text-primary border-l-2 border-transparent'
+            }`}
+          >
+            <span className="text-text-tertiary shrink-0">{t.icon}</span>
+            {t.label}
+          </button>
+        ))}
       </div>
+      <div className="flex-1" />
+      <div className="px-3 pb-1">
+        <a
+          href="/"
+          className="block w-full text-left px-2.5 py-2 text-[11px] text-text-tertiary hover:text-text-secondary cursor-pointer transition-colors rounded-lg hover:bg-surface-1"
+        >
+          ← Back to workspace
+        </a>
+      </div>
+    </>
+  );
+
+  return (
+    <PageShell title="Admin" sidebar={adminSidebar}>
       <div className="flex-1 overflow-y-auto p-4 max-w-5xl mx-auto w-full">
         {tab === 'overview' && <OverviewTab />}
         {tab === 'feedback' && <FeedbackTab />}
         {tab === 'users' && <UsersTab />}
         {tab === 'errors' && <ErrorsTab />}
       </div>
-    </div>
+    </PageShell>
   );
 }
 

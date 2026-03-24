@@ -40,7 +40,7 @@ export default function SandboxBar() {
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] text-text-tertiary bg-surface-1 border border-border-default rounded-md hover:border-border-focus cursor-pointer transition-colors font-mono"
+        className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] text-text-tertiary bg-surface-1 border border-border-default rounded-lg hover:border-border-focus cursor-pointer transition-colors font-mono"
       >
         <span className={`w-1.5 h-1.5 rounded-full ${dotColor[sandboxStatus]} ${sandboxStatus === 'running' ? 'animate-pulse' : ''}`} />
         <span className="hidden sm:inline">{labels[sandboxStatus]}</span>
