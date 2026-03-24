@@ -55,6 +55,7 @@ export interface Message {
   images?: { filename: string; url: string }[];
   files?: { filename: string; fileType: string; sandboxId?: string }[];
   tables?: { rows: string[][]; label?: string }[];
+  charts?: { spec: Record<string, unknown>; title?: string }[];
   citations?: Citation[];
   contexts?: { id: string; title: string }[];
   parentId?: string | null;

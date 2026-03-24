@@ -405,6 +405,7 @@ export function useStreaming() {
         images: finalState.images.length > 0 ? [...finalState.images] : undefined,
         files: finalState.files.length > 0 ? [...finalState.files] : undefined,
         tables: finalState.tables.length > 0 ? [...finalState.tables] : undefined,
+        charts: finalState.charts.length > 0 ? [...finalState.charts] : undefined,
         citations: finalState.citations.length > 0 ? [...finalState.citations] : undefined,
       };
       useStore.getState().setConversationMessages(convId, (prev: Message[]) => [...prev, assistantMsg]);

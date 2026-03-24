@@ -35,7 +35,7 @@ export default function AgentsView() {
   const confirmDialog = useStore((s) => s.confirmDialog);
   const resolveConfirm = useStore((s) => s.resolveConfirm);
 
-  const [agents, setAgents] = useState<AgentPersona[]>([]);
+  const [agents, setAgents] = useState<AgentPersona[] | null>(null);
   const [editing, setEditing] = useState<AgentPersona | null>(null);
 
   useEffect(() => { api.listAgents().then(setAgents).catch(() => setAgents([])); }, []);
@@ -83,10 +83,19 @@ export default function AgentsView() {
     catch (e) { console.error('Failed to delete agent:', e); }
   };
 
-  const handleTry = () => {
+  const handleTry = async () => {
     if (!editing) return;
     setActivePersona(editing);
     if (editing.defaultModel) setActiveModel(editing.defaultModel);
+    try {
+      const conv = await api.createConversation({ model: editing.defaultModel || useStore.getState().activeModel });
+      useStore.getState().setActiveConversationId(conv.id);
+      useStore.getState().setMessages([]);
+      const r = await api.listConversations();
+      useStore.getState().setConversations(r.conversations);
+    } catch (e) {
+      console.error('Failed to create conversation:', e);
+    }
     router.push('/');
   };
 
@@ -104,7 +113,19 @@ export default function AgentsView() {
 
       {/* Agent list */}
       <div className="flex-1 overflow-y-auto px-2">
-        {agents.length === 0 ? (
+        {agents === null ? (
+          <div className="space-y-1 px-0.5 pt-1">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="flex items-center gap-2.5 px-2.5 py-2.5 animate-pulse">
+                <div className="w-7 h-7 rounded-md bg-surface-2" />
+                <div className="flex-1 space-y-1.5">
+                  <div className="h-3 w-24 bg-surface-2 rounded" />
+                  <div className="h-2 w-16 bg-surface-2 rounded" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : agents.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-text-tertiary">
             <Bot size={24} className="mb-2 opacity-40" />
             <div className="text-xs">No agents yet</div>
