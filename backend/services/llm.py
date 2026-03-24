@@ -111,24 +111,35 @@ async def stream_chat(
     )
 
 
-async def generate_title(user_message: str, assistant_response: str) -> str:
-    """Generate a 4-6 word conversation title using a cheap model."""
-    try:
-        response = await client.chat.completions.create(
-            model="gpt-5-mini-gwc",
-            messages=[
-                {
-                    "role": "system",
-                    "content": "Generate a concise 4-6 word title for this conversation. Return only the title, no quotes or punctuation.",
-                },
-                {
-                    "role": "user",
-                    "content": f"User: {user_message[:500]}\n\nAssistant: {assistant_response[:500]}",
-                },
-            ],
-            max_tokens=30,
-        )
-        title = response.choices[0].message.content.strip().strip('"\'')
-        return title[:100]
-    except Exception:
-        return user_message[:50] + ("..." if len(user_message) > 50 else "")
+async def generate_title(user_message: str, assistant_response: str, model: str | None = None) -> str:
+    """Generate a 4-6 word conversation title."""
+    # Try multiple models in order of preference
+    models_to_try = []
+    if model:
+        models_to_try.append(model)
+    models_to_try.extend(["gpt-4.1-chn", "gpt-5-mini-gwc", "azure_ai/claude-sonnet-4-5-swc"])
+
+    for m in models_to_try:
+        try:
+            response = await client.chat.completions.create(
+                model=m,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "Generate a concise 4-6 word title for this conversation. Return ONLY the title text, nothing else. No quotes, no punctuation at the end.",
+                    },
+                    {
+                        "role": "user",
+                        "content": f"User message: {user_message[:500]}\n\nAssistant response: {assistant_response[:500]}",
+                    },
+                ],
+                max_tokens=30,
+            )
+            title = (response.choices[0].message.content or "").strip().strip('"\'')
+            if title:
+                return title[:100]
+        except Exception:
+            continue
+
+    # Fallback: use the first words of the user message
+    return user_message[:50] + ("..." if len(user_message) > 50 else "")

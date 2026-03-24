@@ -106,15 +106,9 @@ function getPersistedState(): Partial<AppState> {
   try {
     const convId = localStorage.getItem('nexus:activeConversationId');
     const model = localStorage.getItem('nexus:activeModel');
-    const rightPanelOpen = localStorage.getItem('nexus:rightPanelOpen');
-    const rightPanelTab = localStorage.getItem('nexus:rightPanelTab');
-    const sidebarOpen = localStorage.getItem('nexus:sidebarOpen');
     return {
       ...(convId ? { activeConversationId: convId } : {}),
       ...(model ? { activeModel: model } : {}),
-      ...(rightPanelOpen !== null ? { rightPanelOpen: rightPanelOpen === 'true' } : {}),
-      ...(rightPanelTab ? { rightPanelTab: rightPanelTab as AppState['rightPanelTab'] } : {}),
-      ...(sidebarOpen !== null ? { sidebarOpen: sidebarOpen === 'true' } : {}),
     };
   } catch {
     return {};
@@ -171,10 +165,7 @@ export const useStore = create<AppState & AppActions>((set) => ({
   setActivePersona: (persona) => set({ activePersona: persona }),
   setSandboxStatus: (status) => set({ sandboxStatus: status }),
   setSandboxId: (id) => set({ sandboxId: id }),
-  setRightPanelTab: (tab) => {
-    try { localStorage.setItem('nexus:rightPanelTab', tab); } catch {}
-    set({ rightPanelTab: tab });
-  },
+  setRightPanelTab: (tab) => set({ rightPanelTab: tab }),
   setActiveLeafId: (id) => set({ activeLeafId: id }),
   setConversationTree: (tree) => set({ conversationTree: tree }),
   setBranchingFromId: (id) => set({ branchingFromId: id }),
@@ -183,7 +174,6 @@ export const useStore = create<AppState & AppActions>((set) => ({
     multiStreaming: state.multiStreaming ? { ...state.multiStreaming, activeBranchIndex: index } : null,
   })),
   setSidebarOpen: (open) => {
-    try { localStorage.setItem('nexus:sidebarOpen', String(open)); } catch {}
     set({ sidebarOpen: open });
   },
   setAbortController: (controller) => set({ abortController: controller }),
@@ -200,10 +190,7 @@ export const useStore = create<AppState & AppActions>((set) => ({
     streaming: { ...state.streaming, content: state.streaming.content + text },
   })),
   setArtifacts: (artifacts) => set({ artifacts }),
-  setRightPanelOpen: (open) => {
-    try { localStorage.setItem('nexus:rightPanelOpen', String(open)); } catch {}
-    set({ rightPanelOpen: open });
-  },
+  setRightPanelOpen: (open) => set({ rightPanelOpen: open }),
   setPreviewUrl: (url) => set({ previewUrl: url }),
   setPendingPrompt: (prompt) => set({ pendingPrompt: prompt }),
   updateConversationTitle: (id, title) =>
