@@ -4,7 +4,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
-from sqlalchemy import delete, func, select, update, text as sa_text
+from sqlalchemy import delete, func, select, text as sa_text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sse_starlette.sse import EventSourceResponse
@@ -48,10 +48,6 @@ class SendMessageRequest(BaseModel):
 
 class SwitchBranchRequest(BaseModel):
     leaf_id: uuid.UUID
-
-
-class FeedbackRequest(BaseModel):
-    feedback: str  # "thumbs_up" or "thumbs_down"
 
 
 # ----- Helpers -----
@@ -469,32 +465,6 @@ async def fork_conversation(
         "title": new_conv.title,
         "forked_from_message_id": str(message_id),
     }
-
-
-@router.post("/{conversation_id}/messages/{message_id}/feedback")
-async def submit_feedback(
-    conversation_id: uuid.UUID,
-    message_id: uuid.UUID,
-    body: FeedbackRequest,
-    user_id: uuid.UUID = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    # Verify ownership
-    result = await db.execute(
-        select(Conversation).where(
-            Conversation.id == conversation_id, Conversation.user_id == user_id
-        )
-    )
-    if not result.scalar_one_or_none():
-        raise HTTPException(status_code=404, detail="Conversation not found")
-
-    await db.execute(
-        update(Message)
-        .where(Message.id == message_id, Message.conversation_id == conversation_id)
-        .values(feedback=body.feedback)
-    )
-    await db.commit()
-    return {"ok": True}
 
 
 class RegenerateRequest(BaseModel):

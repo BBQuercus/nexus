@@ -220,7 +220,7 @@ export async function submitFeedback(
 ): Promise<void> {
   return apiFetch<void>(`/api/conversations/${conversationId}/messages/${messageId}/feedback`, {
     method: 'POST',
-    body: JSON.stringify({ feedback }),
+    body: JSON.stringify({ rating: feedback || 'up' }),
   });
 }
 
