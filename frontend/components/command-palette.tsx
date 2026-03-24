@@ -5,7 +5,8 @@ import { useStore } from '@/lib/store';
 import { MODELS } from '@/lib/types';
 import { logout as apiLogout } from '@/lib/api';
 import { clearToken } from '@/lib/auth';
-import { Search, Terminal, FolderOpen, Eye, Layers, LogOut, Users, Plus, MessageSquare } from 'lucide-react';
+import { toast } from './toast';
+import { Search, Terminal, FolderOpen, Eye, Layers, LogOut, Users, Plus, MessageSquare, Cpu, Trash2, HelpCircle, Download } from 'lucide-react';
 
 interface CommandAction {
   id: string;
@@ -26,6 +27,8 @@ export default function CommandPalette() {
   const setRightPanelTab = useStore((s) => s.setRightPanelTab);
   const setRightPanelOpen = useStore((s) => s.setRightPanelOpen);
   const rightPanelOpen = useStore((s) => s.rightPanelOpen);
+  const conversations = useStore((s) => s.conversations);
+  const setActiveConversationId = useStore((s) => s.setActiveConversationId);
 
   const actions: CommandAction[] = useMemo(() => [
     ...MODELS.map((m, i) => ({
@@ -45,14 +48,61 @@ export default function CommandPalette() {
     { id: 'view-preview', label: 'Show Preview', icon: <Eye size={13} />, category: 'Navigation', handler: () => { setRightPanelOpen(true); setRightPanelTab('preview'); } },
     { id: 'view-artifacts', label: 'Show Artifacts', icon: <Layers size={13} />, category: 'Navigation', handler: () => { setRightPanelOpen(true); setRightPanelTab('artifacts'); } },
     { id: 'agents', label: 'Manage Personas', icon: <Users size={13} />, category: 'Navigation', handler: () => { window.location.href = '/agents'; } },
+    // Slash Commands
+    { id: 'slash-model', label: '/model — Switch model', icon: <Cpu size={13} />, category: 'Slash Commands', handler: () => {
+      const ta = document.querySelector('textarea') as HTMLTextAreaElement;
+      if (ta) { ta.focus(); const nativeSet = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set; nativeSet?.call(ta, '/model '); ta.dispatchEvent(new Event('input', { bubbles: true })); }
+    }},
+    { id: 'slash-clear', label: '/clear — New conversation', icon: <Trash2 size={13} />, category: 'Slash Commands', handler: () => {
+      (async () => { try { const conv = await (await import('@/lib/api')).createConversation({ model: useStore.getState().activeModel, agent_mode: useStore.getState().activeMode }); useStore.getState().setActiveConversationId(conv.id); useStore.getState().setMessages([]); const r = await (await import('@/lib/api')).listConversations(); useStore.getState().setConversations(r.conversations); } catch {} })();
+    }},
+    { id: 'slash-help', label: '/help — Keyboard shortcuts', icon: <HelpCircle size={13} />, category: 'Slash Commands', handler: () => {
+      window.dispatchEvent(new CustomEvent('nexus:open-shortcuts'));
+    }},
+    { id: 'slash-export', label: '/export — Export as markdown', icon: <Download size={13} />, category: 'Slash Commands', handler: () => {
+      const msgs = useStore.getState().messages;
+      if (msgs.length === 0) { toast.info('No messages to export'); return; }
+      const md = msgs.map((m) => {
+        const role = m.role === 'user' ? '**You**' : m.role === 'assistant' ? '**Assistant**' : '**System**';
+        return `### ${role}\n\n${m.content}`;
+      }).join('\n\n---\n\n');
+      const blob = new Blob([md], { type: 'text/markdown' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'conversation.md';
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success('Conversation exported');
+    }},
     { id: 'logout', label: 'Log Out', icon: <LogOut size={13} />, category: 'Account', handler: async () => { try { await apiLogout(); } catch {} clearToken(); useStore.getState().reset(); window.location.href = '/login'; } },
   ], [setActiveModel, setRightPanelTab, setRightPanelOpen, rightPanelOpen]);
+
+  // Build conversation search results
+  const conversationResults: CommandAction[] = useMemo(() => {
+    if (!query.trim()) return [];
+    const q = query.toLowerCase();
+    // Only show conversation results if query doesn't match many actions
+    return conversations
+      .filter((c) => c.title?.toLowerCase().includes(q))
+      .slice(0, 5)
+      .map((c) => ({
+        id: `conv-${c.id}`,
+        label: c.title || 'Untitled',
+        icon: <MessageSquare size={13} />,
+        category: 'Conversations',
+        handler: () => {
+          setActiveConversationId(c.id);
+        },
+      }));
+  }, [query, conversations, setActiveConversationId]);
 
   const filtered = useMemo(() => {
     if (!query.trim()) return actions;
     const q = query.toLowerCase();
-    return actions.filter((a) => a.label.toLowerCase().includes(q) || a.category.toLowerCase().includes(q));
-  }, [query, actions]);
+    const matchedActions = actions.filter((a) => a.label.toLowerCase().includes(q) || a.category.toLowerCase().includes(q));
+    return [...matchedActions, ...conversationResults];
+  }, [query, actions, conversationResults]);
 
   useEffect(() => { inputRef.current?.focus(); }, []);
   useEffect(() => { setHighlightedIndex(0); }, [query]);
@@ -92,7 +142,7 @@ export default function CommandPalette() {
           <input
             ref={inputRef}
             type="text"
-            placeholder="Type a command..."
+            placeholder="Type a command or search conversations..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}

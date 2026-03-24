@@ -1,20 +1,30 @@
 'use client';
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useStore } from '@/lib/store';
 import * as api from '@/lib/api';
 import type { Message } from '@/lib/types';
-import { ArrowUp, Square, Paperclip, X } from 'lucide-react';
+import { MODELS } from '@/lib/types';
+import { ArrowUp, Square, Paperclip, X, Terminal, Trash2, HelpCircle, Download, Cpu } from 'lucide-react';
 import ModelPicker from './model-picker';
 import { toast } from './toast';
 import { useStreaming } from '@/lib/useStreaming';
 
 const RESPONSE_COUNTS = [1, 3, 5] as const;
 
+interface SlashCommand {
+  name: string;
+  description: string;
+  icon: React.ReactNode;
+  execute: (args: string) => void;
+}
+
 export default function ChatInput() {
   const [content, setContent] = useState('');
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [numResponses, setNumResponses] = useState<number>(1);
+  const [slashMenuOpen, setSlashMenuOpen] = useState(false);
+  const [slashHighlightIndex, setSlashHighlightIndex] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -33,6 +43,109 @@ export default function ChatInput() {
   const abortStreaming = useStore((s) => s.abortStreaming);
 
   const { streamSend, streamRegenerate } = useStreaming();
+
+  // Slash commands definition
+  const slashCommands: SlashCommand[] = useMemo(() => [
+    {
+      name: 'model',
+      description: 'Switch model — /model <name>',
+      icon: <Cpu size={13} />,
+      execute: (args: string) => {
+        const q = args.trim().toLowerCase();
+        if (!q) {
+          toast.info('Available models: ' + MODELS.map((m) => m.name).join(', '));
+          return;
+        }
+        const match = MODELS.find(
+          (m) => m.name.toLowerCase().includes(q) || m.id.toLowerCase().includes(q)
+        );
+        if (match) {
+          useStore.getState().setActiveModel(match.id);
+          toast.success(`Switched to ${match.name}`);
+        } else {
+          toast.error(`Model "${args.trim()}" not found`);
+        }
+      },
+    },
+    {
+      name: 'clear',
+      description: 'Start a new conversation',
+      icon: <Trash2 size={13} />,
+      execute: () => {
+        (async () => {
+          try {
+            const conv = await api.createConversation({
+              model: useStore.getState().activeModel,
+              agent_mode: useStore.getState().activeMode,
+            });
+            useStore.getState().setActiveConversationId(conv.id);
+            useStore.getState().setMessages([]);
+            const r = await api.listConversations();
+            useStore.getState().setConversations(r.conversations);
+          } catch {
+            toast.error('Failed to create conversation');
+          }
+        })();
+      },
+    },
+    {
+      name: 'help',
+      description: 'Show keyboard shortcuts',
+      icon: <HelpCircle size={13} />,
+      execute: () => {
+        // Dispatch a custom event that workspace listens for
+        window.dispatchEvent(new CustomEvent('nexus:open-shortcuts'));
+      },
+    },
+    {
+      name: 'export',
+      description: 'Export conversation as markdown',
+      icon: <Download size={13} />,
+      execute: () => {
+        const msgs = useStore.getState().messages;
+        if (msgs.length === 0) {
+          toast.info('No messages to export');
+          return;
+        }
+        const md = msgs
+          .map((m) => {
+            const role = m.role === 'user' ? '**You**' : m.role === 'assistant' ? '**Assistant**' : '**System**';
+            return `### ${role}\n\n${m.content}`;
+          })
+          .join('\n\n---\n\n');
+        const blob = new Blob([md], { type: 'text/markdown' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'conversation.md';
+        a.click();
+        URL.revokeObjectURL(url);
+        toast.success('Conversation exported');
+      },
+    },
+  ], []);
+
+  // Filter slash commands based on input
+  const filteredSlashCommands = useMemo(() => {
+    if (!slashMenuOpen) return [];
+    const match = content.match(/^\/(\S*)$/);
+    if (!match) return [];
+    const query = match[1].toLowerCase();
+    if (!query) return slashCommands;
+    return slashCommands.filter(
+      (cmd) => cmd.name.toLowerCase().includes(query) || cmd.description.toLowerCase().includes(query)
+    );
+  }, [content, slashMenuOpen, slashCommands]);
+
+  // Update slash menu state on content change
+  useEffect(() => {
+    if (content.match(/^\/\S*$/) && !content.includes(' ')) {
+      setSlashMenuOpen(true);
+      setSlashHighlightIndex(0);
+    } else {
+      setSlashMenuOpen(false);
+    }
+  }, [content]);
 
   // Pick up pending prompt from empty state starters
   useEffect(() => {
@@ -69,9 +182,32 @@ export default function ChatInput() {
     }
   }, [content]);
 
+  const executeSlashCommand = useCallback((cmd: SlashCommand) => {
+    // Extract args after the command name
+    const match = content.match(/^\/(\S+)\s*(.*)/);
+    const args = match ? match[2] : '';
+    cmd.execute(args);
+    setContent('');
+    setSlashMenuOpen(false);
+  }, [content]);
+
   const handleSend = useCallback(async () => {
     if (isStreaming) return;
     const text = content.trim();
+
+    // Check if it's a slash command with args (e.g., "/model gpt-5")
+    const cmdMatch = text.match(/^\/(\S+)(?:\s+(.*))?$/);
+    if (cmdMatch) {
+      const cmdName = cmdMatch[1].toLowerCase();
+      const cmd = slashCommands.find((c) => c.name === cmdName);
+      if (cmd) {
+        cmd.execute(cmdMatch[2] || '');
+        setContent('');
+        setSlashMenuOpen(false);
+        return;
+      }
+    }
+
     if (!text && pendingFiles.length === 0) return;
 
     let convId = activeConversationId;
@@ -124,7 +260,7 @@ export default function ChatInput() {
     });
   }, [content, pendingFiles, isStreaming, activeConversationId, activeModel, sandboxId, messages,
     setActiveConversationId, setMessages, setConversations, branchingFromId, setBranchingFromId,
-    numResponses, streamSend]);
+    numResponses, streamSend, slashCommands]);
 
   // Handle regenerate events from message bubbles
   useEffect(() => {
@@ -165,6 +301,35 @@ export default function ChatInput() {
   }, [setBranchingFromId]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (slashMenuOpen && filteredSlashCommands.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSlashHighlightIndex((i) => Math.min(i + 1, filteredSlashCommands.length - 1));
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSlashHighlightIndex((i) => Math.max(i - 1, 0));
+        return;
+      }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        executeSlashCommand(filteredSlashCommands[slashHighlightIndex]);
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setSlashMenuOpen(false);
+        return;
+      }
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        const cmd = filteredSlashCommands[slashHighlightIndex];
+        setContent(`/${cmd.name} `);
+        setSlashMenuOpen(false);
+        return;
+      }
+    }
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
   };
 
@@ -186,52 +351,81 @@ export default function ChatInput() {
         </div>
       )}
 
-      <div
-        className="flex items-center gap-2 bg-surface-1 border border-border-default rounded-xl px-3 py-2 min-h-[44px] focus-within:border-accent/30 focus-within:shadow-[0_0_16px_-4px_var(--color-accent-dim)] transition-all"
-        onDrop={(e) => { e.preventDefault(); if (e.dataTransfer.files.length > 0) setPendingFiles((prev) => [...prev, ...Array.from(e.dataTransfer.files)]); }}
-        onDragOver={(e) => e.preventDefault()}
-      >
-        <textarea
-          ref={textareaRef}
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder={isStreaming ? 'Waiting for response...' : 'Message Nexus...'}
-          disabled={isStreaming}
-          rows={1}
-          className="flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-tertiary resize-none outline-none disabled:opacity-50 max-h-[200px] self-center"
-        />
-
-        <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(e) => { if (e.target.files) setPendingFiles((prev) => [...prev, ...Array.from(e.target.files!)]); }} />
-
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          className="p-1.5 text-text-tertiary hover:text-text-secondary shrink-0 cursor-pointer rounded-md hover:bg-surface-2 transition-colors"
-          title="Attach files"
-        >
-          <Paperclip size={14} />
-        </button>
-
-        {isStreaming ? (
-          <button
-            onClick={abortStreaming}
-            className="w-7 h-7 flex items-center justify-center text-sm shrink-0 cursor-pointer rounded-lg transition-all bg-error/80 text-white hover:bg-error"
-            title="Stop generation"
-          >
-            <Square size={12} />
-          </button>
-        ) : (
-          <button
-            data-send-button
-            onClick={handleSend}
-            disabled={!hasContent}
-            className={`w-7 h-7 flex items-center justify-center text-sm shrink-0 cursor-pointer rounded-lg transition-all ${
-              hasContent ? 'bg-accent text-bg hover:bg-accent-hover scale-100' : 'bg-surface-2 text-text-tertiary scale-95'
-            } disabled:opacity-40 disabled:cursor-not-allowed`}
-          >
-            <ArrowUp size={14} strokeWidth={2.5} />
-          </button>
+      <div className="relative">
+        {/* Slash command dropdown */}
+        {slashMenuOpen && filteredSlashCommands.length > 0 && (
+          <div className="absolute bottom-full left-0 right-0 mb-1 bg-surface-0 border border-border-default rounded-lg shadow-xl overflow-hidden z-20 animate-fade-in-up" style={{ animationDuration: '0.1s' }}>
+            <div className="py-1">
+              <div className="px-3 py-1.5 text-[10px] uppercase tracking-[0.1em] text-text-tertiary font-mono">
+                Slash Commands
+              </div>
+              {filteredSlashCommands.map((cmd, idx) => (
+                <button
+                  key={cmd.name}
+                  onClick={() => executeSlashCommand(cmd)}
+                  onMouseEnter={() => setSlashHighlightIndex(idx)}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs cursor-pointer transition-colors ${
+                    idx === slashHighlightIndex
+                      ? 'bg-accent/10 text-text-primary'
+                      : 'text-text-secondary hover:bg-surface-1'
+                  }`}
+                >
+                  <span className="text-text-tertiary w-4 shrink-0">{cmd.icon}</span>
+                  <span className="font-mono text-accent">/{cmd.name}</span>
+                  <span className="text-text-tertiary ml-1">{cmd.description.replace(/^[^—]*— ?/, '')}</span>
+                </button>
+              ))}
+            </div>
+          </div>
         )}
+
+        <div
+          className="flex items-center gap-2 bg-surface-1 border border-border-default rounded-xl px-3 py-2 min-h-[44px] focus-within:border-accent/30 focus-within:shadow-[0_0_16px_-4px_var(--color-accent-dim)] transition-all"
+          onDrop={(e) => { e.preventDefault(); if (e.dataTransfer.files.length > 0) setPendingFiles((prev) => [...prev, ...Array.from(e.dataTransfer.files)]); }}
+          onDragOver={(e) => e.preventDefault()}
+        >
+          <textarea
+            ref={textareaRef}
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={isStreaming ? 'Waiting for response...' : 'Message Nexus... (/ for commands)'}
+            disabled={isStreaming}
+            rows={1}
+            className="flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-tertiary resize-none outline-none disabled:opacity-50 max-h-[200px] self-center"
+          />
+
+          <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(e) => { if (e.target.files) setPendingFiles((prev) => [...prev, ...Array.from(e.target.files!)]); }} />
+
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="p-1.5 text-text-tertiary hover:text-text-secondary shrink-0 cursor-pointer rounded-md hover:bg-surface-2 transition-colors"
+            title="Attach files"
+          >
+            <Paperclip size={14} />
+          </button>
+
+          {isStreaming ? (
+            <button
+              onClick={abortStreaming}
+              className="w-7 h-7 flex items-center justify-center text-sm shrink-0 cursor-pointer rounded-lg transition-all bg-error/80 text-white hover:bg-error"
+              title="Stop generation"
+            >
+              <Square size={12} />
+            </button>
+          ) : (
+            <button
+              data-send-button
+              onClick={handleSend}
+              disabled={!hasContent}
+              className={`w-7 h-7 flex items-center justify-center text-sm shrink-0 cursor-pointer rounded-lg transition-all ${
+                hasContent ? 'bg-accent text-bg hover:bg-accent-hover scale-100' : 'bg-surface-2 text-text-tertiary scale-95'
+              } disabled:opacity-40 disabled:cursor-not-allowed`}
+            >
+              <ArrowUp size={14} strokeWidth={2.5} />
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="mt-1.5 px-1 flex items-center gap-3">
