@@ -15,12 +15,28 @@ from backend.services import extraction
 from backend.services import llm as llm_service
 from backend.services import sandbox as sandbox_service
 from backend.services.tables import detect_table, rows_to_csv
+from backend.services.web import call_api, web_browse
 from backend.services.search import web_search
 
 logger = get_logger("agent")
 def _sse_event(event: str, data: Any) -> dict:
     """Format an SSE event."""
     return {"event": event, "data": json.dumps(data) if not isinstance(data, str) else data}
+
+
+def _sanitize_tool_arguments(func_name: str, args: dict[str, Any]) -> dict[str, Any]:
+    if func_name not in {"call_api", "web_browse"}:
+        return args
+
+    sanitized = dict(args)
+    if "auth_value" in sanitized and sanitized["auth_value"]:
+        sanitized["auth_value"] = "[REDACTED]"
+    if isinstance(sanitized.get("headers"), dict):
+        sanitized["headers"] = {
+            key: ("[REDACTED]" if key.lower() == "authorization" else value)
+            for key, value in sanitized["headers"].items()
+        }
+    return sanitized
 
 
 async def _run_knowledge_search(
@@ -283,7 +299,7 @@ async def run_agent_loop(
                 args = {}
 
             tool_call_id = tc["id"]
-            yield _sse_event("tool_start", {"tool": func_name, "arguments": args, "tool_call_id": tool_call_id})
+            yield _sse_event("tool_start", {"tool": func_name, "arguments": _sanitize_tool_arguments(func_name, args), "tool_call_id": tool_call_id})
 
             tool_output = ""
             tool_exit_code = 0
@@ -421,6 +437,26 @@ async def run_agent_loop(
                         url = await sandbox_service.get_preview_url(sandbox, port)
                         tool_output = url
                         yield _sse_event("preview", {"url": url, "port": port})
+                    yield _sse_event("tool_output", {"tool": func_name, "output": tool_output, "tool_call_id": tool_call_id})
+
+                elif func_name == "call_api":
+                    result = await call_api(
+                        args.get("url", ""),
+                        method=args.get("method", "GET"),
+                        headers=args.get("headers"),
+                        body=args.get("body"),
+                        auth_type=args.get("auth_type", "none"),
+                        auth_value=args.get("auth_value"),
+                    )
+                    tool_output = json.dumps(result, indent=2)
+                    yield _sse_event("tool_output", {"tool": func_name, "output": tool_output, "tool_call_id": tool_call_id})
+
+                elif func_name == "web_browse":
+                    result = await web_browse(
+                        args.get("url", ""),
+                        extract_links=bool(args.get("extract_links", False)),
+                    )
+                    tool_output = json.dumps(result, indent=2)
                     yield _sse_event("tool_output", {"tool": func_name, "output": tool_output, "tool_call_id": tool_call_id})
 
                 elif func_name == "knowledge_search":
