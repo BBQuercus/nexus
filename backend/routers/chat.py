@@ -259,6 +259,12 @@ async def delete_conversation(
         except Exception:
             pass
 
+    # Null out active_leaf_id before deleting to avoid FK cycle
+    # (active_leaf_id -> messages -> conversation cascade conflict)
+    conv.active_leaf_id = None
+    conv.forked_from_message_id = None
+    await db.flush()
+
     await db.delete(conv)
     await db.commit()
     return {"ok": True}
