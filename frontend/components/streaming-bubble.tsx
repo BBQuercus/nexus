@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useState, useCallback } from 'react';
 import { useStore } from '@/lib/store';
 import type { StreamingState } from '@/lib/store';
 import { Zap, Terminal, Play, Download, Check, ChevronDown, Loader2, FileSpreadsheet, FileText, Presentation, File as FileIcon } from 'lucide-react';
@@ -87,6 +87,66 @@ function StreamingFileCard({ filename, fileType }: { filename: string; fileType:
   );
 }
 
+/**
+ * Reveals text smoothly character-by-character using requestAnimationFrame.
+ * As new content arrives from SSE, it drains the buffer at a steady rate
+ * so the text appears to flow naturally rather than arriving in chunks.
+ */
+function SmoothText({ text, showCursor }: { text: string; showCursor: boolean }) {
+  const [displayed, setDisplayed] = useState('');
+  const targetRef = useRef(text);
+  const displayedRef = useRef('');
+  const rafRef = useRef<number>(0);
+  const lastTimeRef = useRef(0);
+
+  // Characters to reveal per millisecond (tune for feel)
+  // ~120 chars/sec feels fast but readable
+  const CHARS_PER_MS = 0.15;
+
+  targetRef.current = text;
+
+  const tick = useCallback((time: number) => {
+    if (!lastTimeRef.current) lastTimeRef.current = time;
+    const dt = time - lastTimeRef.current;
+    lastTimeRef.current = time;
+
+    const target = targetRef.current;
+    const current = displayedRef.current;
+
+    if (current.length < target.length) {
+      // Reveal proportional to elapsed time, minimum 1 char
+      const charsToAdd = Math.max(1, Math.floor(dt * CHARS_PER_MS));
+      const nextLen = Math.min(current.length + charsToAdd, target.length);
+      const next = target.slice(0, nextLen);
+      displayedRef.current = next;
+      setDisplayed(next);
+    }
+
+    rafRef.current = requestAnimationFrame(tick);
+  }, []);
+
+  useEffect(() => {
+    rafRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [tick]);
+
+  // If target jumps ahead significantly (e.g. large chunk), catch up
+  useEffect(() => {
+    if (text.length < displayedRef.current.length) {
+      // Content was reset
+      displayedRef.current = '';
+      setDisplayed('');
+    }
+  }, [text]);
+
+  return (
+    <div className="text-sm text-text-primary whitespace-pre-wrap break-words leading-relaxed">
+      {displayed}
+      {showCursor && <span className="inline-block w-0.5 h-4 bg-accent ml-0.5 align-text-bottom animate-pulse" />}
+    </div>
+  );
+}
+
 function BranchContent({ state, showCursor }: { state: StreamingState; showCursor: boolean }) {
   const hasContent = state.content || state.reasoning || state.toolCalls.length > 0 || state.images.length > 0 || state.files.length > 0;
 
@@ -134,10 +194,7 @@ function BranchContent({ state, showCursor }: { state: StreamingState; showCurso
         <StreamingFileCard key={i} filename={f.filename} fileType={f.fileType} />
       ))}
       {state.content && (
-        <div className="text-sm text-text-primary whitespace-pre-wrap break-words leading-relaxed">
-          {state.content}
-          {showCursor && <span className="inline-block w-0.5 h-4 bg-accent ml-0.5 align-text-bottom animate-pulse" />}
-        </div>
+        <SmoothText text={state.content} showCursor={showCursor} />
       )}
     </>
   );
@@ -175,7 +232,7 @@ export default function StreamingBubble() {
                 <button
                   key={i}
                   onClick={() => setActiveBranchView(i)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-md transition-all cursor-pointer ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-lg transition-all cursor-pointer ${
                     isActive
                       ? 'bg-accent/10 text-accent border border-accent/20'
                       : 'text-text-tertiary hover:text-text-secondary hover:bg-surface-2 border border-transparent'
