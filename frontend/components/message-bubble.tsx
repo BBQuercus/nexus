@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef, useEffect, useState } from 'react';
+import { useMemo, useRef, useEffect, useState, useCallback } from 'react';
 import type { Message, CostData, ToolCall, Citation } from '@/lib/types';
 import { CitationBar, ConfidenceBadge } from './citation-chip';
 import { MODELS } from '@/lib/types';
@@ -8,7 +8,7 @@ import MarkdownContent from './markdown-content';
 import { useStore } from '@/lib/store';
 import * as api from '@/lib/api';
 import { mapRawMessages } from '@/lib/useStreaming';
-import { Copy, GitBranch, RefreshCw, ChevronRight, ChevronDown, ChevronLeft, Terminal, Play, Check, Download, Clock, Coins, Cpu, ArrowRight, X, Link, FileEdit, Pencil, ChevronUp, ThumbsUp, ThumbsDown, FileSpreadsheet, FileText, Presentation, File as FileIcon, MessageSquare, Volume2 } from 'lucide-react';
+import { Copy, GitBranch, RefreshCw, ChevronRight, ChevronDown, ChevronLeft, Terminal, Play, Pause, Check, Download, Clock, Coins, Cpu, ArrowRight, X, Link, FileEdit, Pencil, ChevronUp, ThumbsUp, ThumbsDown, FileSpreadsheet, FileText, Presentation, File as FileIcon, MessageSquare, Volume2, SkipForward } from 'lucide-react';
 import { ProviderLogo } from './provider-logos';
 import VegaChart from './vega-chart';
 
@@ -528,6 +528,93 @@ function FeedbackPanel({ message }: { message: Message }) {
   );
 }
 
+function AudioPlayer({ src, onClose }: { src: string; onClose: () => void }) {
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    const onPlay = () => setIsPlaying(true);
+    const onPause = () => setIsPlaying(false);
+    const onEnded = () => setIsPlaying(false);
+    const onTime = () => setCurrentTime(audio.currentTime);
+    const onLoaded = () => setDuration(audio.duration);
+    audio.addEventListener('play', onPlay);
+    audio.addEventListener('pause', onPause);
+    audio.addEventListener('ended', onEnded);
+    audio.addEventListener('timeupdate', onTime);
+    audio.addEventListener('loadedmetadata', onLoaded);
+    audio.addEventListener('durationchange', onLoaded);
+    return () => {
+      audio.removeEventListener('play', onPlay);
+      audio.removeEventListener('pause', onPause);
+      audio.removeEventListener('ended', onEnded);
+      audio.removeEventListener('timeupdate', onTime);
+      audio.removeEventListener('loadedmetadata', onLoaded);
+      audio.removeEventListener('durationchange', onLoaded);
+    };
+  }, []);
+
+  useEffect(() => {
+    audioRef.current?.play().catch(() => {});
+  }, []);
+
+  const togglePlay = useCallback(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (audio.paused) audio.play().catch(() => {});
+    else audio.pause();
+  }, []);
+
+  const skipForward = useCallback(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.currentTime = Math.min(audio.currentTime + 10, audio.duration || 0);
+  }, []);
+
+  const handleSeek = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const audio = audioRef.current;
+    if (!audio || !duration) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    audio.currentTime = ratio * duration;
+  }, [duration]);
+
+  const fmt = (t: number) => {
+    const m = Math.floor(t / 60);
+    const s = Math.floor(t % 60);
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  };
+
+  const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
+
+  return (
+    <div className="mt-3 flex items-center gap-2 rounded-lg bg-surface-2 border border-border-default px-3 py-2">
+      <audio ref={audioRef} src={src} preload="metadata" />
+      <button onClick={togglePlay} className="text-text-secondary hover:text-text-primary transition-colors cursor-pointer">
+        {isPlaying ? <Pause size={16} /> : <Play size={16} />}
+      </button>
+      <button onClick={skipForward} className="text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer" title="Skip 10s">
+        <SkipForward size={14} />
+      </button>
+      <span className="text-[10px] text-text-tertiary tabular-nums w-8 text-right">{fmt(currentTime)}</span>
+      <div className="flex-1 h-1.5 bg-border-default rounded-full cursor-pointer relative" onClick={handleSeek}>
+        <div className="absolute inset-y-0 left-0 bg-accent rounded-full transition-[width] duration-100" style={{ width: `${progress}%` }} />
+      </div>
+      <span className="text-[10px] text-text-tertiary tabular-nums w-8">{duration > 0 ? fmt(duration) : '--:--'}</span>
+      <a href={src} download="assistant-response.mp3" className="text-text-tertiary hover:text-text-secondary transition-colors" title="Download">
+        <Download size={12} />
+      </a>
+      <button onClick={onClose} className="text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer" title="Close">
+        <X size={12} />
+      </button>
+    </div>
+  );
+}
+
 export default function MessageBubble({ message }: { message: Message }) {
 
   const activeConversationId = useStore((s) => s.activeConversationId);
@@ -589,7 +676,7 @@ export default function MessageBubble({ message }: { message: Message }) {
 
   if (message.role === 'user') {
     return (
-      <div className="flex justify-end">
+      <div className="flex justify-end" data-message-id={message.id}>
         <div className="group max-w-[95%] sm:max-w-[80%]">
           <SiblingNav message={message} />
           <div className="bg-surface-2 border border-border-default rounded-xl rounded-br-sm text-text-primary px-4 py-2.5 text-sm whitespace-pre-wrap">
@@ -644,7 +731,7 @@ export default function MessageBubble({ message }: { message: Message }) {
   }
 
   return (
-    <div className="flex justify-start">
+    <div className="flex justify-start" data-message-id={message.id}>
       <div className="group max-w-[95%] sm:max-w-[85%]">
         <SiblingNav message={message} />
         {message.reasoning && <ReasoningTrace content={message.reasoning} tokenCount={message.reasoningTokens} />}
@@ -670,7 +757,7 @@ export default function MessageBubble({ message }: { message: Message }) {
                 <div className="px-3 py-2 bg-surface-1 text-[11px] font-mono text-text-secondary">
                   {chart.title || 'Interactive Chart'}
                 </div>
-                <VegaChart spec={chart.spec} className="overflow-x-auto p-2" />
+                <VegaChart spec={chart.spec} className="overflow-hidden p-2" />
               </div>
             ))}
           </div>
@@ -687,14 +774,7 @@ export default function MessageBubble({ message }: { message: Message }) {
         )}
         {message.cost && <CostBadge data={message.cost} />}
         {audioUrl && (
-          <div className="mt-3">
-            <audio controls src={audioUrl} className="max-w-full" />
-            <div className="mt-1">
-              <a href={audioUrl} download="assistant-response.wav" className="text-[10px] text-text-tertiary hover:text-text-secondary">
-                Download audio
-              </a>
-            </div>
-          </div>
+          <AudioPlayer src={audioUrl} onClose={() => { URL.revokeObjectURL(audioUrl); setAudioUrl(null); }} />
         )}
         <div className="relative flex items-center gap-3 mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
           <button onClick={handleCopy} className="flex items-center gap-1 text-[10px] text-text-tertiary hover:text-text-secondary cursor-pointer">
