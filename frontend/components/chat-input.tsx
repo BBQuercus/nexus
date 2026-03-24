@@ -258,7 +258,6 @@ export default function ChatInput() {
           try {
             const conv = await api.createConversation({
               model: useStore.getState().activeModel,
-              agent_mode: useStore.getState().activeMode,
             });
             useStore.getState().setActiveConversationId(conv.id);
             useStore.getState().setMessages([]);
@@ -475,7 +474,7 @@ export default function ChatInput() {
     let convId = activeConversationId;
     if (!convId) {
       try {
-        const conv = await api.createConversation({ model: activeModel, agent_mode: 'code' });
+        const conv = await api.createConversation({ model: activeModel });
         convId = conv.id;
         setActiveConversationId(convId);
         api.listConversations().then((r) => setConversations(r.conversations));
@@ -573,17 +572,25 @@ export default function ChatInput() {
       const detail = (e as CustomEvent).detail;
       if (!detail) return;
       const branchFrom = detail.branchFrom as string | undefined;
+      const messageId = detail.messageId as string | undefined;
       // Load content into the input
       setContent(detail.content || '');
       // Restore context references
       if (detail.contexts && detail.contexts.length > 0) {
         setAttachedContexts(detail.contexts);
       }
-      // Set branching point and trim messages after the branch point
+      // Set branching point and trim messages: remove the edited message and everything after it
       if (branchFrom) {
         setBranchingFromId(branchFrom);
-        // Trim messages visually so the user sees where the branch will happen
-        const msgs = useStore.getState().messages;
+      }
+      const msgs = useStore.getState().messages;
+      if (messageId) {
+        // Find the edited message and remove it + everything after
+        const editIdx = msgs.findIndex((m) => m.id === messageId);
+        if (editIdx !== -1) {
+          useStore.getState().setMessages(msgs.slice(0, editIdx));
+        }
+      } else if (branchFrom) {
         const branchIdx = msgs.findIndex((m) => m.id === branchFrom);
         if (branchIdx !== -1) {
           useStore.getState().setMessages(msgs.slice(0, branchIdx + 1));

@@ -4,12 +4,17 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useStore } from '@/lib/store';
 import * as api from '@/lib/api';
-import type { AgentPersona, AgentMode } from '@/lib/types';
-import { X, Plus, Save, Play, Trash2, Globe, Lock } from 'lucide-react';
+import type { AgentPersona } from '@/lib/types';
+import { X, Plus, Save, Play, Trash2, Bot, ArrowLeft } from 'lucide-react';
+import * as icons from 'lucide-react';
 import PageShell from './page-shell';
 import ConfirmDialog from './confirm-dialog';
-
-const EMOJI_OPTIONS = ['🤖', '🧑‍💻', '👨‍🔬', '👩‍🎨', '⚙️', '📚', '🚀', '🧠', '🔮', '🎯', '💡', '🔥', '🌟', '⚡', '🧙', '👾'];
+import IconPicker from './icon-picker';
+import { Label } from './ui/label';
+import { Input } from './ui/input';
+import { Textarea } from './ui/textarea';
+import { Select } from './ui/select';
+import { Switch } from './ui/switch';
 
 const MODEL_OPTIONS = [
   { label: 'Claude Sonnet 4.5', value: 'azure_ai/claude-sonnet-4-5-swc' },
@@ -22,15 +27,19 @@ const MODEL_OPTIONS = [
 ];
 
 const emptyAgent: AgentPersona = {
-  id: '', name: '', icon: '🤖', description: '', systemPrompt: '',
-  defaultModel: 'azure_ai/claude-sonnet-4-5-swc', defaultMode: 'chat', isPublic: false,
+  id: '', name: '', icon: 'Bot', description: '', systemPrompt: '',
+  defaultModel: 'azure_ai/claude-sonnet-4-5-swc', isPublic: false,
 };
+
+function AgentIcon({ name, size = 14, className = '' }: { name: string; size?: number; className?: string }) {
+  const Icon = (icons as unknown as Record<string, icons.LucideIcon>)[name] || Bot;
+  return <Icon size={size} className={className} />;
+}
 
 export default function AgentsView() {
   const router = useRouter();
   const setActivePersona = useStore((s) => s.setActivePersona);
   const setActiveModel = useStore((s) => s.setActiveModel);
-  const setActiveMode = useStore((s) => s.setActiveMode);
   const confirmDialog = useStore((s) => s.confirmDialog);
   const resolveConfirm = useStore((s) => s.resolveConfirm);
 
@@ -88,73 +97,72 @@ export default function AgentsView() {
     if (!editing) return;
     setActivePersona(editing);
     if (editing.defaultModel) setActiveModel(editing.defaultModel);
-    if (editing.defaultMode) setActiveMode(editing.defaultMode);
     router.push('/');
   };
 
-  return (
-    <PageShell title="Agents">
-      {/* Toolbar */}
-      <div className="flex items-center h-10 px-4 border-b border-border-default shrink-0">
-        <div className="flex-1" />
+  const agentsSidebar = (
+    <>
+      {/* New agent button */}
+      <div className="px-3 py-2.5">
         <button
           onClick={() => setEditing({ ...emptyAgent })}
-          className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium bg-accent text-bg rounded-lg hover:bg-accent-hover cursor-pointer transition-colors"
+          className="w-full flex items-center justify-center gap-1.5 px-2.5 py-2 text-[11px] font-medium bg-accent text-bg rounded-lg hover:bg-accent-hover cursor-pointer transition-colors"
         >
           <Plus size={12} /> New Agent
         </button>
       </div>
 
-      <div className="flex flex-1 min-h-0">
-        {/* Agent list */}
-        <div className={`flex-1 overflow-y-auto ${editing ? 'max-w-[60%]' : ''}`}>
-          {agents.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-text-tertiary">
-              <div className="text-2xl mb-2">🤖</div>
-              <div className="text-xs">No agents yet</div>
-              <button
-                onClick={() => setEditing({ ...emptyAgent })}
-                className="mt-3 text-[11px] text-accent hover:text-accent-hover cursor-pointer"
-              >
-                Create your first agent
-              </button>
-            </div>
-          ) : (
-            <div className="divide-y divide-border-default">
-              {agents.map((agent) => (
-                <button
-                  key={agent.id}
-                  onClick={() => setEditing({ ...agent })}
-                  className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-surface-1 transition-colors cursor-pointer ${
-                    editing?.id === agent.id ? 'bg-accent/5 border-l-2 border-accent' : 'border-l-2 border-transparent'
-                  }`}
-                >
-                  <span className="text-lg shrink-0">{agent.icon || '🤖'}</span>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-xs font-medium text-text-primary truncate">{agent.name}</div>
-                    {agent.description && (
-                      <div className="text-[11px] text-text-tertiary mt-0.5 truncate">{agent.description}</div>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-[10px] text-text-tertiary font-mono bg-surface-1 border border-border-default rounded px-1.5 py-0.5">
-                      {agent.defaultModel?.split('/').pop() || 'Default'}
-                    </span>
-                    <span className="flex items-center gap-0.5 text-[10px] text-text-tertiary">
-                      {agent.isPublic ? <Globe size={9} /> : <Lock size={9} />}
-                    </span>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+      {/* Agent list */}
+      <div className="flex-1 overflow-y-auto px-2">
+        {agents.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-text-tertiary">
+            <Bot size={24} className="mb-2 opacity-40" />
+            <div className="text-xs">No agents yet</div>
+          </div>
+        ) : (
+          agents.map((agent) => (
+            <button
+              key={agent.id}
+              onClick={() => setEditing({ ...agent })}
+              className={`w-full flex items-center gap-2.5 px-2.5 py-2.5 text-left rounded-lg transition-colors cursor-pointer mb-0.5 ${
+                editing?.id === agent.id
+                  ? 'bg-accent/8 text-text-primary border-l-2 border-accent'
+                  : 'text-text-secondary hover:bg-surface-1 hover:text-text-primary border-l-2 border-transparent'
+              }`}
+            >
+              <div className="w-7 h-7 rounded-md bg-surface-2 border border-border-default flex items-center justify-center shrink-0">
+                <AgentIcon name={agent.icon} size={14} className="text-text-tertiary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-medium truncate">{agent.name}</div>
+                {agent.description && (
+                  <div className="text-[10px] text-text-tertiary mt-0.5 truncate">{agent.description}</div>
+                )}
+              </div>
+            </button>
+          ))
+        )}
+      </div>
 
-        {/* Editor panel */}
-        {editing && (
-          <div className="w-[380px] bg-surface-0 border-l border-border-default overflow-y-auto shrink-0">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-border-default">
-              <h3 className="text-[11px] font-semibold text-text-tertiary tracking-wider uppercase">
+      {/* Back to workspace */}
+      <div className="px-3 pb-1">
+        <button
+          onClick={() => router.push('/')}
+          className="w-full flex items-center gap-2 px-2.5 py-2 text-[11px] text-text-tertiary hover:text-text-secondary cursor-pointer transition-colors rounded-lg hover:bg-surface-1"
+        >
+          <ArrowLeft size={11} /> Back to workspace
+        </button>
+      </div>
+    </>
+  );
+
+  return (
+    <PageShell title="Agents" sidebar={agentsSidebar}>
+      {editing ? (
+        <div className="flex-1 overflow-y-auto">
+          <div className="max-w-xl mx-auto p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-sm font-semibold text-text-primary">
                 {editing.id ? 'Edit Agent' : 'New Agent'}
               </h3>
               <button onClick={() => setEditing(null)} className="text-text-tertiary hover:text-text-primary cursor-pointer">
@@ -162,81 +170,104 @@ export default function AgentsView() {
               </button>
             </div>
 
-            <div className="p-4 space-y-4">
+            <div className="space-y-5">
               <div>
-                <label className="block text-[10px] text-text-tertiary mb-1.5 uppercase tracking-wide">Icon</label>
-                <div className="flex flex-wrap gap-1">
-                  {EMOJI_OPTIONS.map((e) => (
-                    <button key={e} onClick={() => setEditing({ ...editing, icon: e })}
-                      className={`w-7 h-7 flex items-center justify-center cursor-pointer text-sm rounded-lg transition-colors ${editing.icon === e ? 'bg-accent/20 border border-accent' : 'border border-border-default hover:bg-surface-2'}`}
-                    >{e}</button>
-                  ))}
+                <Label>Icon</Label>
+                <IconPicker
+                  value={editing.icon}
+                  onChange={(icon) => setEditing({ ...editing, icon })}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="agent-name">Name</Label>
+                <Input
+                  id="agent-name"
+                  value={editing.name}
+                  onChange={(e) => setEditing({ ...editing, name: e.target.value })}
+                  placeholder="Agent name"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="agent-desc">Description</Label>
+                <Input
+                  id="agent-desc"
+                  value={editing.description}
+                  onChange={(e) => setEditing({ ...editing, description: e.target.value })}
+                  placeholder="Brief description"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="agent-prompt">System Prompt</Label>
+                <Textarea
+                  id="agent-prompt"
+                  value={editing.systemPrompt}
+                  onChange={(e) => setEditing({ ...editing, systemPrompt: e.target.value })}
+                  placeholder="Instructions for this agent..."
+                  rows={8}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="agent-model">Default Model</Label>
+                  <Select
+                    id="agent-model"
+                    value={editing.defaultModel}
+                    onChange={(e) => setEditing({ ...editing, defaultModel: e.target.value })}
+                  >
+                    {MODEL_OPTIONS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+                  </Select>
+                </div>
+
+                <div>
+                  <Label htmlFor="agent-mode">Default Mode</Label>
+                  <Select
+                    id="agent-mode"
+                    value={editing.defaultMode}
+                    onChange={(e) => setEditing({ ...editing, defaultMode: e.target.value as AgentMode })}
+                  >
+                    <option value="chat">Chat</option>
+                    <option value="code">Code</option>
+                    <option value="architect">Architect</option>
+                  </Select>
                 </div>
               </div>
 
-              <div>
-                <label className="block text-[10px] text-text-tertiary mb-1.5 uppercase tracking-wide">Name</label>
-                <input value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} placeholder="Agent name"
-                  className="w-full px-3 py-2 bg-surface-1 border border-border-default rounded-lg text-xs text-text-primary outline-none focus:border-border-focus transition-colors" />
+              <div className="flex items-center justify-between py-1">
+                <Label className="mb-0">Public</Label>
+                <Switch
+                  checked={editing.isPublic ?? false}
+                  onCheckedChange={(checked) => setEditing({ ...editing, isPublic: checked })}
+                />
               </div>
 
-              <div>
-                <label className="block text-[10px] text-text-tertiary mb-1.5 uppercase tracking-wide">Description</label>
-                <input value={editing.description} onChange={(e) => setEditing({ ...editing, description: e.target.value })} placeholder="Brief description"
-                  className="w-full px-3 py-2 bg-surface-1 border border-border-default rounded-lg text-xs text-text-primary outline-none focus:border-border-focus transition-colors" />
-              </div>
-
-              <div>
-                <label className="block text-[10px] text-text-tertiary mb-1.5 uppercase tracking-wide">System Prompt</label>
-                <textarea value={editing.systemPrompt} onChange={(e) => setEditing({ ...editing, systemPrompt: e.target.value })} placeholder="Instructions..." rows={6}
-                  className="w-full px-3 py-2 bg-surface-1 border border-border-default rounded-lg text-xs text-text-primary outline-none focus:border-border-focus resize-none font-mono transition-colors" />
-              </div>
-
-              <div>
-                <label className="block text-[10px] text-text-tertiary mb-1.5 uppercase tracking-wide">Default Model</label>
-                <select value={editing.defaultModel} onChange={(e) => setEditing({ ...editing, defaultModel: e.target.value })}
-                  className="w-full px-3 py-2 bg-surface-1 border border-border-default rounded-lg text-xs text-text-primary outline-none focus:border-border-focus transition-colors">
-                  {MODEL_OPTIONS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[10px] text-text-tertiary mb-1.5 uppercase tracking-wide">Default Mode</label>
-                <select value={editing.defaultMode} onChange={(e) => setEditing({ ...editing, defaultMode: e.target.value as AgentMode })}
-                  className="w-full px-3 py-2 bg-surface-1 border border-border-default rounded-lg text-xs text-text-primary outline-none focus:border-border-focus transition-colors">
-                  <option value="chat">Chat</option>
-                  <option value="code">Code</option>
-                  <option value="architect">Architect</option>
-                </select>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <label className="text-[10px] text-text-tertiary uppercase tracking-wide">Public</label>
-                <button onClick={() => setEditing({ ...editing, isPublic: !editing.isPublic })}
-                  className={`w-8 h-[18px] rounded-full flex items-center cursor-pointer transition-colors ${editing.isPublic ? 'bg-accent justify-end' : 'bg-surface-2 justify-start'}`}>
-                  <div className={`w-3.5 h-3.5 rounded-full bg-white mx-[2px] transition-all ${!editing.isPublic ? 'opacity-50' : ''}`} />
-                </button>
-              </div>
-
-              <div className="flex gap-1.5 pt-2">
-                <button onClick={handleSave} className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-accent text-bg text-[11px] font-medium rounded-lg hover:bg-accent-hover cursor-pointer transition-colors">
+              <div className="flex gap-2 pt-3 border-t border-border-default">
+                <button onClick={handleSave} className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-accent text-bg text-[11px] font-medium rounded-lg hover:bg-accent-hover cursor-pointer transition-colors">
                   <Save size={12} /> Save
                 </button>
                 {editing.id && (
-                  <button onClick={handleTry} className="flex items-center justify-center gap-1.5 px-4 py-2 bg-surface-1 border border-border-default text-text-primary text-[11px] rounded-lg hover:bg-surface-2 cursor-pointer transition-colors">
+                  <button onClick={handleTry} className="flex items-center justify-center gap-1.5 px-4 py-2.5 bg-surface-1 border border-border-default text-text-primary text-[11px] rounded-lg hover:bg-surface-2 cursor-pointer transition-colors">
                     <Play size={12} /> Try
                   </button>
                 )}
                 {editing.id && (
-                  <button onClick={handleDelete} className="flex items-center justify-center gap-1.5 px-4 py-2 text-error text-[11px] rounded-lg hover:bg-error/10 cursor-pointer transition-colors">
+                  <button onClick={handleDelete} className="flex items-center justify-center gap-1.5 px-4 py-2.5 text-error text-[11px] rounded-lg hover:bg-error/10 cursor-pointer transition-colors">
                     <Trash2 size={12} />
                   </button>
                 )}
               </div>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      ) : (
+        <div className="flex-1 flex flex-col items-center justify-center text-text-tertiary">
+          <Bot size={28} className="mb-2 opacity-30" />
+          <div className="text-xs">Select an agent or create a new one</div>
+        </div>
+      )}
       <ConfirmDialog
         open={confirmDialog.open}
         title={confirmDialog.title}
