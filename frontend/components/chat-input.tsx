@@ -4,14 +4,14 @@ import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useStore } from '@/lib/store';
 import * as api from '@/lib/api';
 import type { Message } from '@/lib/types';
-import { MODELS } from '@/lib/types';
-import { ArrowUp, Square, Paperclip, X, Terminal, Trash2, HelpCircle, Download, Cpu, FileSpreadsheet, FileImage, FileText, File, Settings2, MessageSquare, BookOpen } from 'lucide-react';
+import { IMAGE_MODELS, MODELS } from '@/lib/types';
+import { ArrowUp, Square, Paperclip, X, Terminal, Trash2, HelpCircle, Download, Cpu, FileSpreadsheet, FileImage, FileText, File as FileIcon, Settings2, MessageSquare, BookOpen, Mic, MicOff, ImagePlus } from 'lucide-react';
 import type { KnowledgeBase } from '@/lib/types';
 import ModelPicker from './model-picker';
 import AgentPicker from './agent-picker';
 import KBPicker from './kb-picker';
 import { toast } from './toast';
-import { useStreaming } from '@/lib/useStreaming';
+import { reloadConversation, useStreaming } from '@/lib/useStreaming';
 
 const RESPONSE_COUNTS = [1, 3, 5] as const;
 const CONTEXT_WINDOW = 128_000;
@@ -90,7 +90,7 @@ function FilePreviewCard({ file, onRemove }: { file: File; onRemove: () => void 
   const icon = category === 'image' ? <FileImage size={16} className="text-blue-400" />
     : category === 'spreadsheet' ? <FileSpreadsheet size={16} className="text-green-400" />
     : category === 'pdf' ? <FileText size={16} className="text-red-400" />
-    : <File size={16} className="text-text-tertiary" />;
+    : <FileIcon size={16} className="text-text-tertiary" />;
 
   return (
     <div className="relative group/card flex items-center gap-2 px-2.5 py-2 bg-surface-1 border border-border-default rounded-lg text-[11px] min-w-0 max-w-[200px]">
@@ -202,6 +202,11 @@ export default function ChatInput() {
   const [content, setContent] = useState('');
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [numResponses, setNumResponses] = useState<number>(1);
+  const [composeMode, setComposeMode] = useState<'chat' | 'image'>('chat');
+  const [imageModel, setImageModel] = useState(IMAGE_MODELS[0].id);
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
   const [slashMenuOpen, setSlashMenuOpen] = useState(false);
   const [slashHighlightIndex, setSlashHighlightIndex] = useState(0);
   const [mentionMenuOpen, setMentionMenuOpen] = useState(false);
@@ -210,6 +215,9 @@ export default function ChatInput() {
   const [attachedContexts, setAttachedContexts] = useState<{ id: string; title: string }[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const recordedChunksRef = useRef<BlobPart[]>([]);
   const draftTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const prevConvIdRef = useRef<string | null | undefined>(undefined);
 
@@ -234,6 +242,7 @@ export default function ChatInput() {
     }).catch(() => {});
   }, [activeKBIds]); // eslint-disable-line react-hooks/exhaustive-deps
   const messages = useStore((s) => s.messages);
+  const setConversationMessages = useStore((s) => s.setConversationMessages);
   const setActiveConversationId = useStore((s) => s.setActiveConversationId);
   const setMessages = useStore((s) => s.setMessages);
   const setConversations = useStore((s) => s.setConversations);
@@ -541,9 +550,9 @@ export default function ChatInput() {
     };
     if (parentId) {
       const branchIdx = messages.findIndex((m) => m.id === parentId);
-      setMessages(branchIdx !== -1 ? [...messages.slice(0, branchIdx + 1), userMsg] : [...messages, userMsg]);
+      setConversationMessages(convId, branchIdx !== -1 ? [...messages.slice(0, branchIdx + 1), userMsg] : [...messages, userMsg]);
     } else {
-      setMessages([...messages, userMsg]);
+      setConversationMessages(convId, [...messages, userMsg]);
     }
 
     const activeKBIds = useStore.getState().activeKnowledgeBaseIds;
@@ -558,7 +567,7 @@ export default function ChatInput() {
     });
   }, [content, pendingFiles, attachedContexts, isStreaming, activeConversationId, activeModel, activePersona, sandboxId, messages,
     setActiveConversationId, setMessages, setConversations, branchingFromId, setBranchingFromId,
-    numResponses, streamSend, slashCommands]);
+    numResponses, setConversationMessages, streamSend, slashCommands]);
 
   // Handle regenerate events from message bubbles
   useEffect(() => {
@@ -597,6 +606,85 @@ export default function ChatInput() {
     window.addEventListener('nexus:branch-send', handler);
     return () => window.removeEventListener('nexus:branch-send', handler);
   }, [setBranchingFromId]);
+
+  useEffect(() => () => {
+    mediaRecorderRef.current?.stop();
+    mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+  }, []);
+
+  const handleGenerateImage = useCallback(async () => {
+    const prompt = content.trim();
+    if (!prompt || isGeneratingImage || isStreaming) return;
+    setIsGeneratingImage(true);
+    try {
+      let convId = activeConversationId;
+      if (!convId) {
+        const conv = await api.createConversation({ title: 'New conversation', model: activeModel });
+        convId = conv.id;
+        setActiveConversationId(conv.id);
+        const list = await api.listConversations();
+        setConversations(list.conversations);
+      }
+      await api.generateConversationImage(convId, { prompt, model: imageModel });
+      await reloadConversation(convId);
+      const artifacts = await api.getArtifacts(convId);
+      useStore.getState().setArtifacts(artifacts);
+      setContent('');
+      setComposeMode('chat');
+    } catch (e) {
+      console.error('Image generation failed', e);
+    } finally {
+      setIsGeneratingImage(false);
+    }
+  }, [content, isGeneratingImage, isStreaming, activeConversationId, activeModel, imageModel, setActiveConversationId, setConversations]);
+
+  const toggleRecording = useCallback(async () => {
+    if (isTranscribing) return;
+    if (isRecording) {
+      mediaRecorderRef.current?.stop();
+      setIsRecording(false);
+      return;
+    }
+
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+      toast.error('Microphone recording is not supported in this browser');
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaStreamRef.current = stream;
+      recordedChunksRef.current = [];
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm';
+      const recorder = new MediaRecorder(stream, { mimeType });
+      mediaRecorderRef.current = recorder;
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) recordedChunksRef.current.push(event.data);
+      };
+      recorder.onstop = async () => {
+        mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+        mediaStreamRef.current = null;
+        const blob = new Blob(recordedChunksRef.current, { type: recorder.mimeType || 'audio/webm' });
+        if (blob.size === 0) return;
+        setIsTranscribing(true);
+        try {
+          const file = new File([blob], 'recording.webm', { type: blob.type || 'audio/webm' });
+          const result = await api.transcribeAudio(file);
+          setContent((prev) => (prev ? `${prev.trim()} ${result.text}` : result.text));
+          setTimeout(() => textareaRef.current?.focus(), 0);
+        } catch (e) {
+          console.error('Transcription failed', e);
+        } finally {
+          setIsTranscribing(false);
+        }
+      };
+      recorder.start();
+      setIsRecording(true);
+    } catch (e) {
+      console.error('Recording failed', e);
+      toast.error('Could not access microphone');
+    }
+  }, [isRecording, isTranscribing]);
 
   // Handle edit-message events from message bubble Edit button
   useEffect(() => {
@@ -684,11 +772,21 @@ export default function ChatInput() {
         return;
       }
     }
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      if (composeMode === 'image') {
+        void handleGenerateImage();
+      } else {
+        handleSend();
+      }
+    }
   };
 
   const removeFile = (index: number) => setPendingFiles((prev) => prev.filter((_, i) => i !== index));
   const hasContent = content.trim() || pendingFiles.length > 0;
+  const canSend = composeMode === 'image'
+    ? !!content.trim() && !isGeneratingImage
+    : !!hasContent;
 
   return (
     <div className="shrink-0 bg-surface-0 px-3 sm:px-5 pt-4 sm:pt-5 safe-bottom"
@@ -723,6 +821,34 @@ export default function ChatInput() {
           {pendingFiles.map((file, i) => (
             <FilePreviewCard key={i} file={file} onRemove={() => removeFile(i)} />
           ))}
+        </div>
+      )}
+
+      {(isRecording || isTranscribing) && (
+        <div className="mb-2 flex items-center justify-between gap-3 px-3 py-2.5 bg-accent/10 border border-accent/20 rounded-lg">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="flex items-center gap-1.5">
+              <span className={`w-2.5 h-2.5 rounded-full ${isRecording ? 'bg-error animate-pulse' : 'bg-accent animate-pulse'}`} />
+              <div className="flex items-end gap-0.5 h-4">
+                <span className="w-1 rounded-full bg-accent animate-pulse" style={{ height: '45%' }} />
+                <span className="w-1 rounded-full bg-accent animate-pulse" style={{ height: '100%', animationDelay: '0.12s' }} />
+                <span className="w-1 rounded-full bg-accent animate-pulse" style={{ height: '65%', animationDelay: '0.24s' }} />
+                <span className="w-1 rounded-full bg-accent animate-pulse" style={{ height: '90%', animationDelay: '0.36s' }} />
+              </div>
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs font-medium text-text-primary">{isRecording ? 'Listening...' : 'Transcribing audio...'}</div>
+              <div className="text-[11px] text-text-tertiary">{isRecording ? 'Click the microphone again to stop and transcribe.' : 'Please wait while your recording is converted to text.'}</div>
+            </div>
+          </div>
+          {isRecording && (
+            <button
+              onClick={() => void toggleRecording()}
+              className="px-2.5 py-1.5 text-[11px] font-medium rounded-lg bg-error text-white hover:bg-error/90 cursor-pointer shrink-0"
+            >
+              Stop
+            </button>
+          )}
         </div>
       )}
 
@@ -786,8 +912,16 @@ export default function ChatInput() {
             value={content}
             onChange={(e) => setContent(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={isStreaming ? 'Waiting for response...' : 'Message Nexus... (/ for commands)'}
-            disabled={isStreaming}
+            placeholder={
+              isStreaming
+                ? 'Waiting for response...'
+                : composeMode === 'image'
+                  ? 'Describe the image you want to generate...'
+                  : isRecording
+                    ? 'Listening...'
+                    : 'Message Nexus... (/ for commands)'
+            }
+            disabled={isStreaming || isGeneratingImage}
             rows={1}
             className="flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-tertiary resize-none outline-none disabled:opacity-50 max-h-[200px] self-center"
           />
@@ -802,9 +936,34 @@ export default function ChatInput() {
             <Paperclip size={14} />
           </button>
 
+          <button
+            onClick={() => setComposeMode((mode) => mode === 'image' ? 'chat' : 'image')}
+            className={`p-1.5 shrink-0 cursor-pointer rounded-lg transition-colors ${
+              composeMode === 'image'
+                ? 'text-accent bg-accent/10 hover:bg-accent/15'
+                : 'text-text-tertiary hover:text-text-secondary hover:bg-surface-2'
+            }`}
+            title="Image mode"
+          >
+            <ImagePlus size={14} />
+          </button>
+
+          <button
+            onClick={() => void toggleRecording()}
+            className={`p-1.5 shrink-0 cursor-pointer rounded-lg transition-colors ${
+              isRecording
+                ? 'text-error bg-error/10 hover:bg-error/15'
+                : 'text-text-tertiary hover:text-text-secondary hover:bg-surface-2'
+            }`}
+            title={isRecording ? 'Stop recording' : isTranscribing ? 'Transcribing...' : 'Record voice message'}
+            disabled={isTranscribing}
+          >
+            {isRecording ? <MicOff size={14} /> : <Mic size={14} />}
+          </button>
+
           {isStreaming ? (
             <button
-              onClick={abortStreaming}
+              onClick={() => abortStreaming()}
               className="w-7 h-7 flex items-center justify-center text-sm shrink-0 cursor-pointer rounded-lg transition-all bg-error/80 text-white hover:bg-error"
               title="Stop generation"
             >
@@ -813,10 +972,10 @@ export default function ChatInput() {
           ) : (
             <button
               data-send-button
-              onClick={handleSend}
-              disabled={!hasContent}
+              onClick={composeMode === 'image' ? () => void handleGenerateImage() : handleSend}
+              disabled={!canSend}
               className={`w-7 h-7 flex items-center justify-center text-sm shrink-0 cursor-pointer rounded-lg transition-all ${
-                hasContent ? 'bg-accent text-bg hover:bg-accent-hover scale-100' : 'bg-surface-2 text-text-tertiary scale-95'
+                canSend ? 'bg-accent text-bg hover:bg-accent-hover scale-100' : 'bg-surface-2 text-text-tertiary scale-95'
               } disabled:opacity-40 disabled:cursor-not-allowed`}
             >
               <ArrowUp size={14} strokeWidth={2.5} />
@@ -826,9 +985,17 @@ export default function ChatInput() {
       </div>
 
       <div className="mt-2 flex items-center gap-3 pb-0.5">
-        <ModelPicker />
+        <ModelPicker disabled={composeMode === 'image'} />
         <AgentPicker />
         <KBPicker />
+        {composeMode === 'image' && (
+          <>
+            <div className="px-2 py-1 bg-accent/10 border border-accent/20 rounded-lg text-[11px] text-accent font-medium">
+              Image mode locks the main chat model
+            </div>
+            <ModelPicker models={IMAGE_MODELS} value={imageModel} onChange={setImageModel} />
+          </>
+        )}
         <div className="flex-1" />
         {!isStreaming && (
           <ChatSettings numResponses={numResponses} setNumResponses={setNumResponses} />

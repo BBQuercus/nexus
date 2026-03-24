@@ -6,18 +6,35 @@ import { MODELS } from '@/lib/types';
 import type { ModelProvider } from '@/lib/types';
 import { ChevronDown, Check } from 'lucide-react';
 import { ProviderLogo } from './provider-logos';
+import type { ModelOption } from '@/lib/types';
 
 const PROVIDER_LABELS: Record<ModelProvider, string> = {
   anthropic: 'Anthropic',
   openai: 'OpenAI',
   meta: 'Meta',
+  microsoft: 'Microsoft',
+  xai: 'xAI via Foundry',
+  moonshot: 'Moonshot via Foundry',
+  deepseek: 'DeepSeek via Foundry',
 };
 
-export default function ModelPicker() {
+export default function ModelPicker({
+  models = MODELS,
+  value,
+  onChange,
+  disabled = false,
+}: {
+  models?: ModelOption[];
+  value?: string;
+  onChange?: (model: string) => void;
+  disabled?: boolean;
+}) {
   const activeModel = useStore((s) => s.activeModel);
   const setActiveModel = useStore((s) => s.setActiveModel);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const selectedModel = value ?? activeModel;
+  const handleChange = onChange ?? setActiveModel;
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -27,23 +44,28 @@ export default function ModelPicker() {
     return () => document.removeEventListener('click', handler);
   }, []);
 
-  const current = MODELS.find((m) => m.id === activeModel);
-  const displayName = current?.name || activeModel.split('/').pop() || activeModel;
+  const current = models.find((m) => m.id === selectedModel);
+  const displayName = current?.name || selectedModel?.split('/').pop() || selectedModel || 'Select model';
 
   // Group models by provider
-  const grouped = MODELS.reduce((acc, model) => {
+  const grouped = models.reduce((acc, model) => {
     if (!acc[model.provider]) acc[model.provider] = [];
     acc[model.provider].push(model);
     return acc;
-  }, {} as Record<ModelProvider, typeof MODELS>);
+  }, {} as Record<ModelProvider, ModelOption[]>);
 
-  const providerOrder: ModelProvider[] = ['anthropic', 'openai', 'meta'];
+  const providerOrder: ModelProvider[] = ['anthropic', 'openai', 'meta', 'microsoft', 'xai', 'moonshot', 'deepseek'];
 
   return (
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 px-2.5 py-1.5 text-xs text-text-secondary hover:text-text-primary bg-surface-1 border border-border-default rounded-lg hover:border-border-focus transition-all cursor-pointer glow-hover"
+        disabled={disabled}
+        className={`flex items-center gap-2 px-2.5 py-1.5 text-xs bg-surface-1 border rounded-lg transition-all glow-hover ${
+          disabled
+            ? 'text-text-tertiary/50 border-border-default cursor-not-allowed opacity-60'
+            : 'text-text-secondary hover:text-text-primary border-border-default hover:border-border-focus cursor-pointer'
+        }`}
       >
         {current && (
           <ProviderLogo provider={current.provider} size={14} className="text-text-tertiary shrink-0" />
@@ -52,7 +74,7 @@ export default function ModelPicker() {
         <ChevronDown size={12} className={`text-text-tertiary transition-transform shrink-0 ${open ? 'rotate-180' : ''}`} />
       </button>
 
-      {open && (
+      {open && !disabled && (
         <div className="absolute bottom-full left-0 mb-1.5 w-72 max-h-80 overflow-y-auto bg-surface-0 border border-border-default rounded-lg shadow-2xl shadow-black/40 z-50">
           {providerOrder.filter((p) => grouped[p]?.length).map((provider, gi) => (
             <div key={provider}>
@@ -64,13 +86,13 @@ export default function ModelPicker() {
               {grouped[provider].map((model) => (
                 <button
                   key={model.id}
-                  onClick={() => { setActiveModel(model.id); setOpen(false); }}
+                  onClick={() => { handleChange(model.id); setOpen(false); }}
                   className={`w-full flex items-center justify-between px-3 py-2 text-left hover:bg-surface-1 transition-colors cursor-pointer ${
-                    model.id === activeModel ? 'bg-surface-1' : ''
+                    model.id === selectedModel ? 'bg-surface-1' : ''
                   }`}
                 >
                   <span className="text-xs text-text-primary">{model.name}</span>
-                  {model.id === activeModel && <Check size={13} className="text-accent shrink-0" />}
+                  {model.id === selectedModel && <Check size={13} className="text-accent shrink-0" />}
                 </button>
               ))}
             </div>

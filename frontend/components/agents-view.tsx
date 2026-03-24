@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useStore } from '@/lib/store';
 import * as api from '@/lib/api';
-import type { AgentPersona } from '@/lib/types';
+import { DEFAULT_MODEL_ID, MODELS, type AgentPersona } from '@/lib/types';
 import { X, Plus, Save, Play, Trash2, Bot } from 'lucide-react';
 import * as icons from 'lucide-react';
 import PageShell from './page-shell';
@@ -16,19 +16,11 @@ import { Textarea } from './ui/textarea';
 import { Select } from './ui/select';
 import { Switch } from './ui/switch';
 
-const MODEL_OPTIONS = [
-  { label: 'Claude Sonnet 4.5', value: 'azure_ai/claude-sonnet-4-5-swc' },
-  { label: 'Claude Opus 4.5', value: 'azure_ai/claude-opus-4-5-swc' },
-  { label: 'GPT-5', value: 'gpt-5-gwc' },
-  { label: 'GPT-5 Mini', value: 'gpt-5-mini-gwc' },
-  { label: 'GPT-4.1', value: 'gpt-4.1-chn' },
-  { label: 'GPT-4o', value: 'gpt-4o-swc' },
-  { label: 'Llama 3.3 70B', value: 'Llama-3.3-70B-Instruct' },
-];
+const MODEL_OPTIONS = MODELS.map((model) => ({ label: model.name, value: model.id }));
 
 const emptyAgent: AgentPersona = {
   id: '', name: '', icon: 'Bot', description: '', systemPrompt: '',
-  defaultModel: 'azure_ai/claude-sonnet-4-5-swc', isPublic: false,
+  defaultModel: DEFAULT_MODEL_ID, isPublic: false,
 };
 
 function AgentIcon({ name, size = 14, className = '' }: { name: string; size?: number; className?: string }) {
