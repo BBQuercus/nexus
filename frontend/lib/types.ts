@@ -54,6 +54,7 @@ export interface Message {
   model?: string;
   images?: { filename: string; url: string }[];
   files?: { filename: string; fileType: string; sandboxId?: string }[];
+  tables?: { rows: string[][]; label?: string }[];
   citations?: Citation[];
   contexts?: { id: string; title: string }[];
   parentId?: string | null;
@@ -93,6 +94,16 @@ export interface Artifact {
   metadata?: Record<string, unknown>;
   pinned?: boolean;
   createdAt: string;
+}
+
+export interface StreamingTable {
+  rows: string[][];
+  label?: string;
+}
+
+export interface StreamingChart {
+  spec: Record<string, unknown>;
+  title?: string;
 }
 
 export interface AgentPersona {

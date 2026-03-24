@@ -86,6 +86,45 @@ function StreamingFileCard({ filename, fileType }: { filename: string; fileType:
   );
 }
 
+function StreamingTableCard({ rows, label }: { rows: string[][]; label?: string }) {
+  const header = rows[0] || [];
+  const body = rows.slice(1, 6);
+
+  return (
+    <div className="my-3 rounded-lg border border-border-default overflow-hidden animate-fade-in-up">
+      <div className="px-3 py-2 bg-surface-1 text-[11px] font-mono text-text-secondary">
+        {label || 'Query Results'}
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-xs">
+          {header.length > 0 && (
+            <thead className="bg-surface-0 text-text-secondary">
+              <tr>
+                {header.map((cell, index) => (
+                  <th key={index} className="px-3 py-2 text-left font-medium border-b border-border-subtle whitespace-nowrap">
+                    {cell}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+          )}
+          <tbody>
+            {body.map((row, rowIndex) => (
+              <tr key={rowIndex} className="border-b border-border-subtle last:border-b-0">
+                {row.map((cell, cellIndex) => (
+                  <td key={cellIndex} className="px-3 py-2 text-text-primary whitespace-nowrap">
+                    {cell}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 /**
  * Reveals text smoothly using requestAnimationFrame.
  * Uses adaptive speed: base rate is fast, but accelerates when the
@@ -154,7 +193,7 @@ function SmoothText({ text, showCursor }: { text: string; showCursor: boolean })
 }
 
 function BranchContent({ state, showCursor }: { state: StreamingState; showCursor: boolean }) {
-  const hasContent = state.content || state.reasoning || state.toolCalls.length > 0 || state.images.length > 0 || state.files.length > 0;
+  const hasContent = state.content || state.reasoning || state.toolCalls.length > 0 || state.images.length > 0 || state.files.length > 0 || state.tables.length > 0;
 
   if (!hasContent) {
     return (
@@ -199,6 +238,9 @@ function BranchContent({ state, showCursor }: { state: StreamingState; showCurso
       {state.files.map((f, i) => (
         <StreamingFileCard key={i} filename={f.filename} fileType={f.fileType} />
       ))}
+      {state.tables.map((table, i) => (
+        <StreamingTableCard key={i} rows={table.rows} label={table.label} />
+      ))}
       {state.content && (
         <SmoothText text={state.content} showCursor={showCursor} />
       )}
@@ -219,7 +261,7 @@ export default function StreamingBubble() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  }, [activeState.content, activeState.toolCalls, activeState.images]);
+  }, [activeState.content, activeState.toolCalls, activeState.images, activeState.tables]);
 
   if (!isStreaming) return null;
 

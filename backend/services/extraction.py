@@ -45,7 +45,7 @@ def extract_artifacts(
 
                 artifacts.append(
                     {
-                        "type": "code_snippet",
+                        "type": "code",
                         "label": label,
                         "content": code,
                         "metadata": {"language": language},
@@ -86,21 +86,10 @@ def extract_artifacts(
                 filename = path.split("/")[-1] if "/" in path else path
                 artifacts.append(
                     {
-                        "type": "file",
+                        "type": "document",
                         "label": filename,
                         "content": content,
                         "metadata": {"path": path},
-                    }
-                )
-            elif func_name == "preview_app":
-                port = arguments.get("port", 3000)
-                url = arguments.get("url", "")
-                artifacts.append(
-                    {
-                        "type": "preview_url",
-                        "label": f"Preview (port {port})",
-                        "content": url,
-                        "metadata": {"port": port},
                     }
                 )
 
