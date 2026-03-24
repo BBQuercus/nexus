@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useStore } from '@/lib/store';
 import { useIsMobile, useIsDesktop } from '@/lib/useMediaQuery';
 import { initMarkdown } from '@/lib/markdown';
@@ -17,11 +17,13 @@ import CommandPalette from './command-palette';
 import ConfirmDialog from './confirm-dialog';
 import ToastContainer from './toast';
 import ErrorBoundary from './error-boundary';
+import KeyboardShortcuts from './keyboard-shortcuts';
 import HealthBanner from './health-banner';
 import * as api from '@/lib/api';
 import { MODELS } from '@/lib/types';
 
 export default function Workspace() {
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const activeConversationId = useStore((s) => s.activeConversationId);
   const sidebarOpen = useStore((s) => s.sidebarOpen);
   const rightPanelOpen = useStore((s) => s.rightPanelOpen);
@@ -41,6 +43,13 @@ export default function Workspace() {
       toast.warning('Session expiring soon. Please save your work.');
     });
     return () => stopTokenRefreshTimer();
+  }, []);
+
+  // Listen for open-shortcuts event from slash commands / command palette
+  useEffect(() => {
+    const handler = () => setShortcutsOpen(true);
+    window.addEventListener('nexus:open-shortcuts', handler);
+    return () => window.removeEventListener('nexus:open-shortcuts', handler);
   }, []);
 
   // Auto-close sidebar on mobile when selecting a conversation
@@ -144,6 +153,11 @@ export default function Workspace() {
         return;
       }
     }
+    if (e.key === '?' && !isInput && !useStore.getState().commandPaletteOpen) {
+      e.preventDefault();
+      setShortcutsOpen((prev) => !prev);
+      return;
+    }
     if (e.key === '/' && !isInput && !useStore.getState().commandPaletteOpen) {
       e.preventDefault();
       const textarea = document.querySelector('textarea');
@@ -224,6 +238,7 @@ export default function Workspace() {
         )}
       </div>
       {commandPaletteOpen && <CommandPalette />}
+      {shortcutsOpen && <KeyboardShortcuts onClose={() => setShortcutsOpen(false)} />}
       <ToastContainer />
       <ConfirmDialog
         open={confirmDialog.open}
