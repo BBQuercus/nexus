@@ -66,6 +66,28 @@ TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "run_sql",
+            "description": "Run a SQL query on data files using DuckDB. CSV, Excel, and Parquet files in the sandbox are auto-registered as tables.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "sql": {
+                        "type": "string",
+                        "description": "The SQL query to execute",
+                    },
+                    "output_format": {
+                        "type": "string",
+                        "enum": ["table", "csv", "json"],
+                        "default": "table",
+                    },
+                },
+                "required": ["sql"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "execute_code",
             "description": "Execute code in the sandboxed environment. Supports Python, JavaScript, TypeScript, and Bash.",
             "parameters": {
