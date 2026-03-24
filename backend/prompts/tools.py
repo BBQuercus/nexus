@@ -268,9 +268,7 @@ def get_tools_for_mode(
     Returns:
         List of tool definitions for function calling
     """
-    if mode == "chat":
-        base = [t for t in TOOLS if t["function"]["name"] == "web_search"]
-    elif tools_enabled is not None:
+    if tools_enabled is not None:
         base = [t for t in TOOLS if t["function"]["name"] in tools_enabled]
     else:
         base = list(TOOLS)

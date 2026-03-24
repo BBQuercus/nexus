@@ -26,7 +26,7 @@ router = APIRouter(prefix="/api/conversations", tags=["conversations"])
 class CreateConversationRequest(BaseModel):
     title: Optional[str] = None
     model: Optional[str] = "gpt-4.1-chn"
-    agent_mode: str = "chat"
+    agent_mode: str = "code"
     agent_persona_id: Optional[uuid.UUID] = None
     sandbox_template: Optional[str] = None
     knowledge_base_ids: Optional[list[uuid.UUID]] = None
@@ -350,7 +350,7 @@ async def send_message(
 
     # Use request overrides if provided, otherwise conversation defaults
     model = body.model or conv.model or "gpt-4.1-chn"
-    mode = body.mode or conv.agent_mode or "chat"
+    mode = body.mode or conv.agent_mode or "code"
     # Update conversation if mode/model changed
     if model != conv.model or mode != conv.agent_mode:
         conv.model = model
@@ -618,7 +618,7 @@ async def regenerate_message(
         user_message_content = user_msg.content
 
     model = (body.model if body and body.model else None) or conv.model or "gpt-4.1-chn"
-    mode = conv.agent_mode or "chat"
+    mode = conv.agent_mode or "code"
 
     persona = None
     if conv.agent_persona_id:

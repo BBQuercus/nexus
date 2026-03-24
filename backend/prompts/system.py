@@ -1,6 +1,8 @@
-from typing import Optional
+from typing import Optional, Any
 
-CHAT_SYSTEM_PROMPT = """You are Nexus, a helpful AI assistant. Answer questions, explain concepts, and help with reasoning tasks. Be concise but thorough. Use markdown formatting and fenced code blocks where appropriate. Never use emojis. Be direct and professional."""
+CHAT_SYSTEM_PROMPT = """You are Nexus, a helpful AI assistant. Answer questions, explain concepts, and help with reasoning tasks. Be concise but thorough. Use markdown formatting and fenced code blocks where appropriate. Never use emojis. Be direct and professional.
+
+If the user asks you to generate plots, run code, analyze files, query data, browse webpages, call APIs, or create charts, use the available tools instead of replying with raw code alone."""
 
 CODE_SYSTEM_PROMPT = """You are Nexus, an AI coding assistant with a live sandboxed execution environment.
 
@@ -127,10 +129,25 @@ CHART_SYSTEM_ADDENDUM = """
 """
 
 
+def build_tool_catalog_addendum(tools: list[dict[str, Any]]) -> str:
+    if not tools:
+        return ""
+
+    lines = ["## Available Tools"]
+    for tool in tools:
+        function = tool.get("function", {})
+        name = function.get("name")
+        description = function.get("description")
+        if name and description:
+            lines.append(f"- `{name}`: {description}")
+    return "\n".join(lines)
+
+
 def build_system_prompt(
     mode: str,
     persona: Optional[object] = None,
     has_knowledge: bool = False,
+    tools: Optional[list[dict[str, Any]]] = None,
 ) -> str:
     """Build the system prompt based on mode and optional persona.
 
@@ -138,6 +155,7 @@ def build_system_prompt(
         mode: One of 'chat', 'code', 'architect'
         persona: Optional AgentPersona ORM object with system_prompt attribute
         has_knowledge: Whether knowledge bases/documents are available
+        tools: Tool definitions available to the model
 
     Returns:
         Combined system prompt string
@@ -159,5 +177,9 @@ def build_system_prompt(
     if mode in {"code", "architect"}:
         base = f"{base}\n{SQL_SYSTEM_ADDENDUM}"
         base = f"{base}\n{CHART_SYSTEM_ADDENDUM}"
+
+    tool_catalog = build_tool_catalog_addendum(tools or [])
+    if tool_catalog:
+        base = f"{base}\n\n{tool_catalog}"
 
     return base

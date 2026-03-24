@@ -152,8 +152,14 @@ async def run_agent_loop(
     )
     has_knowledge = bool(knowledge_base_ids) or (conv_doc_count or 0) > 0
 
+    # Get tools
+    tools_enabled = None
+    if persona and hasattr(persona, "tools_enabled"):
+        tools_enabled = persona.tools_enabled
+    tools = get_tools_for_mode(mode, tools_enabled, has_knowledge=has_knowledge)
+
     # Build message history for LLM
-    system_prompt = build_system_prompt(mode, persona, has_knowledge=has_knowledge)
+    system_prompt = build_system_prompt(mode, persona, has_knowledge=has_knowledge, tools=tools)
     llm_messages: list[dict] = [{"role": "system", "content": system_prompt}]
 
     for msg in existing_messages:
@@ -178,11 +184,6 @@ async def run_agent_loop(
         if last_user.get("role") == "user" and last_user.get("content") != user_message:
             last_user["content"] = user_message
 
-    # Get tools
-    tools_enabled = None
-    if persona and hasattr(persona, "tools_enabled"):
-        tools_enabled = persona.tools_enabled
-    tools = get_tools_for_mode(mode, tools_enabled, has_knowledge=has_knowledge)
     logger.info("agent_loop_start", mode=mode, model=model, tool_count=len(tools) if tools else 0, conversation_id=str(conversation_id))
 
     # Track sandbox and known output files
