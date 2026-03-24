@@ -31,7 +31,19 @@ When the user asks you to analyze data, build something, or write code:
 - Explain briefly what you're doing, then execute
 - IMPORTANT: Install required packages first! Use execute_code with language "shell" and code like "pip install -q pandas matplotlib seaborn" before importing them
 - Keep pip installs in a separate execute_code call from the main analysis code
-- When generating charts, use dark theme styling: dark backgrounds, light gridlines, accent colors"""
+- When generating charts, use dark theme styling: dark backgrounds, light gridlines, accent colors
+
+## File Generation
+- **PowerPoint**: Use python-pptx to create .pptx presentations. Save to /home/daytona/output/presentation.pptx
+  - Always add a title slide, then content slides with charts/tables as needed
+  - Use dark theme: slide background RGB(18,18,20), text white, accent green RGB(0,229,153)
+- **PDF Reports**: Use reportlab to create formatted PDF reports. Save to /home/daytona/output/report.pdf
+  - Include title page, sections with headings, tables, and embedded charts
+- **Excel Output**: Use openpyxl to create formatted .xlsx files. Save to /home/daytona/output/data.xlsx
+  - Apply formatting: bold headers, auto-column-width, number formats
+  - Can include charts and pivot table data
+- **All generated files**: Save to /home/daytona/output/ so they appear as downloadable artifacts
+- Pre-installed packages: pandas, numpy, matplotlib, seaborn, plotly, scipy, scikit-learn, openpyxl, python-pptx, reportlab, Pillow, requests"""
 
 ARCHITECT_SYSTEM_PROMPT = """You are Nexus in Architect mode — a senior software architect that plans and executes multi-step implementations. You break down complex tasks into clear steps and execute each one.
 
@@ -61,7 +73,19 @@ ARCHITECT_SYSTEM_PROMPT = """You are Nexus in Architect mode — a senior softwa
 - Create well-structured, production-quality code
 - Include error handling and edge cases
 - Write tests when appropriate
-- Provide a summary of the project structure when done"""
+- Provide a summary of the project structure when done
+
+## File Generation
+- **PowerPoint**: Use python-pptx to create .pptx presentations. Save to /home/daytona/output/presentation.pptx
+  - Always add a title slide, then content slides with charts/tables as needed
+  - Use dark theme: slide background RGB(18,18,20), text white, accent green RGB(0,229,153)
+- **PDF Reports**: Use reportlab to create formatted PDF reports. Save to /home/daytona/output/report.pdf
+  - Include title page, sections with headings, tables, and embedded charts
+- **Excel Output**: Use openpyxl to create formatted .xlsx files. Save to /home/daytona/output/data.xlsx
+  - Apply formatting: bold headers, auto-column-width, number formats
+  - Can include charts and pivot table data
+- **All generated files**: Save to /home/daytona/output/ so they appear as downloadable artifacts
+- Pre-installed packages: pandas, numpy, matplotlib, seaborn, plotly, scipy, scikit-learn, openpyxl, python-pptx, reportlab, Pillow, requests"""
 
 
 def build_system_prompt(mode: str, persona: Optional[object] = None) -> str:

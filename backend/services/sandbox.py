@@ -86,6 +86,12 @@ async def create_sandbox(
     # Create output directory
     await asyncio.to_thread(sandbox.process.exec, "mkdir -p /home/daytona/output")
 
+    # Ensure document generation packages are available
+    await asyncio.to_thread(
+        sandbox.process.exec,
+        "pip install -q python-pptx reportlab openpyxl 2>/dev/null || true"
+    )
+
     return sandbox
 
 
