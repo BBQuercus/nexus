@@ -425,6 +425,64 @@ export async function getHealth(): Promise<HealthCheck> {
   return resp.json();
 }
 
+// ── Feedback ──
+export async function submitEnhancedFeedback(
+  conversationId: string, messageId: string,
+  params: { rating: 'up' | 'down'; tags?: string[]; comment?: string }
+): Promise<void> {
+  return apiFetch<void>(`/api/conversations/${conversationId}/messages/${messageId}/feedback`, {
+    method: 'POST', body: JSON.stringify(params),
+  });
+}
+
+// ── Analytics ──
+export async function trackEvent(eventType: string, eventData?: Record<string, unknown>): Promise<void> {
+  try {
+    await apiFetch<void>('/api/analytics/events', {
+      method: 'POST', body: JSON.stringify({ event_type: eventType, event_data: eventData }),
+    });
+  } catch {} // Fire and forget
+}
+
+export async function getMyUsage(): Promise<{
+  conversations_this_week: number; tokens_this_month: number;
+  cost_this_month: number; favorite_model: string | null;
+}> {
+  return apiFetch('/api/analytics/me');
+}
+
+// ── Admin ──
+export async function getAdminOverview(): Promise<Record<string, unknown>> {
+  return apiFetch('/api/admin/overview');
+}
+export async function getAdminFeedback(params?: { page?: number; rating?: string; model?: string }): Promise<Record<string, unknown>> {
+  const qs = new URLSearchParams();
+  if (params?.page) qs.set('page', String(params.page));
+  if (params?.rating) qs.set('rating', params.rating);
+  if (params?.model) qs.set('model', params.model);
+  const q = qs.toString();
+  return apiFetch(`/api/admin/feedback${q ? `?${q}` : ''}`);
+}
+export async function getAdminFeedbackStats(): Promise<Record<string, unknown>> {
+  return apiFetch('/api/admin/feedback/stats');
+}
+export async function getAdminUsage(): Promise<Record<string, unknown>> {
+  return apiFetch('/api/admin/usage');
+}
+export async function getAdminUsers(): Promise<Record<string, unknown>[]> {
+  return apiFetch('/api/admin/users');
+}
+export async function updateAdminUser(userId: string, params: { is_admin?: boolean }): Promise<void> {
+  return apiFetch(`/api/admin/users/${userId}`, { method: 'PATCH', body: JSON.stringify(params) });
+}
+export async function getAdminModels(): Promise<Record<string, unknown>[]> {
+  return apiFetch('/api/admin/models');
+}
+export async function getAdminErrors(page?: number): Promise<Record<string, unknown>> {
+  const qs = page ? `?page=${page}` : '';
+  return apiFetch(`/api/admin/errors${qs}`);
+}
+
 // ── User ──
 
 export async function getCurrentUser(): Promise<User> {
