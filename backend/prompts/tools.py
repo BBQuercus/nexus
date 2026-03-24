@@ -66,6 +66,27 @@ TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "create_chart",
+            "description": "Create an interactive chart using a Vega-Lite specification. Use this for interactive visualizations instead of static chart images.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "spec": {
+                        "type": "object",
+                        "description": "The complete Vega-Lite specification, including inline data",
+                    },
+                    "title": {
+                        "type": "string",
+                        "description": "Optional title for the chart artifact",
+                    },
+                },
+                "required": ["spec"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "run_sql",
             "description": "Run a SQL query on data files using DuckDB. CSV, Excel, and Parquet files in the sandbox are auto-registered as tables.",
             "parameters": {

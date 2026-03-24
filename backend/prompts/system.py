@@ -118,6 +118,14 @@ SQL_SYSTEM_ADDENDUM = """
 - Output formats: `table`, `csv`, `json`
 """
 
+CHART_SYSTEM_ADDENDUM = """
+## Interactive Charts
+- Use `create_chart` for interactive visualizations instead of static matplotlib output when interactivity helps
+- Provide complete Vega-Lite specs with inline data
+- Include `$schema` and either `mark` or `layer`
+- Charts support the interactivity defined in the Vega-Lite spec
+"""
+
 
 def build_system_prompt(
     mode: str,
@@ -150,5 +158,6 @@ def build_system_prompt(
 
     if mode in {"code", "architect"}:
         base = f"{base}\n{SQL_SYSTEM_ADDENDUM}"
+        base = f"{base}\n{CHART_SYSTEM_ADDENDUM}"
 
     return base

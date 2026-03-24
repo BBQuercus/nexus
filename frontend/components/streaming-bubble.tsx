@@ -5,6 +5,7 @@ import { useStore } from '@/lib/store';
 import type { StreamingState } from '@/lib/store';
 import { Zap, Terminal, Play, Download, Check, ChevronDown, Loader2, FileSpreadsheet, FileText, Presentation, File as FileIcon } from 'lucide-react';
 import type { ToolCall } from '@/lib/types';
+import VegaChart from './vega-chart';
 
 function StreamingExecBlock({ tool }: { tool: ToolCall }) {
   const lang = tool.language || tool.name || 'code';
@@ -125,6 +126,17 @@ function StreamingTableCard({ rows, label }: { rows: string[][]; label?: string 
   );
 }
 
+function StreamingChartCard({ spec, title }: { spec: Record<string, unknown>; title?: string }) {
+  return (
+    <div className="my-3 rounded-lg border border-border-default overflow-hidden animate-fade-in-up bg-surface-0">
+      <div className="px-3 py-2 bg-surface-1 text-[11px] font-mono text-text-secondary">
+        {title || 'Interactive Chart'}
+      </div>
+      <VegaChart spec={spec} className="overflow-x-auto p-2" />
+    </div>
+  );
+}
+
 /**
  * Reveals text smoothly using requestAnimationFrame.
  * Uses adaptive speed: base rate is fast, but accelerates when the
@@ -193,7 +205,7 @@ function SmoothText({ text, showCursor }: { text: string; showCursor: boolean })
 }
 
 function BranchContent({ state, showCursor }: { state: StreamingState; showCursor: boolean }) {
-  const hasContent = state.content || state.reasoning || state.toolCalls.length > 0 || state.images.length > 0 || state.files.length > 0 || state.tables.length > 0;
+  const hasContent = state.content || state.reasoning || state.toolCalls.length > 0 || state.images.length > 0 || state.files.length > 0 || state.tables.length > 0 || state.charts.length > 0;
 
   if (!hasContent) {
     return (
@@ -241,6 +253,9 @@ function BranchContent({ state, showCursor }: { state: StreamingState; showCurso
       {state.tables.map((table, i) => (
         <StreamingTableCard key={i} rows={table.rows} label={table.label} />
       ))}
+      {state.charts.map((chart, i) => (
+        <StreamingChartCard key={i} spec={chart.spec} title={chart.title} />
+      ))}
       {state.content && (
         <SmoothText text={state.content} showCursor={showCursor} />
       )}
@@ -261,7 +276,7 @@ export default function StreamingBubble() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  }, [activeState.content, activeState.toolCalls, activeState.images, activeState.tables]);
+  }, [activeState.content, activeState.toolCalls, activeState.images, activeState.tables, activeState.charts]);
 
   if (!isStreaming) return null;
 

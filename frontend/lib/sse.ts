@@ -5,6 +5,7 @@ export interface ToolOutputEvent { type: 'tool_output'; tool: string; output: st
 export interface ToolEndEvent { type: 'tool_end'; tool: string; tool_call_id?: string; branch_index?: number }
 export interface ImageOutputEvent { type: 'image_output'; filename: string; url?: string; sandbox_id?: string; branch_index?: number }
 export interface TableOutputEvent { type: 'table_output'; rows: string[][]; label?: string; branch_index?: number }
+export interface ChartOutputEvent { type: 'chart_output'; spec: Record<string, unknown>; title?: string; branch_index?: number }
 export interface PreviewEvent { type: 'preview'; url: string; port?: number }
 export interface SearchResultsEvent { type: 'search_results'; query?: string; results: { title: string; url: string; snippet: string }[] }
 export interface DoneEvent { type: 'done'; message_id?: string; active_leaf_id?: string; input_tokens?: number; output_tokens?: number; artifacts?: { id: string; type: string; label: string }[]; branch_index?: number }
@@ -14,7 +15,7 @@ export interface ErrorEvent { type: 'error'; message: string; branch_index?: num
 
 export type SSEEvent =
   | TokenEvent | ReasoningEvent | ToolStartEvent | ToolOutputEvent | ToolEndEvent
-  | ImageOutputEvent | TableOutputEvent | PreviewEvent | SearchResultsEvent
+  | ImageOutputEvent | TableOutputEvent | ChartOutputEvent | PreviewEvent | SearchResultsEvent
   | DoneEvent | AllDoneEvent | TitleEvent | ErrorEvent;
 
 export async function* streamSSE(response: Response): AsyncGenerator<SSEEvent> {

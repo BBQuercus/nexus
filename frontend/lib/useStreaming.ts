@@ -172,6 +172,21 @@ export function processSseEvent(
       break;
     }
 
+    case 'chart_output': {
+      const chartEntry = {
+        spec: (event.spec as Record<string, unknown>) || {},
+        title: (event.title as string) || 'Interactive Chart',
+      };
+      if (opts.isMulti) {
+        opts.updateBranch(bi, (b) => ({ charts: [...b.charts, chartEntry] }));
+      } else {
+        store.setStreaming({ charts: [...store.streaming.charts, chartEntry] });
+      }
+      store.setRightPanelTab('artifacts');
+      if (!store.rightPanelOpen) store.setRightPanelOpen(true);
+      break;
+    }
+
     case 'retrieval_results': {
       const rawSources = (event.sources as Array<Record<string, unknown>>) || [];
       const sources: Citation[] = rawSources.map((s) => ({
