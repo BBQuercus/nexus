@@ -15,7 +15,7 @@ from backend.auth import get_current_user, router as auth_router
 from backend.config import settings
 from backend.db import Base, engine, get_db
 from backend.logging_config import get_logger, setup_logging
-from backend.middleware import GlobalExceptionMiddleware, RequestIdMiddleware
+from backend.middleware import GlobalExceptionMiddleware, RequestIdMiddleware, SecurityHeadersMiddleware
 from backend.models import FrontendError
 from backend.routers.admin import router as admin_router
 from backend.routers.agents import router as agents_router
@@ -26,6 +26,7 @@ from backend.routers.sandboxes import router as sandboxes_router
 from backend.routers.tts import router as tts_router
 from backend.routers.users import router as users_router
 from backend.services import sandbox as sandbox_service
+import backend.indexes  # noqa: F401 — register DB indexes
 
 # Initialize structured logging
 setup_logging(json_output=not os.environ.get("DEV_MODE"), log_level="INFO")
@@ -38,6 +39,10 @@ async def lifespan(app: FastAPI):
         await conn.run_sync(Base.metadata.create_all)
     logger.info("startup", event="database_tables_ensured")
     yield
+    logger.info("shutdown", event="graceful_shutdown_started")
+    # Give active streams a moment to finish
+    import asyncio
+    await asyncio.sleep(1)
     await engine.dispose()
     logger.info("shutdown", event="database_engine_disposed")
 
@@ -67,6 +72,9 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["X-Request-Id"],
 )
+
+# SecurityHeadersMiddleware adds CSP, X-Frame-Options, etc.
+app.add_middleware(SecurityHeadersMiddleware)
 
 # RequestIdMiddleware generates request IDs and binds them to log context
 app.add_middleware(RequestIdMiddleware)

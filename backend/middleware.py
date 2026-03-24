@@ -1,4 +1,4 @@
-"""FastAPI middleware for request tracing, error handling, and CSRF protection."""
+"""FastAPI middleware for request tracing, error handling, security headers, and CSRF protection."""
 
 import time
 import traceback
@@ -12,6 +12,25 @@ from starlette.responses import JSONResponse
 from backend.logging_config import get_logger
 
 logger = get_logger("middleware")
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Add security headers to every response."""
+
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        response = await call_next(request)
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-eval' 'unsafe-inline'; "
+            "style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data: blob:; "
+            "connect-src 'self' ws: wss:; "
+            "font-src 'self' data:"
+        )
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        return response
 
 
 class RequestIdMiddleware(BaseHTTPMiddleware):
