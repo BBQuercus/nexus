@@ -14,6 +14,7 @@ from backend.prompts.tools import get_tools_for_mode
 from backend.services import extraction
 from backend.services import llm as llm_service
 from backend.services import sandbox as sandbox_service
+from backend.services.sql_tool import build_run_sql_script
 from backend.services.tables import detect_table, rows_to_csv
 from backend.services.web import call_api, web_browse
 from backend.services.search import web_search
@@ -309,10 +310,7 @@ async def run_agent_loop(
                     if sandbox is None:
                         yield _sse_event("tool_output", {"tool": func_name, "output": "Creating sandbox...", "tool_call_id": tool_call_id})
                         template = conversation.sandbox_template or "python-data-science"
-                        sandbox = await sandbox_service.create_sandbox(
-                            template=template,
-                            labels={"user_id": str(conversation.user_id)},
-                        )
+                        sandbox = await sandbox_service.create_sandbox(template=template)
                         sandbox_id = sandbox.id
                         conversation.sandbox_id = sandbox_id
                         await db.flush()
@@ -441,6 +439,39 @@ async def run_agent_loop(
                         tool_output = url
                         yield _sse_event("preview", {"url": url, "port": port})
                     yield _sse_event("tool_output", {"tool": func_name, "output": tool_output, "tool_call_id": tool_call_id})
+
+                elif func_name == "run_sql":
+                    if sandbox is None:
+                        yield _sse_event("tool_output", {"tool": func_name, "output": "Creating sandbox...", "tool_call_id": tool_call_id})
+                        template = conversation.sandbox_template or "python-data-science"
+                        sandbox = await sandbox_service.create_sandbox(template=template)
+                        sandbox_id = sandbox.id
+                        conversation.sandbox_id = sandbox_id
+                        await db.flush()
+
+                    sql_script = build_run_sql_script(
+                        args.get("sql", ""),
+                        args.get("output_format", "table"),
+                    )
+                    result = await sandbox_service.execute_code(sandbox, "python", sql_script)
+                    tool_output = result.stdout
+                    if result.stderr:
+                        tool_output += f"\n[stderr]: {result.stderr}"
+                    tool_exit_code = result.exit_code
+                    if result.exit_code != 0:
+                        tool_output += f"\n[exit_code]: {result.exit_code}"
+                    yield _sse_event("tool_output", {"tool": func_name, "output": tool_output, "tool_call_id": tool_call_id})
+
+                    if result.stdout and args.get("output_format", "table") == "table":
+                        table = detect_table(result.stdout)
+                        if table:
+                            yield _sse_event("table_output", {"rows": table, "label": "SQL Results"})
+                            runtime_artifacts.append({
+                                "type": "table",
+                                "label": "SQL Results",
+                                "content": rows_to_csv(table),
+                                "metadata": {"rows": table},
+                            })
 
                 elif func_name == "call_api":
                     result = await call_api(

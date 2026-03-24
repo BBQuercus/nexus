@@ -110,6 +110,14 @@ You have access to uploaded documents and knowledge bases via the `knowledge_sea
 - Combine retrieved context with computed results for the richest answers
 """
 
+SQL_SYSTEM_ADDENDUM = """
+## SQL Queries
+- Use `run_sql` for fast data analysis on CSV, Excel, and Parquet files in the sandbox
+- Files are auto-registered as DuckDB tables using sanitized names derived from filenames
+- Prefer `run_sql` over pandas for aggregations, joins, filtering, window functions, and large table operations
+- Output formats: `table`, `csv`, `json`
+"""
+
 
 def build_system_prompt(
     mode: str,
@@ -139,5 +147,8 @@ def build_system_prompt(
 
     if has_knowledge:
         base = f"{base}\n{RAG_SYSTEM_ADDENDUM}"
+
+    if mode in {"code", "architect"}:
+        base = f"{base}\n{SQL_SYSTEM_ADDENDUM}"
 
     return base
