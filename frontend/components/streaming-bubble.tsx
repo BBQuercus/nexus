@@ -132,7 +132,7 @@ export default function StreamingBubble() {
 
   return (
     <div className="flex justify-start animate-fade-in-up">
-      <div className="max-w-[85%] w-full">
+      <div className="max-w-[95%] sm:max-w-[85%] w-full">
         {/* Multi-response branch tab bar */}
         {isMulti && (
           <div className="flex items-center gap-1 mb-3 p-1 bg-surface-1 border border-border-default rounded-lg">

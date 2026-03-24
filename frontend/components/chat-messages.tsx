@@ -3,10 +3,11 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { useStore } from '@/lib/store';
 import * as api from '@/lib/api';
-import type { Message } from '@/lib/types';
+import { mapRawMessages } from '@/lib/useStreaming';
 import { ArrowDown } from 'lucide-react';
 import MessageBubble from './message-bubble';
 import StreamingBubble from './streaming-bubble';
+import { MessageSkeleton } from './skeleton';
 
 export default function ChatMessages() {
   const activeConversationId = useStore((s) => s.activeConversationId);
@@ -22,6 +23,7 @@ export default function ChatMessages() {
   isStreamingRef.current = isStreaming;
   const containerRef = useRef<HTMLDivElement>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const scrollToBottom = useCallback(() => {
     if (containerRef.current) {
@@ -58,23 +60,11 @@ export default function ChatMessages() {
     if (!activeConversationId || isStreamingRef.current) return;
 
     async function load() {
+      setLoading(true);
       try {
         const conv = await api.getConversation(activeConversationId!);
         const rawMessages = (conv.messages as Array<Record<string, unknown>>) || [];
-        const mapped: Message[] = rawMessages.map((m) => ({
-          id: (m.id as string) || '',
-          conversationId: activeConversationId!,
-          role: (m.role as 'user' | 'assistant' | 'system') || 'user',
-          content: (m.content as string) || '',
-          createdAt: (m.created_at as string) || (m.createdAt as string) || '',
-          reasoning: (m.reasoning as string) || undefined,
-          toolCalls: (m.tool_calls as Message['toolCalls']) || undefined,
-          images: (m.images as Message['images']) || undefined,
-          feedback: (m.feedback as Message['feedback']) || undefined,
-          parentId: (m.parent_id as string) || undefined,
-          branchIndex: (m.branch_index as number) ?? undefined,
-        }));
-        setMessages(mapped);
+        setMessages(mapRawMessages(rawMessages, activeConversationId!));
         setActiveLeafId((conv.active_leaf_id as string) || null);
         setSandboxId((conv.sandbox_id as string) || null);
         setSandboxStatus(conv.sandbox_id ? 'running' : 'none');
@@ -91,6 +81,8 @@ export default function ChatMessages() {
         } catch {}
       } catch (e) {
         console.error('Failed to load conversation:', e);
+      } finally {
+        setLoading(false);
       }
     }
 
@@ -99,13 +91,17 @@ export default function ChatMessages() {
 
   return (
     <div className="relative flex-1 min-h-0">
-      <div ref={containerRef} className="absolute inset-0 overflow-y-auto px-4 py-6">
-        <div className="space-y-4 max-w-4xl mx-auto">
-          {messages.map((msg) => (
-            <MessageBubble key={msg.id} message={msg} />
-          ))}
-          <StreamingBubble />
-        </div>
+      <div ref={containerRef} className="absolute inset-0 overflow-y-auto px-2 sm:px-4 py-4 sm:py-6">
+        {loading && messages.length === 0 ? (
+          <MessageSkeleton />
+        ) : (
+          <div className="space-y-4 max-w-4xl mx-auto">
+            {messages.map((msg) => (
+              <MessageBubble key={msg.id} message={msg} />
+            ))}
+            <StreamingBubble />
+          </div>
+        )}
       </div>
 
       {/* Scroll to bottom button */}

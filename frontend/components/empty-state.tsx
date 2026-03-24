@@ -13,7 +13,7 @@ const TEMPLATES = ['Python', 'Node.js', 'Data Analysis', 'Web App'];
 
 export default function EmptyState() {
   return (
-    <div className="flex-1 flex flex-col items-center justify-center px-6 gap-10">
+    <div className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 gap-6 sm:gap-10 overflow-y-auto py-6 sm:py-8">
       {/* Hero with animated accents */}
       <div className="relative flex flex-col items-center gap-4 animate-fade-in-up">
         {/* Glowing ring behind icon */}
@@ -21,7 +21,7 @@ export default function EmptyState() {
           <div className="absolute inset-0 w-14 h-14 -m-2 rounded-2xl bg-accent/5 animate-pulse" />
           <div className="relative flex items-center gap-2 z-10">
             <Zap size={24} className="text-accent" />
-            <span className="text-3xl font-bold tracking-[0.15em] uppercase">Nexus</span>
+            <span className="text-2xl sm:text-3xl font-bold tracking-[0.15em] uppercase">Nexus</span>
           </div>
         </div>
 
@@ -37,7 +37,7 @@ export default function EmptyState() {
       </div>
 
       {/* Templates */}
-      <div className="flex gap-1.5 stagger-children">
+      <div className="flex flex-wrap justify-center gap-1.5 stagger-children">
         {TEMPLATES.map((t) => (
           <button
             key={t}

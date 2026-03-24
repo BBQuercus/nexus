@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useCallback, useRef } from 'react';
+import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import { useStore } from '@/lib/store';
 import * as api from '@/lib/api';
 import type { Message, TreeNode, ConversationTree } from '@/lib/types';
@@ -299,10 +299,23 @@ export default function TreePanel() {
   const [hoveredNode, setHoveredNode] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const { nodes, edges, width, height } = useMemo(() => {
+  const layout = useMemo(() => {
     if (!tree) return { nodes: [], edges: [], width: 0, height: 0 };
     return buildTree(tree);
   }, [tree]);
+  const { nodes, edges, width, height } = layout;
+
+  // Center on root node when tree changes
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (!container || nodes.length === 0) return;
+    const root = nodes[0];
+    // Center the root node horizontally and show it near the top vertically
+    const rootCenterX = root.x + NODE_WIDTH / 2;
+    const scrollLeft = rootCenterX - container.clientWidth / 2;
+    const scrollTop = Math.max(0, root.y - 12);
+    container.scrollTo({ left: Math.max(0, scrollLeft), top: scrollTop, behavior: 'instant' });
+  }, [nodes]);
 
   const branchCount = useMemo(() => {
     if (!tree) return 0;

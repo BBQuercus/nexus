@@ -1,20 +1,21 @@
 'use client';
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useStore } from '@/lib/store';
-import { Terminal, FolderOpen, Eye, Layers, Network } from 'lucide-react';
+import { useIsMobile } from '@/lib/useMediaQuery';
+import { Terminal, FolderOpen, Eye, Layers, Network, X } from 'lucide-react';
 import TerminalPanel from './terminal-panel';
 import FilesPanel from './files-panel';
 import PreviewPanel from './preview-panel';
 import ArtifactsPanel from './artifacts-panel';
 import TreePanel from './tree-panel';
 
-const TABS = [
-  { key: 'terminal' as const, label: 'Terminal', icon: <Terminal size={12} /> },
-  { key: 'files' as const, label: 'Files', icon: <FolderOpen size={12} /> },
-  { key: 'preview' as const, label: 'Preview', icon: <Eye size={12} /> },
-  { key: 'artifacts' as const, label: 'Artifacts', icon: <Layers size={12} /> },
-  { key: 'tree' as const, label: 'Tree', icon: <Network size={12} /> },
+const ALL_TABS = [
+  { key: 'terminal' as const, label: 'Terminal', icon: <Terminal size={12} />, needsSandbox: true },
+  { key: 'files' as const, label: 'Files', icon: <FolderOpen size={12} />, needsSandbox: true },
+  { key: 'preview' as const, label: 'Preview', icon: <Eye size={12} />, needsSandbox: true },
+  { key: 'artifacts' as const, label: 'Artifacts', icon: <Layers size={12} />, needsSandbox: false },
+  { key: 'tree' as const, label: 'Tree', icon: <Network size={12} />, needsSandbox: false },
 ];
 
 const MIN_WIDTH = 280;
@@ -33,6 +34,31 @@ function getInitialWidth() {
 export default function RightPanel() {
   const activeTab = useStore((s) => s.rightPanelTab);
   const setRightPanelTab = useStore((s) => s.setRightPanelTab);
+  const sandboxStatus = useStore((s) => s.sandboxStatus);
+  const hasSandbox = sandboxStatus !== 'none';
+  const artifacts = useStore((s) => s.artifacts);
+  const tree = useStore((s) => s.conversationTree);
+  const hasBranches = tree?.nodes.some((n) => n.childCount > 1) ?? false;
+
+  const visibleTabs = useMemo(() => {
+    return ALL_TABS.filter((tab) => {
+      if (tab.needsSandbox && !hasSandbox) return false;
+      if (tab.key === 'artifacts' && artifacts.length === 0 && !hasSandbox) return false;
+      if (tab.key === 'tree' && !hasBranches) return false;
+      return true;
+    });
+  }, [hasSandbox, artifacts.length, hasBranches]);
+
+  // If the current tab is no longer visible, switch to first available
+  useEffect(() => {
+    if (visibleTabs.length > 0 && !visibleTabs.some((t) => t.key === activeTab)) {
+      setRightPanelTab(visibleTabs[0].key);
+    }
+  }, [visibleTabs, activeTab, setRightPanelTab]);
+
+  const isMobile = useIsMobile();
+  const setRightPanelOpen = useStore((s) => s.setRightPanelOpen);
+
   const [width, setWidth] = useState(getInitialWidth);
   const [dragging, setDragging] = useState(false);
   const dragRef = useRef({ startX: 0, startWidth: 0 });
@@ -79,23 +105,25 @@ export default function RightPanel() {
 
   return (
     <div
-      className="relative flex flex-col bg-surface-0 border-l border-border-default shrink-0"
-      style={{ width }}
+      className="relative flex flex-col bg-surface-0 border-l border-border-default shrink-0 h-full"
+      style={isMobile ? { width: '100%' } : { width }}
     >
-      {/* Resize handle — wide hit target, thin visual indicator */}
-      <div
-        onMouseDown={onMouseDown}
-        className="absolute -left-[5px] top-0 bottom-0 w-[10px] cursor-col-resize z-30 flex items-stretch justify-center"
-      >
+      {/* Resize handle — hidden on mobile */}
+      {!isMobile && (
         <div
-          className={`w-[3px] rounded-full transition-colors ${
-            dragging ? 'bg-accent/50' : 'bg-transparent hover:bg-accent/30'
-          }`}
-        />
-      </div>
+          onMouseDown={onMouseDown}
+          className="absolute -left-[5px] top-0 bottom-0 w-[10px] cursor-col-resize z-30 flex items-stretch justify-center"
+        >
+          <div
+            className={`w-[3px] rounded-full transition-colors ${
+              dragging ? 'bg-accent/50' : 'bg-transparent hover:bg-accent/30'
+            }`}
+          />
+        </div>
+      )}
 
       <div className="flex gap-0.5 p-1.5 border-b border-border-default shrink-0">
-        {TABS.map((tab) => (
+        {visibleTabs.map((tab) => (
           <button
             key={tab.key}
             onClick={() => setRightPanelTab(tab.key)}
@@ -106,9 +134,16 @@ export default function RightPanel() {
             }`}
           >
             {tab.icon}
-            {tab.label}
+            <span className="hidden sm:inline">{tab.label}</span>
           </button>
         ))}
+        {/* Close button on mobile/tablet */}
+        <button
+          onClick={() => setRightPanelOpen(false)}
+          className="lg:hidden flex items-center justify-center px-2 py-1.5 text-text-tertiary hover:text-text-secondary rounded-md cursor-pointer transition-colors"
+        >
+          <X size={14} />
+        </button>
       </div>
 
       <div className="flex-1 min-h-0 overflow-hidden">

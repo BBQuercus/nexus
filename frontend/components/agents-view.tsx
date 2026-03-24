@@ -6,6 +6,7 @@ import { useStore } from '@/lib/store';
 import * as api from '@/lib/api';
 import type { AgentPersona, AgentMode } from '@/lib/types';
 import { Zap, ArrowLeft, X, Plus, Save, Play, Trash2, Globe, Lock, Check } from 'lucide-react';
+import ConfirmDialog from './confirm-dialog';
 
 const EMOJI_OPTIONS = ['🤖', '🧑‍💻', '👨‍🔬', '👩‍🎨', '⚙️', '📚', '🚀', '🧠', '🔮', '🎯', '💡', '🔥', '🌟', '⚡', '🧙', '👾'];
 
@@ -29,6 +30,8 @@ export default function AgentsView() {
   const setActivePersona = useStore((s) => s.setActivePersona);
   const setActiveModel = useStore((s) => s.setActiveModel);
   const setActiveMode = useStore((s) => s.setActiveMode);
+  const confirmDialog = useStore((s) => s.confirmDialog);
+  const resolveConfirm = useStore((s) => s.resolveConfirm);
 
   const [agents, setAgents] = useState<AgentPersona[]>([]);
   const [editing, setEditing] = useState<AgentPersona | null>(null);
@@ -47,7 +50,14 @@ export default function AgentsView() {
   };
 
   const handleDelete = async () => {
-    if (!editing?.id || !confirm(`Delete "${editing.name}"?`)) return;
+    if (!editing?.id) return;
+    const confirmed = await useStore.getState().showConfirm({
+      title: `Delete "${editing.name}"?`,
+      message: 'This persona will be permanently removed.',
+      confirmLabel: 'Delete',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
     try { await api.deleteAgent(editing.id); setAgents(await api.listAgents()); setEditing(null); }
     catch (e) { console.error('Failed to delete agent:', e); }
   };
@@ -192,6 +202,15 @@ export default function AgentsView() {
           </div>
         )}
       </div>
+      <ConfirmDialog
+        open={confirmDialog.open}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        confirmLabel={confirmDialog.confirmLabel}
+        variant={confirmDialog.variant}
+        onConfirm={() => resolveConfirm(true)}
+        onCancel={() => resolveConfirm(false)}
+      />
     </div>
   );
 }

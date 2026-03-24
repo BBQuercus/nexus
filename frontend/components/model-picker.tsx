@@ -33,7 +33,7 @@ export default function ModelPicker() {
       </button>
 
       {open && (
-        <div className="absolute bottom-full left-0 mb-1 w-72 bg-surface-0 border border-border-default rounded-lg shadow-lg overflow-hidden z-50">
+        <div className="absolute bottom-full left-0 mb-1 w-72 max-h-80 overflow-y-auto bg-surface-0 border border-border-default rounded-lg shadow-lg z-50">
           {MODELS.map((model) => (
             <button
               key={model.id}
