@@ -5,7 +5,7 @@ import { useStore } from '@/lib/store';
 import * as api from '@/lib/api';
 import type { Message } from '@/lib/types';
 import { MODELS } from '@/lib/types';
-import { ArrowUp, Square, Paperclip, X, Terminal, Trash2, HelpCircle, Download, Cpu, FileSpreadsheet, FileImage, FileText, File, Settings2, Upload, MessageSquare } from 'lucide-react';
+import { ArrowUp, Square, Paperclip, X, Terminal, Trash2, HelpCircle, Download, Cpu, FileSpreadsheet, FileImage, FileText, File, Settings2, MessageSquare } from 'lucide-react';
 import ModelPicker from './model-picker';
 import { toast } from './toast';
 import { useStreaming } from '@/lib/useStreaming';
@@ -204,8 +204,7 @@ export default function ChatInput() {
   const [mentionMenuOpen, setMentionMenuOpen] = useState(false);
   const [mentionHighlightIndex, setMentionHighlightIndex] = useState(0);
   const [mentionResults, setMentionResults] = useState<{ id: string; title: string }[]>([]);
-  const [isDragging, setIsDragging] = useState(false);
-  const dragCounterRef = useRef(0);
+  const [attachedContexts, setAttachedContexts] = useState<{ id: string; title: string }[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const draftTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -351,27 +350,15 @@ export default function ChatInput() {
     }
   }, [content, activeConversationId]);
 
-  const insertMention = async (conv: { id: string; title: string }) => {
-    // Replace @query with @title and inject conversation context
-    const newContent = content.replace(/@\S*$/, `@${conv.title} `);
+  const insertMention = (conv: { id: string; title: string }) => {
+    // Replace @query with clean text, track context as a chip
+    const newContent = content.replace(/@\S*$/, '');
     setContent(newContent);
     setMentionMenuOpen(false);
-
-    // Fetch the conversation's messages and append as context
-    try {
-      const data = await api.getConversation(conv.id);
-      const msgs = (data.messages as Array<Record<string, unknown>>) || [];
-      const context = msgs
-        .filter((m) => m.role === 'user' || m.role === 'assistant')
-        .map((m) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${(m.content as string || '').slice(0, 500)}`)
-        .join('\n');
-      if (context) {
-        setContent((prev) => prev + `\n\n[Context from "${conv.title}"]\n${context}\n\n`);
-      }
-      toast.success(`Added context from "${conv.title}"`);
-    } catch {
-      toast.error('Failed to load conversation context');
-    }
+    // Add to attached contexts (avoid duplicates)
+    setAttachedContexts((prev) =>
+      prev.some((c) => c.id === conv.id) ? prev : [...prev, conv]
+    );
   };
 
   // Pick up pending prompt from empty state starters
@@ -481,7 +468,28 @@ export default function ChatInput() {
       }
     }
 
-    if (!text && pendingFiles.length === 0) return;
+    if (!text && pendingFiles.length === 0 && attachedContexts.length === 0) return;
+
+    // Build context prefix from @mentioned conversations
+    let contextPrefix = '';
+    if (attachedContexts.length > 0) {
+      const contextParts: string[] = [];
+      for (const ctx of attachedContexts) {
+        try {
+          const data = await api.getConversation(ctx.id);
+          const msgs = (data.messages as Array<Record<string, unknown>>) || [];
+          const summary = msgs
+            .filter((m) => m.role === 'user' || m.role === 'assistant')
+            .slice(-10) // Last 10 messages max
+            .map((m) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${(m.content as string || '').slice(0, 300)}`)
+            .join('\n');
+          if (summary) contextParts.push(`[Context from "${ctx.title}"]\n${summary}`);
+        } catch {}
+      }
+      if (contextParts.length > 0) {
+        contextPrefix = contextParts.join('\n\n') + '\n\n---\n\n';
+      }
+    }
 
     let convId = activeConversationId;
     if (!convId) {
@@ -507,14 +515,16 @@ export default function ChatInput() {
       }
     }
 
+    const fullText = contextPrefix + text;
     const parentId = branchingFromId || undefined;
     setBranchingFromId(null);
     setContent('');
     setPendingFiles([]);
+    setAttachedContexts([]);
     saveDraft(convId, '');
     saveDraft(activeConversationId, '');
 
-    // Add user message optimistically
+    // Add user message optimistically (show only user's text, not context blob)
     const userMsg: Message = {
       id: `temp-${Date.now()}`, conversationId: convId, role: 'user',
       content: text || '[File upload]', createdAt: new Date().toISOString(),
@@ -527,13 +537,13 @@ export default function ChatInput() {
       setMessages([...messages, userMsg]);
     }
 
-    await streamSend(text, convId, {
+    await streamSend(fullText, convId, {
       attachmentIds,
       model: activeModel,
       parentId,
       numResponses,
     });
-  }, [content, pendingFiles, isStreaming, activeConversationId, activeModel, sandboxId, messages,
+  }, [content, pendingFiles, attachedContexts, isStreaming, activeConversationId, activeModel, sandboxId, messages,
     setActiveConversationId, setMessages, setConversations, branchingFromId, setBranchingFromId,
     numResponses, streamSend, slashCommands]);
 
@@ -574,6 +584,18 @@ export default function ChatInput() {
     window.addEventListener('nexus:branch-send', handler);
     return () => window.removeEventListener('nexus:branch-send', handler);
   }, [setBranchingFromId]);
+
+  // Listen for file drops from the workspace-level drop zone
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const files = (e as CustomEvent).detail?.files as File[] | undefined;
+      if (files && files.length > 0) {
+        setPendingFiles((prev) => [...prev, ...files]);
+      }
+    };
+    window.addEventListener('nexus:drop-files', handler);
+    return () => window.removeEventListener('nexus:drop-files', handler);
+  }, []);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     // @ mention navigation
@@ -622,6 +644,20 @@ export default function ChatInput() {
     <div className="shrink-0 border-t border-border-default bg-surface-0 px-3 sm:px-5 pt-4 sm:pt-5 safe-bottom"
       style={{ '--safe-bottom-pad': '1.25rem' } as React.CSSProperties}
     >
+      {attachedContexts.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mb-2">
+          {attachedContexts.map((ctx) => (
+            <div key={ctx.id} className="flex items-center gap-1.5 px-2 py-1 bg-accent/10 border border-accent/20 rounded-md text-[11px] text-accent">
+              <MessageSquare size={10} />
+              <span className="truncate max-w-[160px]">{ctx.title}</span>
+              <button onClick={() => setAttachedContexts((prev) => prev.filter((c) => c.id !== ctx.id))} className="text-accent/60 hover:text-accent cursor-pointer">
+                <X size={10} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       {pendingFiles.length > 0 && (
         <div className="flex flex-wrap gap-2 mb-2">
           {pendingFiles.map((file, i) => (
@@ -683,23 +719,8 @@ export default function ChatInput() {
         )}
 
         <div
-          className={`relative flex items-center gap-2 bg-surface-1 border rounded-xl px-3 py-2 min-h-[44px] transition-all ${
-            isDragging
-              ? 'border-accent border-dashed shadow-[0_0_24px_-4px_var(--color-accent-dim)]'
-              : 'border-border-default focus-within:border-accent/30 focus-within:shadow-[0_0_16px_-4px_var(--color-accent-dim)]'
-          }`}
-          onDragEnter={(e) => { e.preventDefault(); dragCounterRef.current++; setIsDragging(true); }}
-          onDragLeave={(e) => { e.preventDefault(); dragCounterRef.current--; if (dragCounterRef.current === 0) setIsDragging(false); }}
-          onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }}
-          onDrop={(e) => { e.preventDefault(); dragCounterRef.current = 0; setIsDragging(false); if (e.dataTransfer.files.length > 0) setPendingFiles((prev) => [...prev, ...Array.from(e.dataTransfer.files)]); }}
+          className="flex items-center gap-2 bg-surface-1 border border-border-default rounded-xl px-3 py-2 min-h-[44px] focus-within:border-accent/30 focus-within:shadow-[0_0_16px_-4px_var(--color-accent-dim)] transition-all"
         >
-          {/* Drop overlay */}
-          {isDragging && (
-            <div className="absolute inset-0 flex items-center justify-center gap-2 bg-accent/5 rounded-xl z-10 pointer-events-none">
-              <Upload size={16} className="text-accent" />
-              <span className="text-xs font-medium text-accent">Drop files here</span>
-            </div>
-          )}
           <textarea
             ref={textareaRef}
             value={content}
