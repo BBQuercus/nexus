@@ -31,14 +31,14 @@ export async function initMarkdown(): Promise<void> {
 
 export function highlightCode(code: string, language: string): string {
   if (!shikiHighlighter) {
-    return `<pre class="shiki" style="background-color:#121212"><code>${escapeHtml(code)}</code></pre>`;
+    return `<pre class="shiki" style="background-color:#18181B"><code>${escapeHtml(code)}</code></pre>`;
   }
   try {
     const loadedLangs = shikiHighlighter.getLoadedLanguages();
     const lang = loadedLangs.includes(language as never) ? language : 'text';
     return shikiHighlighter.codeToHtml(code, { lang: lang || 'text', theme: 'vitesse-dark' });
   } catch {
-    return `<pre class="shiki" style="background-color:#121212"><code>${escapeHtml(code)}</code></pre>`;
+    return `<pre class="shiki" style="background-color:#18181B"><code>${escapeHtml(code)}</code></pre>`;
   }
 }
 
@@ -65,13 +65,15 @@ export function renderMarkdown(text: string): string {
       const id = `mermaid-${Math.random().toString(36).slice(2, 10)}`;
       return `<div class="mermaid-embed"><div class="mermaid-container" data-mermaid-id="${id}" data-mermaid-source="${escapeHtml(code)}">${escapeHtml(code)}</div></div>`;
     }
-    return highlightCode(code, language);
+    const highlighted = highlightCode(code, language);
+    const langLabel = language ? `<span class="code-lang-label">${escapeHtml(language)}</span>` : '';
+    return `<div class="code-block-wrapper"><div class="code-block-header">${langLabel}<button class="code-copy-btn" data-code="${escapeHtml(code)}" onclick="(function(btn){navigator.clipboard.writeText(btn.dataset.code).then(function(){btn.textContent='Copied!';setTimeout(function(){btn.textContent='Copy'},1500)});})(this)">Copy</button></div>${highlighted}</div>`;
   };
   renderer.image = function ({ href, title, text }: { href: string; title?: string | null | undefined; text: string }) {
     const alt = text || '';
     const titleAttr = title ? ` title="${escapeHtml(title)}"` : '';
     return `<div class="my-3 border border-[var(--color-border-default)] overflow-hidden">
-      <img src="${escapeHtml(href)}" alt="${escapeHtml(alt)}"${titleAttr} class="w-full max-h-[500px] object-contain" style="background:#0A0A0A" loading="lazy" />
+      <img src="${escapeHtml(href)}" alt="${escapeHtml(alt)}"${titleAttr} class="w-full max-h-[500px] object-contain" style="background:#121214" loading="lazy" />
       ${alt ? `<div class="flex items-center justify-between px-3 py-1.5 text-[11px] font-mono" style="background:var(--color-surface-1);color:var(--color-text-tertiary)">
         <span>${escapeHtml(alt)}</span>
         <a href="${escapeHtml(href)}" download="${escapeHtml(alt)}" style="color:var(--color-text-tertiary)">Save</a>

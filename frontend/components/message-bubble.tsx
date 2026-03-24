@@ -2,10 +2,12 @@
 
 import { useMemo, useRef, useEffect, useState } from 'react';
 import type { Message, CostData, ToolCall } from '@/lib/types';
+import { MODELS } from '@/lib/types';
 import { renderMarkdown } from '@/lib/markdown';
 import { useStore } from '@/lib/store';
 import * as api from '@/lib/api';
-import { Copy, GitBranch, RefreshCw, ChevronRight, ChevronDown, ChevronLeft, Terminal, Play, Check, Download, Clock, Coins, Cpu, ArrowRight, X, Link } from 'lucide-react';
+import { mapRawMessages } from '@/lib/useStreaming';
+import { Copy, GitBranch, RefreshCw, ChevronRight, ChevronDown, ChevronLeft, Terminal, Play, Check, Download, Clock, Coins, Cpu, ArrowRight, X, Link, FileEdit, Pencil, ChevronUp } from 'lucide-react';
 
 function CostBadge({ data }: { data: CostData }) {
   const model = data.model.split('/').pop() || data.model;
@@ -26,15 +28,16 @@ function CostBadge({ data }: { data: CostData }) {
 }
 
 function ExecBlock({ tool }: { tool: ToolCall }) {
-  const lang = tool.language || tool.name || 'code';
+  const isWriteFile = tool.name === 'write_file';
+  const lang = isWriteFile ? 'write' : (tool.language || tool.name || 'code');
   const [collapsed, setCollapsed] = useState(!tool.isRunning && !!tool.output && tool.output.length > 200);
 
   return (
     <div className={`my-2 rounded-lg border overflow-hidden ${tool.isRunning ? 'border-accent/30' : 'border-border-default'}`}>
       <div className="flex items-center justify-between px-3 py-1.5 bg-surface-1 text-[11px] font-mono">
         <div className="flex items-center gap-1.5 text-text-secondary">
-          <Terminal size={11} className="text-text-tertiary" />
-          <span>{lang}</span>
+          {isWriteFile ? <FileEdit size={11} className="text-accent" /> : <Terminal size={11} className="text-text-tertiary" />}
+          <span>{isWriteFile && tool.code ? tool.code.split('\n')[0]?.replace(/^.*path['":\s]*['"]?([^'"]+).*$/, '$1') || lang : lang}</span>
         </div>
         <div className="flex items-center gap-2">
           {tool.isRunning ? (
@@ -122,7 +125,6 @@ function SiblingNav({ message }: { message: Message }) {
 
   const switchToSibling = async (siblingId: string) => {
     if (!activeConversationId || !tree) return;
-    // Walk down from the sibling to find its deepest leaf (follow first child)
     let leafId = siblingId;
     const childMap = new Map<string, typeof tree.nodes>();
     for (const n of tree.nodes) {
@@ -140,22 +142,8 @@ function SiblingNav({ message }: { message: Message }) {
     }
     try {
       const result = await api.switchBranch(activeConversationId, leafId);
-      const mapped: Message[] = (result.messages || []).map((m: Record<string, unknown>) => ({
-        id: (m.id as string) || '',
-        conversationId: activeConversationId,
-        role: (m.role as 'user' | 'assistant' | 'system') || 'user',
-        content: (m.content as string) || '',
-        createdAt: (m.created_at as string) || '',
-        reasoning: (m.reasoning as string) || undefined,
-        toolCalls: (m.tool_calls as Message['toolCalls']) || undefined,
-        images: (m.images as Message['images']) || undefined,
-        feedback: (m.feedback as Message['feedback']) || undefined,
-        parentId: (m.parent_id as string) || undefined,
-        branchIndex: (m.branch_index as number) ?? undefined,
-      }));
-      setMessages(mapped);
+      setMessages(mapRawMessages(result.messages || [], activeConversationId));
       setActiveLeafId(result.active_leaf_id);
-      // Refresh tree
       const newTree = await api.getConversationTree(activeConversationId);
       setConversationTree(newTree);
     } catch (e) {
@@ -190,14 +178,11 @@ function InlineBranchInput({ messageId, onClose }: { messageId: string; onClose:
   const activeConversationId = useStore((s) => s.activeConversationId);
   const isStreaming = useStore((s) => s.isStreaming);
 
-  useEffect(() => {
-    textareaRef.current?.focus();
-  }, []);
+  useEffect(() => { textareaRef.current?.focus(); }, []);
 
   const handleSubmit = () => {
     const text = branchText.trim();
     if (!text || !activeConversationId || isStreaming) return;
-    // Dispatch to chat-input via the store + custom event
     useStore.getState().setBranchingFromId(messageId);
     window.dispatchEvent(new CustomEvent('nexus:branch-send', {
       detail: { content: text, parentId: messageId },
@@ -206,31 +191,21 @@ function InlineBranchInput({ messageId, onClose }: { messageId: string; onClose:
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-      e.preventDefault();
-      handleSubmit();
-    }
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      onClose();
-    }
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); handleSubmit(); }
+    if (e.key === 'Escape') { e.preventDefault(); onClose(); }
   };
 
   return (
     <div className="relative flex gap-0 mt-3">
-      {/* Connector line */}
       <div className="flex flex-col items-center w-8 shrink-0 pt-3">
         <div className="w-full h-[2px] bg-border-default/40" />
         <div className="w-[2px] flex-1 border-l border-dashed border-border-default/50" />
       </div>
-      {/* Branch card */}
       <div className="bg-surface-0 border border-border-default rounded-xl p-4 shadow-xl shadow-black/20 w-80 animate-fade-in-up" style={{ animationDuration: '0.15s' }}>
         <div className="flex items-center gap-2 mb-3">
           <span className="text-[10px] font-bold text-accent uppercase tracking-widest">Branch Thread</span>
           <span className="h-[1px] flex-1 bg-border-default/30" />
-          <button onClick={onClose} className="text-text-tertiary hover:text-text-secondary cursor-pointer">
-            <X size={12} />
-          </button>
+          <button onClick={onClose} className="text-text-tertiary hover:text-text-secondary cursor-pointer"><X size={12} /></button>
         </div>
         <div className="space-y-3">
           <div className="relative">
@@ -258,12 +233,128 @@ function InlineBranchInput({ messageId, onClose }: { messageId: string; onClose:
               <kbd className="px-1 py-0.5 bg-surface-1 border border-border-default rounded text-[9px]">&#8984;+Enter</kbd>
               to branch
             </span>
-            <span className="flex items-center gap-1">
-              <Link size={9} /> Context locked
-            </span>
+            <span className="flex items-center gap-1"><Link size={9} /> Context locked</span>
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+/** Inline edit form for user messages */
+function InlineEditForm({ message, onClose }: { message: Message; onClose: () => void }) {
+  const [editText, setEditText] = useState(message.content);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const isStreaming = useStore((s) => s.isStreaming);
+
+  useEffect(() => {
+    const ta = textareaRef.current;
+    if (ta) {
+      ta.focus();
+      ta.selectionStart = ta.selectionEnd = ta.value.length;
+      ta.style.height = 'auto';
+      ta.style.height = Math.min(ta.scrollHeight, 200) + 'px';
+    }
+  }, []);
+
+  const handleSubmit = () => {
+    const text = editText.trim();
+    if (!text || isStreaming || text === message.content) { onClose(); return; }
+    // Editing a user message = branching from its parent with new content
+    const parentId = message.parentId || undefined;
+    if (parentId) {
+      useStore.getState().setBranchingFromId(parentId);
+      window.dispatchEvent(new CustomEvent('nexus:branch-send', {
+        detail: { content: text, parentId },
+      }));
+    } else {
+      // First message — branch from root
+      useStore.getState().setBranchingFromId(message.id);
+      window.dispatchEvent(new CustomEvent('nexus:branch-send', {
+        detail: { content: text, parentId: message.id },
+      }));
+    }
+    onClose();
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmit(); }
+    if (e.key === 'Escape') { e.preventDefault(); onClose(); }
+  };
+
+  return (
+    <div className="bg-surface-1 border border-accent/20 rounded-2xl rounded-br-sm px-4 py-2.5 animate-fade-in-up" style={{ animationDuration: '0.1s' }}>
+      <textarea
+        ref={textareaRef}
+        value={editText}
+        onChange={(e) => {
+          setEditText(e.target.value);
+          const ta = e.target;
+          ta.style.height = 'auto';
+          ta.style.height = Math.min(ta.scrollHeight, 200) + 'px';
+        }}
+        onKeyDown={handleKeyDown}
+        className="w-full bg-transparent text-sm text-text-primary resize-none outline-none"
+        rows={1}
+      />
+      <div className="flex justify-end gap-2 mt-2">
+        <button onClick={onClose} className="px-2.5 py-1 text-[10px] text-text-tertiary hover:text-text-secondary bg-surface-2 rounded-md cursor-pointer transition-colors">
+          Cancel
+        </button>
+        <button
+          onClick={handleSubmit}
+          disabled={!editText.trim() || editText.trim() === message.content}
+          className="px-2.5 py-1 text-[10px] font-medium bg-accent text-bg rounded-md hover:bg-accent-hover cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          Save & Submit
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Model picker dropdown for "retry with..." */
+function RetryWithModelMenu({ messageId, onClose }: { messageId: string; onClose: () => void }) {
+  const activeConversationId = useStore((s) => s.activeConversationId);
+  const activeModel = useStore((s) => s.activeModel);
+  const isStreaming = useStore((s) => s.isStreaming);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) onClose();
+    };
+    const keyHandler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('mousedown', handler);
+    document.addEventListener('keydown', keyHandler);
+    return () => { document.removeEventListener('mousedown', handler); document.removeEventListener('keydown', keyHandler); };
+  }, [onClose]);
+
+  const handleRetry = (modelId: string) => {
+    if (!activeConversationId || isStreaming) return;
+    onClose();
+    window.dispatchEvent(new CustomEvent('nexus:regenerate-with-model', {
+      detail: { conversationId: activeConversationId, messageId, model: modelId },
+    }));
+  };
+
+  return (
+    <div ref={menuRef} className="absolute left-0 top-full mt-1 w-64 bg-surface-0 border border-border-default rounded-lg shadow-xl shadow-black/30 z-50 animate-fade-in-up overflow-hidden" style={{ animationDuration: '0.1s' }}>
+      <div className="px-3 py-1.5 text-[10px] uppercase tracking-wider text-text-tertiary font-medium border-b border-border-default">
+        Retry with model
+      </div>
+      {MODELS.map((m) => (
+        <button
+          key={m.id}
+          onClick={() => handleRetry(m.id)}
+          className={`w-full flex items-center justify-between px-3 py-2 text-left hover:bg-surface-1 transition-colors cursor-pointer ${
+            m.id === activeModel ? 'bg-surface-1' : ''
+          }`}
+        >
+          <span className="text-xs text-text-primary">{m.name}</span>
+          {m.id === activeModel && <span className="text-[9px] text-text-tertiary font-mono">current</span>}
+        </button>
+      ))}
     </div>
   );
 }
@@ -274,6 +365,8 @@ export default function MessageBubble({ message }: { message: Message }) {
   const isStreaming = useStore((s) => s.isStreaming);
   const [copied, setCopied] = useState(false);
   const [showBranchInput, setShowBranchInput] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [showRetryMenu, setShowRetryMenu] = useState(false);
 
   const renderedHtml = useMemo(() => {
     if (message.role === 'user') return null;
@@ -288,7 +381,7 @@ export default function MessageBubble({ message }: { message: Message }) {
     (async () => {
       try {
         const mermaid = await import('mermaid');
-        mermaid.default.initialize({ startOnLoad: false, theme: 'dark', darkMode: true, themeVariables: { primaryColor: '#1A1A1A', primaryTextColor: '#ECECEC', primaryBorderColor: '#2A2A2A', lineColor: '#555555' }, securityLevel: 'loose' });
+        mermaid.default.initialize({ startOnLoad: false, theme: 'dark', darkMode: true, themeVariables: { primaryColor: '#222225', primaryTextColor: '#F0F0F2', primaryBorderColor: '#333338', lineColor: '#636369' }, securityLevel: 'loose' });
         for (const el of mermaidContainers) {
           const source = el.getAttribute('data-mermaid-source');
           if (source) { const id = `mermaid-${Math.random().toString(36).slice(2, 10)}`; const { svg } = await mermaid.default.render(id, source); el.innerHTML = svg; el.removeAttribute('data-mermaid-source'); }
@@ -314,27 +407,36 @@ export default function MessageBubble({ message }: { message: Message }) {
   if (message.role === 'user') {
     return (
       <div className="flex justify-end">
-        <div className="group max-w-[80%]">
+        <div className="group max-w-[95%] sm:max-w-[80%]">
           <SiblingNav message={message} />
-          <div className="bg-surface-2 border border-border-default rounded-2xl rounded-br-sm text-text-primary px-4 py-2.5 text-sm whitespace-pre-wrap">
-            {message.content}
-          </div>
-          <div className="flex justify-end gap-2 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            <button onClick={handleCopy} className="flex items-center gap-1 text-[10px] text-text-tertiary hover:text-text-secondary cursor-pointer">
-              {copied ? <Check size={10} className="text-accent" /> : <Copy size={10} />} {copied ? 'Copied' : 'Copy'}
-            </button>
-            <div className="h-3 w-[1px] bg-border-default/30 mx-0.5" />
-            <button
-              onClick={() => setShowBranchInput(!showBranchInput)}
-              className={`flex items-center gap-1.5 text-[10px] font-bold py-0.5 px-2 rounded transition-all cursor-pointer ${
-                showBranchInput
-                  ? 'text-accent bg-accent/10 border border-accent/20'
-                  : 'text-accent bg-accent/5 border border-accent/15 hover:bg-accent/10'
-              }`}
-            >
-              <GitBranch size={10} /> New Branch
-            </button>
-          </div>
+          {isEditing ? (
+            <InlineEditForm message={message} onClose={() => setIsEditing(false)} />
+          ) : (
+            <div className="bg-surface-2 border border-border-default rounded-2xl rounded-br-sm text-text-primary px-4 py-2.5 text-sm whitespace-pre-wrap">
+              {message.content}
+            </div>
+          )}
+          {!isEditing && (
+            <div className="flex justify-end gap-2 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button onClick={() => setIsEditing(true)} className="flex items-center gap-1 text-[10px] text-text-tertiary hover:text-text-secondary cursor-pointer">
+                <Pencil size={10} /> Edit
+              </button>
+              <button onClick={handleCopy} className="flex items-center gap-1 text-[10px] text-text-tertiary hover:text-text-secondary cursor-pointer">
+                {copied ? <Check size={10} className="text-accent" /> : <Copy size={10} />} {copied ? 'Copied' : 'Copy'}
+              </button>
+              <div className="h-3 w-[1px] bg-border-default/30 mx-0.5" />
+              <button
+                onClick={() => setShowBranchInput(!showBranchInput)}
+                className={`flex items-center gap-1.5 text-[10px] font-bold py-0.5 px-2 rounded transition-all cursor-pointer ${
+                  showBranchInput
+                    ? 'text-accent bg-accent/10 border border-accent/20'
+                    : 'text-accent bg-accent/5 border border-accent/15 hover:bg-accent/10'
+                }`}
+              >
+                <GitBranch size={10} /> New Branch
+              </button>
+            </div>
+          )}
           {showBranchInput && (
             <InlineBranchInput messageId={message.id} onClose={() => setShowBranchInput(false)} />
           )}
@@ -345,7 +447,7 @@ export default function MessageBubble({ message }: { message: Message }) {
 
   return (
     <div className="flex justify-start">
-      <div className="group max-w-[85%]">
+      <div className="group max-w-[95%] sm:max-w-[85%]">
         <SiblingNav message={message} />
         {message.reasoning && <ReasoningTrace content={message.reasoning} tokenCount={message.reasoningTokens} />}
         {message.toolCalls?.map((tool) => <ExecBlock key={tool.id} tool={tool} />)}
@@ -367,6 +469,17 @@ export default function MessageBubble({ message }: { message: Message }) {
           <button onClick={handleRegenerate} className="flex items-center gap-1 text-[10px] text-text-tertiary hover:text-text-secondary cursor-pointer">
             <RefreshCw size={10} /> Regenerate
           </button>
+          <div className="relative">
+            <button
+              onClick={() => setShowRetryMenu(!showRetryMenu)}
+              className="flex items-center gap-0.5 text-[10px] text-text-tertiary hover:text-text-secondary cursor-pointer"
+            >
+              <ChevronUp size={9} />
+            </button>
+            {showRetryMenu && (
+              <RetryWithModelMenu messageId={message.id} onClose={() => setShowRetryMenu(false)} />
+            )}
+          </div>
           <div className="h-3 w-[1px] bg-border-default/30 mx-0.5" />
           <button
             onClick={() => setShowBranchInput(!showBranchInput)}

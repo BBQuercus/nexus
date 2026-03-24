@@ -43,7 +43,7 @@ export default function SandboxBar() {
         className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] text-text-tertiary bg-surface-1 border border-border-default rounded-md hover:border-border-focus cursor-pointer transition-colors font-mono"
       >
         <span className={`w-1.5 h-1.5 rounded-full ${dotColor[sandboxStatus]} ${sandboxStatus === 'running' ? 'animate-pulse' : ''}`} />
-        {labels[sandboxStatus]}
+        <span className="hidden sm:inline">{labels[sandboxStatus]}</span>
       </button>
 
       {open && sandboxId && (
@@ -60,7 +60,16 @@ export default function SandboxBar() {
               <Play size={12} /> Start Sandbox
             </button>
           )}
-          <button onClick={async () => { if (!confirm('Delete this sandbox?')) return; try { await api.deleteSandbox(sandboxId); setSandboxStatus('none'); setSandboxId(null); } catch {} setOpen(false); }}
+          <button onClick={async () => {
+              const confirmed = await useStore.getState().showConfirm({
+                title: 'Delete this sandbox?',
+                message: 'All sandbox files and state will be lost.',
+                confirmLabel: 'Delete',
+                variant: 'danger',
+              });
+              if (!confirmed) return;
+              try { await api.deleteSandbox(sandboxId); setSandboxStatus('none'); setSandboxId(null); } catch {} setOpen(false);
+            }}
             className="w-full flex items-center gap-2 px-3 py-2.5 text-left text-xs text-error hover:bg-surface-1 cursor-pointer transition-colors">
             <Trash2 size={12} /> Delete Sandbox
           </button>

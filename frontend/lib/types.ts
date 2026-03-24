@@ -15,6 +15,8 @@ export interface Conversation {
   personaId?: string;
   sandboxId?: string;
   messageCount?: number;
+  pinned?: boolean;
+  preview?: string;
 }
 
 export type AgentMode = 'chat' | 'code' | 'architect';

@@ -493,10 +493,14 @@ async def submit_feedback(
     return {"ok": True}
 
 
+class RegenerateRequest(BaseModel):
+    model: str | None = None
+
 @router.post("/{conversation_id}/messages/{message_id}/regenerate")
 async def regenerate_message(
     conversation_id: uuid.UUID,
     message_id: uuid.UUID,
+    body: RegenerateRequest | None = None,
     user_id: uuid.UUID = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -551,7 +555,7 @@ async def regenerate_message(
             raise HTTPException(status_code=400, detail="Parent user message not found")
         user_message_content = user_msg.content
 
-    model = conv.model or "gpt-4.1-chn"
+    model = (body.model if body and body.model else None) or conv.model or "gpt-4.1-chn"
     mode = conv.agent_mode or "chat"
 
     persona = None

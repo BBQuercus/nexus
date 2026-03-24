@@ -20,6 +20,15 @@ export interface MultiStreamingState {
   completedBranches: number[];
 }
 
+export interface ConfirmState {
+  open: boolean;
+  title: string;
+  message?: string;
+  confirmLabel?: string;
+  variant?: 'danger' | 'default';
+  resolve: ((confirmed: boolean) => void) | null;
+}
+
 export interface AppState {
   user: User | null;
   conversations: Conversation[];
@@ -35,6 +44,8 @@ export interface AppState {
   conversationTree: ConversationTree | null;
   branchingFromId: string | null;
   multiStreaming: MultiStreamingState | null;
+  sidebarOpen: boolean;
+  abortController: AbortController | null;
   commandPaletteOpen: boolean;
   isStreaming: boolean;
   streaming: StreamingState;
@@ -42,6 +53,7 @@ export interface AppState {
   rightPanelOpen: boolean;
   previewUrl: string | null;
   pendingPrompt: string | null;
+  confirmDialog: ConfirmState;
 }
 
 export interface AppActions {
@@ -60,6 +72,9 @@ export interface AppActions {
   setBranchingFromId: (id: string | null) => void;
   setMultiStreaming: (state: MultiStreamingState | null) => void;
   setActiveBranchView: (index: number) => void;
+  setSidebarOpen: (open: boolean) => void;
+  setAbortController: (controller: AbortController | null) => void;
+  abortStreaming: () => void;
   setCommandPaletteOpen: (open: boolean) => void;
   setIsStreaming: (streaming: boolean) => void;
   setStreaming: (streaming: Partial<StreamingState>) => void;
@@ -70,6 +85,9 @@ export interface AppActions {
   setPreviewUrl: (url: string | null) => void;
   setPendingPrompt: (prompt: string | null) => void;
   updateConversationTitle: (id: string, title: string) => void;
+  togglePinConversation: (id: string) => void;
+  showConfirm: (opts: { title: string; message?: string; confirmLabel?: string; variant?: 'danger' | 'default' }) => Promise<boolean>;
+  resolveConfirm: (confirmed: boolean) => void;
   reset: () => void;
 }
 
@@ -90,6 +108,8 @@ function getPersistedState(): Partial<AppState> {
   }
 }
 
+const emptyConfirm: ConfirmState = { open: false, title: '', resolve: null };
+
 const initialState: AppState = {
   user: null,
   conversations: [],
@@ -105,6 +125,8 @@ const initialState: AppState = {
   conversationTree: null,
   branchingFromId: null,
   multiStreaming: null,
+  sidebarOpen: true,
+  abortController: null,
   commandPaletteOpen: false,
   isStreaming: false,
   streaming: { ...emptyStreaming },
@@ -112,6 +134,7 @@ const initialState: AppState = {
   rightPanelOpen: false,
   previewUrl: null,
   pendingPrompt: null,
+  confirmDialog: { ...emptyConfirm },
 };
 
 export const useStore = create<AppState & AppActions>((set) => ({
@@ -143,6 +166,13 @@ export const useStore = create<AppState & AppActions>((set) => ({
   setActiveBranchView: (index) => set((state) => ({
     multiStreaming: state.multiStreaming ? { ...state.multiStreaming, activeBranchIndex: index } : null,
   })),
+  setSidebarOpen: (open) => set({ sidebarOpen: open }),
+  setAbortController: (controller) => set({ abortController: controller }),
+  abortStreaming: () => {
+    const { abortController } = useStore.getState();
+    if (abortController) abortController.abort();
+    set({ abortController: null, isStreaming: false });
+  },
   setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
   setIsStreaming: (streaming) => set({ isStreaming: streaming }),
   setStreaming: (partial) => set((state) => ({ streaming: { ...state.streaming, ...partial } })),
@@ -160,6 +190,35 @@ export const useStore = create<AppState & AppActions>((set) => ({
         c.id === id ? { ...c, title } : c
       ),
     })),
+  togglePinConversation: (id) => {
+    set((state) => {
+      const updated = state.conversations.map((c) =>
+        c.id === id ? { ...c, pinned: !c.pinned } : c
+      );
+      // Persist pinned IDs to localStorage
+      const pinnedIds = updated.filter((c) => c.pinned).map((c) => c.id);
+      try { localStorage.setItem('nexus:pinnedConversations', JSON.stringify(pinnedIds)); } catch {}
+      return { conversations: updated };
+    });
+  },
+  showConfirm: (opts) =>
+    new Promise<boolean>((resolve) => {
+      set({
+        confirmDialog: {
+          open: true,
+          title: opts.title,
+          message: opts.message,
+          confirmLabel: opts.confirmLabel,
+          variant: opts.variant,
+          resolve,
+        },
+      });
+    }),
+  resolveConfirm: (confirmed) => {
+    const { confirmDialog } = useStore.getState();
+    if (confirmDialog.resolve) confirmDialog.resolve(confirmed);
+    set({ confirmDialog: { ...emptyConfirm } });
+  },
   reset: () => {
     try { localStorage.removeItem('nexus:activeConversationId'); } catch {}
     set(initialState);
