@@ -6,11 +6,18 @@ export interface StreamingImage {
   url: string;
 }
 
+export interface StreamingFile {
+  filename: string;
+  fileType: string;
+  sandboxId?: string;
+}
+
 export interface StreamingState {
   content: string;
   reasoning: string;
   toolCalls: ToolCall[];
   images: StreamingImage[];
+  files: StreamingFile[];
 }
 
 export interface MultiStreamingState {
@@ -91,7 +98,7 @@ export interface AppActions {
   reset: () => void;
 }
 
-const emptyStreaming: StreamingState = { content: '', reasoning: '', toolCalls: [], images: [] };
+const emptyStreaming: StreamingState = { content: '', reasoning: '', toolCalls: [], images: [], files: [] };
 
 // Restore persisted state from localStorage
 function getPersistedState(): Partial<AppState> {

@@ -17,6 +17,7 @@ export function mapRawMessages(raw: Array<Record<string, unknown>>, conversation
     reasoning: (m.reasoning as string) || undefined,
     toolCalls: (m.tool_calls as Message['toolCalls']) || undefined,
     images: (m.images as Message['images']) || undefined,
+    files: (m.files as Message['files']) || undefined,
     feedback: (m.feedback as Message['feedback']) || undefined,
     parentId: (m.parent_id as string) || undefined,
     branchIndex: (m.branch_index as number) ?? undefined,
@@ -118,6 +119,21 @@ export function processSseEvent(
       break;
     }
 
+    case 'file_output': {
+      const filename = (event.filename as string) || '';
+      const fileType = (event.file_type as string) || '';
+      const sandboxId = (event.sandbox_id as string) || undefined;
+      if (filename) {
+        const fileEntry = { filename, fileType, sandboxId };
+        if (opts.isMulti) {
+          opts.updateBranch(bi, (b) => ({ files: [...b.files, fileEntry] }));
+        } else {
+          store.setStreaming({ files: [...store.streaming.files, fileEntry] });
+        }
+      }
+      break;
+    }
+
     case 'preview':
       store.setPreviewUrl((event.url as string) || '');
       store.setRightPanelTab('preview');
@@ -210,7 +226,7 @@ export function useStreaming() {
     const isMulti = opts.numResponses > 1;
 
     if (isMulti) {
-      const emptyBranch: StreamingState = { content: '', reasoning: '', toolCalls: [], images: [] };
+      const emptyBranch: StreamingState = { content: '', reasoning: '', toolCalls: [], images: [], files: [] };
       store.setMultiStreaming({
         branches: Array.from({ length: opts.numResponses }, () => ({ ...emptyBranch })),
         activeBranchIndex: 0,
@@ -276,6 +292,7 @@ export function useStreaming() {
         toolCalls: finalState.toolCalls.length > 0 ? finalState.toolCalls : undefined,
         cost: finalCost,
         images: finalState.images.length > 0 ? [...finalState.images] : undefined,
+        files: finalState.files.length > 0 ? [...finalState.files] : undefined,
       };
       useStore.getState().setMessages((prev: Message[]) => [...prev, assistantMsg]);
       useStore.getState().resetStreaming();

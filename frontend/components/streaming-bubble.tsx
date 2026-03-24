@@ -3,7 +3,7 @@
 import { useRef, useEffect } from 'react';
 import { useStore } from '@/lib/store';
 import type { StreamingState } from '@/lib/store';
-import { Zap, Terminal, Play, Download, Check, ChevronDown, Loader2 } from 'lucide-react';
+import { Zap, Terminal, Play, Download, Check, ChevronDown, Loader2, FileSpreadsheet, FileText, Presentation, File as FileIcon } from 'lucide-react';
 import type { ToolCall } from '@/lib/types';
 
 function StreamingExecBlock({ tool }: { tool: ToolCall }) {
@@ -61,8 +61,34 @@ function StreamingImage({ filename, url }: { filename: string; url: string }) {
   );
 }
 
+function StreamingFileCard({ filename, fileType }: { filename: string; fileType: string }) {
+  const ext = filename.split('.').pop()?.toLowerCase() || '';
+  const icon = ext === 'xlsx' || ext === 'xls' ? <FileSpreadsheet size={16} className="text-green-400" />
+    : ext === 'pptx' || ext === 'ppt' ? <Presentation size={16} className="text-orange-400" />
+    : ext === 'pdf' ? <FileText size={16} className="text-red-400" />
+    : <FileIcon size={16} className="text-text-tertiary" />;
+  const badgeColor = ext === 'xlsx' || ext === 'xls' ? 'bg-green-500/15 text-green-400'
+    : ext === 'pptx' || ext === 'ppt' ? 'bg-orange-500/15 text-orange-400'
+    : ext === 'pdf' ? 'bg-red-500/15 text-red-400'
+    : 'bg-surface-2 text-text-tertiary';
+
+  return (
+    <div className="my-2 flex items-center gap-3 p-3 bg-surface-1 border border-border-default rounded-lg animate-fade-in-up">
+      <div className="w-9 h-9 rounded-lg bg-surface-2 border border-border-default flex items-center justify-center shrink-0">
+        {icon}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-xs text-text-primary truncate font-medium">{filename}</div>
+        <span className={`px-1.5 py-0 text-[9px] font-bold uppercase rounded tracking-wide ${badgeColor}`}>
+          {ext.toUpperCase() || fileType.toUpperCase()}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function BranchContent({ state, showCursor }: { state: StreamingState; showCursor: boolean }) {
-  const hasContent = state.content || state.reasoning || state.toolCalls.length > 0 || state.images.length > 0;
+  const hasContent = state.content || state.reasoning || state.toolCalls.length > 0 || state.images.length > 0 || state.files.length > 0;
 
   if (!hasContent) {
     return (
@@ -100,6 +126,9 @@ function BranchContent({ state, showCursor }: { state: StreamingState; showCurso
       ))}
       {state.images.map((img, i) => (
         <StreamingImage key={i} filename={img.filename} url={img.url} />
+      ))}
+      {state.files.map((f, i) => (
+        <StreamingFileCard key={i} filename={f.filename} fileType={f.fileType} />
       ))}
       {state.content && (
         <div className="text-sm text-text-primary whitespace-pre-wrap break-words leading-relaxed">
