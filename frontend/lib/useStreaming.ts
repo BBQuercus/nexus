@@ -29,6 +29,7 @@ export function mapRawMessages(raw: Array<Record<string, unknown>>, conversation
       toolCalls: (m.tool_calls as Message['toolCalls']) || undefined,
       images: (m.images as Message['images']) || undefined,
       files: (m.files as Message['files']) || undefined,
+      tables: (m.tables as Message['tables']) || undefined,
       citations: m.citations ? (m.citations as Array<Record<string, unknown>>).map((c) => ({
         chunkId: (c.chunk_id as string) || (c.chunkId as string) || '',
         documentId: (c.document_id as string) || (c.documentId as string) || '',
@@ -153,6 +154,19 @@ export function processSseEvent(
           opts.updateBranch(bi, (b) => ({ files: [...b.files, fileEntry] }));
         } else {
           store.setStreaming({ files: [...store.streaming.files, fileEntry] });
+        }
+      }
+      break;
+    }
+
+    case 'table_output': {
+      const rows = (event.rows as string[][]) || [];
+      const tableEntry = { rows, label: (event.label as string) || 'Query Results' };
+      if (rows.length > 0) {
+        if (opts.isMulti) {
+          opts.updateBranch(bi, (b) => ({ tables: [...b.tables, tableEntry] }));
+        } else {
+          store.setStreaming({ tables: [...store.streaming.tables, tableEntry] });
         }
       }
       break;
@@ -288,7 +302,7 @@ export function useStreaming() {
     const isMulti = opts.numResponses > 1;
 
     if (isMulti) {
-      const emptyBranch: StreamingState = { content: '', reasoning: '', toolCalls: [], images: [], files: [], citations: [], retrievalResult: null };
+        const emptyBranch: StreamingState = { content: '', reasoning: '', toolCalls: [], images: [], files: [], tables: [], charts: [], citations: [], retrievalResult: null };
       store.setMultiStreaming({
         branches: Array.from({ length: opts.numResponses }, () => ({ ...emptyBranch })),
         activeBranchIndex: 0,
@@ -356,6 +370,7 @@ export function useStreaming() {
         cost: finalCost,
         images: finalState.images.length > 0 ? [...finalState.images] : undefined,
         files: finalState.files.length > 0 ? [...finalState.files] : undefined,
+        tables: finalState.tables.length > 0 ? [...finalState.tables] : undefined,
         citations: finalState.citations.length > 0 ? [...finalState.citations] : undefined,
       };
       useStore.getState().setMessages((prev: Message[]) => [...prev, assistantMsg]);
@@ -369,6 +384,7 @@ export function useStreaming() {
         api.listConversations().then((r) => useStore.getState().setConversations(r.conversations));
         api.getConversationTree(convId).then((tree) => useStore.getState().setConversationTree(tree)).catch(() => {});
       }
+      api.getArtifacts(convId).then((artifacts) => useStore.getState().setArtifacts(artifacts)).catch(() => {});
     }
   }, []);
 

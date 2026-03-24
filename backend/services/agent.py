@@ -14,50 +14,10 @@ from backend.prompts.tools import get_tools_for_mode
 from backend.services import extraction
 from backend.services import llm as llm_service
 from backend.services import sandbox as sandbox_service
+from backend.services.tables import detect_table, rows_to_csv
 from backend.services.search import web_search
 
 logger = get_logger("agent")
-
-
-def _detect_table(output: str) -> Optional[list[list[str]]]:
-    """Simple heuristic to detect tabular output.
-
-    Returns parsed rows if output looks like a table, None otherwise.
-    """
-    lines = output.strip().split("\n")
-    if len(lines) < 3:
-        return None
-
-    # Check for pipe-delimited tables (markdown tables)
-    pipe_lines = [l for l in lines if "|" in l]
-    if len(pipe_lines) >= 3:
-        rows = []
-        for line in pipe_lines:
-            cells = [c.strip() for c in line.strip("|").split("|")]
-            # Skip separator lines (e.g., |---|---|)
-            if all(set(c.strip()) <= {"-", ":", " "} for c in cells):
-                continue
-            rows.append(cells)
-        if len(rows) >= 2:
-            return rows
-
-    # Check for whitespace-aligned columns
-    # If 3+ consecutive lines have similar "word boundary" positions, treat as table
-    non_empty = [l for l in lines if l.strip()]
-    if len(non_empty) >= 3:
-        import re
-
-        split_counts = [len(re.split(r"\s{2,}", l.strip())) for l in non_empty[:10]]
-        if all(c >= 2 for c in split_counts) and max(split_counts) - min(split_counts) <= 1:
-            rows = []
-            for line in non_empty:
-                cells = re.split(r"\s{2,}", line.strip())
-                rows.append(cells)
-            return rows
-
-    return None
-
-
 def _sse_event(event: str, data: Any) -> dict:
     """Format an SSE event."""
     return {"event": event, "data": json.dumps(data) if not isinstance(data, str) else data}
@@ -227,6 +187,8 @@ async def run_agent_loop(
     all_tool_calls_raw: list[dict] = []
     enriched_tool_calls: list[dict] = []
     collected_images: list[dict] = []
+    collected_files: list[dict] = []
+    runtime_artifacts: list[dict[str, Any]] = []
     rag_citations: list[dict] = []
     retrieval_log_ids: list[uuid.UUID] = []
 
@@ -371,22 +333,46 @@ async def run_agent_loop(
                                 data_url = f"data:{mime};base64,{img_b64}"
                                 yield _sse_event("image_output", {"filename": f, "url": data_url, "sandbox_id": sandbox_id})
                                 collected_images.append({"filename": f, "url": data_url})
+                                runtime_artifacts.append({
+                                    "type": "image",
+                                    "label": f,
+                                    "content": data_url,
+                                    "metadata": {"path": f, "mime_type": mime},
+                                })
                             except Exception as img_err:
                                 logger.error("image_read_failed", file=f, error=str(img_err))
                                 yield _sse_event("image_output", {"filename": f, "sandbox_id": sandbox_id})
                         elif f.lower().endswith((".pptx", ".xlsx", ".pdf", ".docx", ".csv")):
                             # Emit file artifact event for downloadable files
+                            file_type = f.rsplit(".", 1)[-1].lower()
                             yield _sse_event("file_output", {
                                 "filename": f,
                                 "sandbox_id": sandbox_id,
-                                "file_type": f.rsplit(".", 1)[-1].lower(),
+                                "file_type": file_type,
+                            })
+                            collected_files.append({
+                                "filename": f,
+                                "fileType": file_type,
+                                "sandboxId": sandbox_id,
+                            })
+                            runtime_artifacts.append({
+                                "type": "document",
+                                "label": f,
+                                "content": "",
+                                "metadata": {"path": f, "file_type": file_type},
                             })
 
                     # Detect tables
                     if result.stdout:
-                        table = _detect_table(result.stdout)
+                        table = detect_table(result.stdout)
                         if table:
                             yield _sse_event("table_output", {"rows": table})
+                            runtime_artifacts.append({
+                                "type": "table",
+                                "label": "Query Results",
+                                "content": rows_to_csv(table),
+                                "metadata": {"rows": table},
+                            })
 
                 elif func_name == "write_file":
                     if sandbox is None:
@@ -542,6 +528,9 @@ async def run_agent_loop(
         reasoning=assistant_reasoning or None,
         tool_calls=enriched_tool_calls if enriched_tool_calls else None,
         images=collected_images if collected_images else None,
+        attachments=(
+            [{"type": "files", "files": collected_files}] if collected_files else None
+        ),
         citations=rag_citations if rag_citations else None,
         token_count=(total_input_tokens + total_output_tokens) if (total_input_tokens + total_output_tokens) > 0 else None,
         cost_usd=llm_service.calculate_cost(model, total_input_tokens, total_output_tokens) if total_input_tokens > 0 else None,
@@ -562,7 +551,10 @@ async def run_agent_loop(
         )
 
     # Extract and save artifacts
-    artifacts_data = extraction.extract_artifacts(assistant_content, all_tool_calls_raw)
+    artifacts_data = [
+        *extraction.extract_artifacts(assistant_content, all_tool_calls_raw),
+        *runtime_artifacts,
+    ]
     for art_data in artifacts_data:
         artifact = Artifact(
             conversation_id=conversation_id,

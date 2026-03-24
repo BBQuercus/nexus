@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { User, Conversation, Message, Artifact, AgentPersona, ToolCall, ConversationTree, Citation, RetrievalResult, KnowledgeBase } from './types';
+import type { User, Conversation, Message, Artifact, AgentPersona, ToolCall, ConversationTree, Citation, RetrievalResult, KnowledgeBase, StreamingTable, StreamingChart } from './types';
 
 export interface StreamingImage {
   filename: string;
@@ -18,6 +18,8 @@ export interface StreamingState {
   toolCalls: ToolCall[];
   images: StreamingImage[];
   files: StreamingFile[];
+  tables: StreamingTable[];
+  charts: StreamingChart[];
   citations: Citation[];
   retrievalResult: RetrievalResult | null;
 }
@@ -101,7 +103,7 @@ export interface AppActions {
   reset: () => void;
 }
 
-const emptyStreaming: StreamingState = { content: '', reasoning: '', toolCalls: [], images: [], files: [], citations: [], retrievalResult: null };
+const emptyStreaming: StreamingState = { content: '', reasoning: '', toolCalls: [], images: [], files: [], tables: [], charts: [], citations: [], retrievalResult: null };
 
 // Restore persisted state from localStorage
 function getPersistedState(): Partial<AppState> {

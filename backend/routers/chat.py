@@ -16,6 +16,7 @@ from backend.rate_limit import chat_limiter
 from backend.services.agent import run_agent_loop, run_multi_agent_loop
 from backend.services import sandbox as sandbox_service
 from backend.services import llm as llm_service
+from backend.services.messages import extract_message_files
 
 router = APIRouter(prefix="/api/conversations", tags=["conversations"])
 
@@ -88,6 +89,7 @@ def _serialize_message(m: Message) -> dict:
         "tool_calls": m.tool_calls,
         "tool_result": m.tool_result,
         "images": m.images,
+        "files": extract_message_files(m.attachments),
         "attachments": m.attachments,
         "citations": m.citations,
         "feedback": m.feedback,
