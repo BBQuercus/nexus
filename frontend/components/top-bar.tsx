@@ -41,6 +41,7 @@ function TreeToggleButton() {
 export default function TopBar() {
   const isStreaming = useStore((s) => s.isStreaming);
   const sandboxStatus = useStore((s) => s.sandboxStatus);
+  const artifacts = useStore((s) => s.artifacts);
   const rightPanelOpen = useStore((s) => s.rightPanelOpen);
   const setRightPanelOpen = useStore((s) => s.setRightPanelOpen);
   const activeModel = useStore((s) => s.activeModel);
@@ -126,7 +127,7 @@ export default function TopBar() {
         <SandboxBar />
 
         {/* Terminal/panel toggle */}
-        {sandboxStatus !== 'none' && (
+        {(sandboxStatus !== 'none' || artifacts.length > 0) && (
           <button
             onClick={() => setRightPanelOpen(!rightPanelOpen)}
             title="Toggle terminal panel"

@@ -44,7 +44,7 @@ export default function VegaChart({ spec, className, onViewReady }: VegaChartPro
       const embed = (await import('vega-embed')).default;
       const responsiveSpec = {
         ...spec,
-        width: availableWidth - 40, // account for padding
+        width: availableWidth - 16, // account for container padding
         autosize: { type: 'fit', contains: 'padding' },
       };
       const result = await embed(container, responsiveSpec as Record<string, unknown>, {
