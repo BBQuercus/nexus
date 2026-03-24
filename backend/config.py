@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     RAG_CONTEXTUAL_MODEL: str = "gpt-4.1-nano-swc"  # cheap model for context prefixes
 
     PORT: int = 8000
+    AUTO_APPLY_DB_SCHEMA: bool = False
 
 
 settings = Settings()

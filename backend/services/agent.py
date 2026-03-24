@@ -309,7 +309,10 @@ async def run_agent_loop(
                     if sandbox is None:
                         yield _sse_event("tool_output", {"tool": func_name, "output": "Creating sandbox...", "tool_call_id": tool_call_id})
                         template = conversation.sandbox_template or "python-data-science"
-                        sandbox = await sandbox_service.create_sandbox(template=template)
+                        sandbox = await sandbox_service.create_sandbox(
+                            template=template,
+                            labels={"user_id": str(conversation.user_id)},
+                        )
                         sandbox_id = sandbox.id
                         conversation.sandbox_id = sandbox_id
                         await db.flush()

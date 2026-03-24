@@ -554,18 +554,39 @@ export default function MessageBubble({ message }: { message: Message }) {
   // Post-process mermaid
   useEffect(() => {
     if (!contentRef.current || message.role === 'user') return;
-    const mermaidContainers = contentRef.current.querySelectorAll('[data-mermaid-source]');
-    if (mermaidContainers.length === 0) return;
+    const root = contentRef.current;
+    const handleCodeCopy = (event: Event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      const button = target.closest('.code-copy-btn');
+      if (!(button instanceof HTMLButtonElement)) return;
+      const code = button.dataset.code || '';
+      navigator.clipboard.writeText(code).then(() => {
+        const previous = button.textContent;
+        button.textContent = 'Copied!';
+        window.setTimeout(() => {
+          button.textContent = previous || 'Copy';
+        }, 1500);
+      }).catch(console.error);
+    };
+
+    root.addEventListener('click', handleCodeCopy);
+
+    const mermaidContainers = root.querySelectorAll('[data-mermaid-source]');
+    if (mermaidContainers.length === 0) {
+      return () => root.removeEventListener('click', handleCodeCopy);
+    }
     (async () => {
       try {
         const mermaid = await import('mermaid');
-        mermaid.default.initialize({ startOnLoad: false, theme: 'dark', darkMode: true, themeVariables: { primaryColor: '#222225', primaryTextColor: '#F0F0F2', primaryBorderColor: '#333338', lineColor: '#636369' }, securityLevel: 'loose' });
+        mermaid.default.initialize({ startOnLoad: false, theme: 'dark', darkMode: true, themeVariables: { primaryColor: '#222225', primaryTextColor: '#F0F0F2', primaryBorderColor: '#333338', lineColor: '#636369' }, securityLevel: 'strict' });
         for (const el of mermaidContainers) {
           const source = el.getAttribute('data-mermaid-source');
           if (source) { const id = `mermaid-${Math.random().toString(36).slice(2, 10)}`; const { svg } = await mermaid.default.render(id, source); el.innerHTML = svg; el.removeAttribute('data-mermaid-source'); }
         }
       } catch (e) { console.warn('Mermaid rendering failed:', e); }
     })();
+    return () => root.removeEventListener('click', handleCodeCopy);
   }, [renderedHtml, message.role]);
 
   const handleCopy = () => {

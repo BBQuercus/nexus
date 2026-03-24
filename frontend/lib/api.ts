@@ -1,5 +1,5 @@
 import type { Conversation, Message, Artifact, AgentPersona, User, FileNode, ConversationTree, KnowledgeBase, KBDocument, Citation } from './types';
-import { getToken, clearToken } from './auth';
+import { clearToken, getCsrfToken, getToken } from './auth';
 
 export class ApiError extends Error {
   status: number;
@@ -44,9 +44,9 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
 
   // Include CSRF token for state-changing requests when using cookie auth
   if (!token && typeof document !== 'undefined') {
-    const csrfMatch = document.cookie.match(/csrf_token=([^;]+)/);
-    if (csrfMatch) {
-      headers['X-CSRF-Token'] = csrfMatch[1];
+    const csrfToken = getCsrfToken();
+    if (csrfToken) {
+      headers['X-CSRF-Token'] = csrfToken;
     }
   }
 
@@ -184,6 +184,10 @@ export async function sendMessage(
   const token = getToken();
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (token) headers['Authorization'] = `Bearer ${token}`;
+  if (!token) {
+    const csrfToken = getCsrfToken();
+    if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
+  }
   const response = await fetch(`${SSE_BASE}/api/conversations/${conversationId}/messages`, {
     method: 'POST',
     headers,
@@ -231,6 +235,10 @@ export async function regenerateMessage(conversationId: string, messageId: strin
   const token = getToken();
   const headers: Record<string, string> = {};
   if (token) headers['Authorization'] = `Bearer ${token}`;
+  if (!token) {
+    const csrfToken = getCsrfToken();
+    if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
+  }
   if (model) headers['Content-Type'] = 'application/json';
   const response = await fetch(`${SSE_BASE}/api/conversations/${conversationId}/messages/${messageId}/regenerate`, {
     method: 'POST',

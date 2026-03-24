@@ -11,9 +11,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.auth import get_current_user, router as auth_router
+from backend.auth import get_current_user, router as auth_router, validate_csrf
 from backend.config import settings
-from backend.db import Base, engine, get_db
+from backend.db import Base, async_session, engine, get_db
 from backend.logging_config import get_logger, setup_logging
 from backend.middleware import GlobalExceptionMiddleware, RequestIdMiddleware, SecurityHeadersMiddleware
 from backend.models import FrontendError
@@ -37,6 +37,17 @@ logger = get_logger("main")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     from sqlalchemy import text as sa_text
+
+    should_manage_schema = settings.AUTO_APPLY_DB_SCHEMA or bool(os.environ.get("DEV_MODE"))
+    if not should_manage_schema:
+        logger.info("database_schema_management_skipped")
+        yield
+        logger.info("graceful_shutdown_started")
+        import asyncio
+        await asyncio.sleep(1)
+        await engine.dispose()
+        logger.info("database_engine_disposed")
+        return
 
     # Try to enable pgvector in its own transaction.
     pgvector_ok = False
@@ -93,6 +104,7 @@ app = FastAPI(
     description="AI Agent Workspace with Sandboxed Code Execution",
     version="0.1.0",
     lifespan=lifespan,
+    dependencies=[Depends(validate_csrf)],
 )
 
 # Middleware — order matters: outermost first
@@ -315,7 +327,8 @@ async def sandbox_terminal(websocket: WebSocket, sandbox_id: str, token: str | N
     logger.info("ws_connected", sandbox_id=sandbox_id, user_id=str(user_id))
 
     try:
-        sandbox = await sandbox_service.get_sandbox(sandbox_id)
+        async with async_session() as db:
+            sandbox = await sandbox_service.ensure_sandbox_access(sandbox_id, user_id, db)
     except Exception as e:
         logger.warning("ws_sandbox_not_found", sandbox_id=sandbox_id, error=str(e))
         await websocket.send_json({"type": "error", "data": f"Sandbox not found: {e}"})
