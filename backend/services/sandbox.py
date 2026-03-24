@@ -1,12 +1,12 @@
 import asyncio
 import base64
-import logging
 from dataclasses import dataclass
 from typing import Optional
 
 from backend.config import settings
+from backend.logging_config import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger("sandbox")
 
 
 @dataclass
@@ -123,8 +123,11 @@ async def execute_code(sandbox, language: str, code: str) -> ExecutionResult:
             timeout=120,  # 2 minute timeout
         )
     except asyncio.TimeoutError:
+        logger.warning("sandbox_execution_timeout", sandbox_id=sandbox.id, language=language, code_length=len(code))
         return ExecutionResult(
-            stdout="", stderr="Execution timed out after 120 seconds", exit_code=124
+            stdout="",
+            stderr="Execution timed out after 2 minutes. Consider breaking your code into smaller steps or optimizing long-running operations.",
+            exit_code=124,
         )
 
     exit_code = getattr(result, "exit_code", 0)

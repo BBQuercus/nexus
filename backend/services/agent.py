@@ -1,6 +1,5 @@
 import asyncio
 import json
-import logging
 import time
 import uuid
 from typing import Any, AsyncGenerator, Optional
@@ -8,6 +7,7 @@ from typing import Any, AsyncGenerator, Optional
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.logging_config import get_logger
 from backend.models import Artifact, Conversation, Message, UsageLog
 from backend.prompts.system import build_system_prompt
 from backend.prompts.tools import get_tools_for_mode
@@ -16,7 +16,7 @@ from backend.services import llm as llm_service
 from backend.services import sandbox as sandbox_service
 from backend.services.search import web_search
 
-logger = logging.getLogger(__name__)
+logger = get_logger("agent")
 
 
 def _detect_table(output: str) -> Optional[list[list[str]]]:
@@ -139,7 +139,7 @@ async def run_agent_loop(
     if persona and hasattr(persona, "tools_enabled"):
         tools_enabled = persona.tools_enabled
     tools = get_tools_for_mode(mode, tools_enabled)
-    logger.info(f"Agent loop: mode={mode}, model={model}, tools={len(tools) if tools else 0}")
+    logger.info("agent_loop_start", mode=mode, model=model, tool_count=len(tools) if tools else 0, conversation_id=str(conversation_id))
 
     # Track sandbox and known output files
     sandbox = None
@@ -221,9 +221,13 @@ async def run_agent_loop(
                             if tc.function.arguments:
                                 tool_call_buffers[idx]["function"]["arguments"] += tc.function.arguments
 
-        except Exception as e:
-            logger.error(f"LLM streaming error: {e}")
+        except llm_service.LLMUnavailableError as e:
+            logger.warning("llm_unavailable", model=model, iteration=iteration, error=str(e))
             yield _sse_event("error", {"message": str(e)})
+            return
+        except Exception as e:
+            logger.error("llm_stream_error", error=str(e), model=model, iteration=iteration)
+            yield _sse_event("error", {"message": f"An error occurred while generating a response: {e}"})
             return
 
         total_input_tokens += input_tokens
@@ -270,13 +274,15 @@ async def run_agent_loop(
                         conversation.sandbox_id = sandbox_id
                         await db.flush()
 
-                    logger.info(f"Executing {args.get('language', 'python')} code ({len(args.get('code', ''))} chars)")
+                    lang = args.get("language", "python")
+                    code_len = len(args.get("code", ""))
+                    logger.info("tool_execute_code", language=lang, code_chars=code_len)
                     result = await sandbox_service.execute_code(
                         sandbox,
-                        args.get("language", "python"),
+                        lang,
                         args.get("code", ""),
                     )
-                    logger.info(f"Execution done: exit={result.exit_code}, stdout={len(result.stdout)} chars")
+                    logger.info("tool_execute_done", exit_code=result.exit_code, stdout_chars=len(result.stdout))
                     tool_output = result.stdout
                     if result.stderr:
                         tool_output += f"\n[stderr]: {result.stderr}"
@@ -288,7 +294,7 @@ async def run_agent_loop(
 
                     # Check for new output files
                     new_files = await sandbox_service.check_output_files(sandbox, known_output_files)
-                    logger.info(f"Output file check: new_files={new_files}, known={known_output_files}")
+                    logger.info("output_files_check", new_files=list(new_files), known_count=len(known_output_files))
                     for f in new_files:
                         known_output_files.add(f)
                         if f.lower().endswith((".png", ".jpg", ".jpeg", ".svg", ".gif", ".webp")):
@@ -304,7 +310,7 @@ async def run_agent_loop(
                                 yield _sse_event("image_output", {"filename": f, "url": data_url, "sandbox_id": sandbox_id})
                                 collected_images.append({"filename": f, "url": data_url})
                             except Exception as img_err:
-                                logger.error(f"Failed to read output image {f}: {img_err}")
+                                logger.error("image_read_failed", file=f, error=str(img_err))
                                 yield _sse_event("image_output", {"filename": f, "sandbox_id": sandbox_id})
 
                     # Detect tables
@@ -369,7 +375,7 @@ async def run_agent_loop(
             except Exception as e:
                 tool_output = f"Error executing {func_name}: {str(e)}"
                 tool_exit_code = 1
-                logger.error(f"Tool execution error: {e}")
+                logger.error("tool_execution_error", tool=func_name, error=str(e))
                 yield _sse_event("tool_output", {"tool": func_name, "output": tool_output, "tool_call_id": tool_call_id})
 
             yield _sse_event("tool_end", {"tool": func_name, "tool_call_id": tool_call_id})
@@ -511,7 +517,7 @@ async def run_multi_agent_loop(
                         except (json.JSONDecodeError, TypeError):
                             pass
         except Exception as e:
-            logger.error(f"Branch {branch_idx} error: {e}")
+            logger.error("branch_error", branch_index=branch_idx, error=str(e))
             await queue.put(_sse_event("error", {"message": str(e), "branch_index": branch_idx}))
         finally:
             await queue.put(("BRANCH_DONE", branch_idx))
