@@ -605,7 +605,7 @@ function AudioPlayer({ src, onClose }: { src: string; onClose: () => void }) {
         <div className="absolute inset-y-0 left-0 bg-accent rounded-full transition-[width] duration-100" style={{ width: `${progress}%` }} />
       </div>
       <span className="text-[10px] text-text-tertiary tabular-nums w-8">{duration > 0 ? fmt(duration) : '--:--'}</span>
-      <a href={src} download="assistant-response.mp3" className="text-text-tertiary hover:text-text-secondary transition-colors" title="Download">
+      <a href={src} download="assistant-response.wav" className="text-text-tertiary hover:text-text-secondary transition-colors" title="Download">
         <Download size={12} />
       </a>
       <button onClick={onClose} className="text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer" title="Close">

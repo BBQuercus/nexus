@@ -180,6 +180,7 @@ export async function sendMessage(
   contextIds?: string[],
   agentPersonaId?: string,
   knowledgeBaseIds?: string[],
+  compareModels?: string[],
 ): Promise<Response> {
   const token = getToken();
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -197,6 +198,7 @@ export async function sendMessage(
       content, attachments, model,
       parent_id: parentId,
       ...(numResponses && numResponses > 1 ? { num_responses: numResponses } : {}),
+      ...(compareModels && compareModels.length > 1 ? { compare_models: compareModels } : {}),
       ...(contextIds && contextIds.length > 0 ? { context_conversation_ids: contextIds } : {}),
       ...(agentPersonaId ? { agent_persona_id: agentPersonaId } : {}),
       ...(knowledgeBaseIds && knowledgeBaseIds.length > 0 ? { knowledge_base_ids: knowledgeBaseIds } : {}),

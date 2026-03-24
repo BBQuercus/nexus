@@ -66,13 +66,13 @@ async def speak_text(
         "messages": [
             {
                 "role": "system",
-                "content": "Convert the provided assistant response into spoken audio. Keep the wording unchanged.",
+                "content": "Read the following text aloud exactly as written. Do not add, remove, or change any words. Do not add commentary, greetings, or sign-offs.",
             },
             {"role": "user", "content": body.text},
         ],
         "modalities": ["text", "audio"],
         "audio": {"voice": body.voice, "format": body.format},
-        "max_completion_tokens": 512,
+        "max_completion_tokens": 4096,
     }
     headers = {
         "Authorization": f"Bearer {settings.LITE_LLM_API_KEY}",
