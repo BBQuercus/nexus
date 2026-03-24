@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { User, Conversation, Message, Artifact, AgentPersona, ToolCall, ConversationTree, Citation, RetrievalResult } from './types';
+import type { User, Conversation, Message, Artifact, AgentPersona, ToolCall, ConversationTree, Citation, RetrievalResult, KnowledgeBase } from './types';
 
 export interface StreamingImage {
   filename: string;
@@ -62,6 +62,7 @@ export interface AppState {
   previewUrl: string | null;
   pendingPrompt: string | null;
   confirmDialog: ConfirmState;
+  activeKnowledgeBaseIds: string[];
 }
 
 export interface AppActions {
@@ -95,6 +96,8 @@ export interface AppActions {
   togglePinConversation: (id: string) => void;
   showConfirm: (opts: { title: string; message?: string; confirmLabel?: string; variant?: 'danger' | 'default' }) => Promise<boolean>;
   resolveConfirm: (confirmed: boolean) => void;
+  setActiveKnowledgeBaseIds: (ids: string[]) => void;
+  toggleKnowledgeBase: (id: string) => void;
   reset: () => void;
 }
 
@@ -141,6 +144,7 @@ const initialState: AppState = {
   previewUrl: null,
   pendingPrompt: null,
   confirmDialog: { ...emptyConfirm },
+  activeKnowledgeBaseIds: [],
 };
 
 export const useStore = create<AppState & AppActions>((set) => ({
@@ -226,6 +230,15 @@ export const useStore = create<AppState & AppActions>((set) => ({
     if (confirmDialog.resolve) confirmDialog.resolve(confirmed);
     set({ confirmDialog: { ...emptyConfirm } });
   },
+  setActiveKnowledgeBaseIds: (ids) => set({ activeKnowledgeBaseIds: ids }),
+  toggleKnowledgeBase: (id) => set((state) => {
+    const ids = state.activeKnowledgeBaseIds;
+    return {
+      activeKnowledgeBaseIds: ids.includes(id)
+        ? ids.filter((k) => k !== id)
+        : [...ids, id],
+    };
+  }),
   reset: () => {
     try { localStorage.removeItem('nexus:activeConversationId'); } catch {}
     set(initialState);

@@ -32,6 +32,21 @@ async def ingest_document(
 
     async with async_session() as db:
         try:
+            # 0. Pre-flight: check that the chunks table exists (requires pgvector)
+            from sqlalchemy import text as sa_text
+            try:
+                await db.execute(sa_text("SELECT 1 FROM chunks LIMIT 0"))
+            except Exception:
+                await db.rollback()
+                await _mark_document_error(
+                    db, document_id,
+                    "RAG storage unavailable: pgvector extension is not installed. "
+                    "Install pgvector on your PostgreSQL server to enable document processing."
+                )
+                await db.commit()
+                logger.warning("chunks_table_missing", document_id=str(document_id))
+                return
+
             # 1. Parse document into chunks
             from backend.services.rag.ingestion import parse_document
 

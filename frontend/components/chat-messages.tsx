@@ -38,8 +38,9 @@ export default function ChatMessages() {
 
     const handleScroll = () => {
       const { scrollTop, scrollHeight, clientHeight } = container;
+      const isScrollable = scrollHeight > clientHeight + 10;
       const distFromBottom = scrollHeight - scrollTop - clientHeight;
-      setShowScrollButton(distFromBottom > 150);
+      setShowScrollButton(isScrollable && distFromBottom > 150);
     };
 
     container.addEventListener('scroll', handleScroll, { passive: true });

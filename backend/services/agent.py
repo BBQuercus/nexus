@@ -63,6 +63,35 @@ def _sse_event(event: str, data: Any) -> dict:
     return {"event": event, "data": json.dumps(data) if not isinstance(data, str) else data}
 
 
+async def _run_knowledge_search(
+    query: str,
+    kb_ids: list[uuid.UUID],
+    conversation_id: uuid.UUID | None,
+):
+    """Run RAG retrieval in its own DB session.
+
+    This is a regular async function (not a generator) so it can safely
+    use async-with session management without conflicting with the
+    caller's async generator suspension points.
+    """
+    from backend.db import async_session
+    from backend.services.rag.retrieval import SearchScope, retrieve
+
+    scope = SearchScope(
+        knowledge_base_ids=kb_ids,
+        conversation_id=conversation_id,
+    )
+
+    async with async_session() as rag_db:
+        result = await retrieve(
+            db=rag_db,
+            query=query,
+            scope=scope,
+            top_k=5,
+        )
+    return result
+
+
 async def run_agent_loop(
     conversation_id: uuid.UUID,
     user_message: str,
@@ -409,7 +438,6 @@ async def run_agent_loop(
                     yield _sse_event("tool_output", {"tool": func_name, "output": tool_output, "tool_call_id": tool_call_id})
 
                 elif func_name == "knowledge_search":
-                    from backend.services.rag.retrieval import SearchScope, retrieve
                     from backend.services.rag.citations import (
                         build_citations_json,
                         build_retrieval_sse_event,
@@ -417,53 +445,53 @@ async def run_agent_loop(
                     )
                     from backend.models import RetrievalLog
 
-                    # Determine search scope
-                    search_kb_ids = knowledge_base_ids
-                    if args.get("knowledge_base_ids"):
-                        search_kb_ids = [uuid.UUID(kid) for kid in args["knowledge_base_ids"]]
+                    _rag_sse_event = None
+                    try:
+                        search_kb_ids = knowledge_base_ids
+                        if args.get("knowledge_base_ids"):
+                            search_kb_ids = [uuid.UUID(kid) for kid in args["knowledge_base_ids"]]
 
-                    scope = SearchScope(
-                        knowledge_base_ids=search_kb_ids,
-                        conversation_id=conversation_id if has_knowledge else None,
-                    )
+                        # Run retrieval in a standalone function with its
+                        # own DB session to fully isolate from the agent's
+                        # session (async generators + context managers clash).
+                        result = await _run_knowledge_search(
+                            query=args.get("query", user_message),
+                            kb_ids=search_kb_ids,
+                            conversation_id=conversation_id if has_knowledge else None,
+                        )
 
-                    result = await retrieve(
-                        db=db,
-                        query=args.get("query", user_message),
-                        scope=scope,
-                        top_k=5,
-                    )
+                        context_text, confidence = format_retrieval_context(result)
+                        tool_output = context_text if context_text else "No relevant documents found."
+                        _rag_sse_event = build_retrieval_sse_event(result)
 
-                    # Format context for LLM
-                    context_text, confidence = format_retrieval_context(result)
-                    tool_output = context_text if context_text else "No relevant documents found."
+                        # Store retrieval log on the main session
+                        retrieval_log = RetrievalLog(
+                            query=args.get("query", user_message),
+                            chunks_retrieved=[
+                                {
+                                    "chunk_id": str(c.id),
+                                    "document_id": str(c.document_id),
+                                    "score": round(c.score, 3),
+                                    "rerank_score": round(c.rerank_score, 3) if c.rerank_score else None,
+                                }
+                                for c in result.chunks
+                            ],
+                            total_candidates=result.total_candidates,
+                            retrieval_time_ms=result.retrieval_time_ms,
+                            rerank_time_ms=result.rerank_time_ms,
+                        )
+                        db.add(retrieval_log)
+                        await db.flush()
 
-                    # Emit retrieval results SSE event for frontend citations
-                    yield _sse_event("retrieval_results", build_retrieval_sse_event(result))
+                        rag_citations.extend(build_citations_json(result))
+                        retrieval_log_ids.append(retrieval_log.id)
 
-                    # Store retrieval log for observability
-                    retrieval_log = RetrievalLog(
-                        query=args.get("query", user_message),
-                        chunks_retrieved=[
-                            {
-                                "chunk_id": str(c.id),
-                                "document_id": str(c.document_id),
-                                "score": round(c.score, 3),
-                                "rerank_score": round(c.rerank_score, 3) if c.rerank_score else None,
-                            }
-                            for c in result.chunks
-                        ],
-                        total_candidates=result.total_candidates,
-                        retrieval_time_ms=result.retrieval_time_ms,
-                        rerank_time_ms=result.rerank_time_ms,
-                    )
-                    db.add(retrieval_log)
-                    await db.flush()
+                    except Exception as rag_err:
+                        logger.warning("knowledge_search_failed", error=str(rag_err), query=args.get("query", ""))
+                        tool_output = f"Knowledge search encountered an error: {rag_err}. Try rephrasing your query."
 
-                    # Accumulate citations for attachment to assistant message
-                    rag_citations.extend(build_citations_json(result))
-                    retrieval_log_ids.append(retrieval_log.id)
-
+                    if _rag_sse_event:
+                        yield _sse_event("retrieval_results", _rag_sse_event)
                     yield _sse_event("tool_output", {"tool": func_name, "output": tool_output, "tool_call_id": tool_call_id})
 
                 else:

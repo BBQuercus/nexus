@@ -5,7 +5,7 @@ from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel
-from sqlalchemy import delete, or_, select
+from sqlalchemy import delete, or_, select, text as sa_text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.auth import get_current_user
@@ -152,8 +152,15 @@ async def delete_knowledge_base(
     user_id: uuid.UUID = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    kb = await _get_kb_owned_or_403(db, kb_id, user_id)
-    await db.delete(kb)
+    # Verify ownership without keeping the ORM object in session
+    await _get_kb_owned_or_403(db, kb_id, user_id)
+    db.expire_all()  # Evict loaded objects to prevent ORM cascade on commit
+
+    # Delete children manually via raw SQL to avoid ORM cascade issues
+    await _safe_delete_chunks(db, knowledge_base_id=kb_id)
+    await db.execute(sa_text("DELETE FROM documents WHERE knowledge_base_id = :kid"), {"kid": str(kb_id)})
+    await db.execute(sa_text("DELETE FROM knowledge_base_agents WHERE knowledge_base_id = :kid"), {"kid": str(kb_id)})
+    await db.execute(sa_text("DELETE FROM knowledge_bases WHERE id = :kid"), {"kid": str(kb_id)})
     await db.commit()
     return {"ok": True}
 
@@ -234,15 +241,20 @@ async def delete_document(
     db: AsyncSession = Depends(get_db),
 ):
     await _get_kb_owned_or_403(db, kb_id, user_id)
-    result = await db.execute(
-        select(Document).where(
+
+    # Check existence without loading the ORM object (avoids cascade issues)
+    from sqlalchemy import func as sa_func
+    exists = await db.scalar(
+        select(sa_func.count()).select_from(Document).where(
             Document.id == doc_id, Document.knowledge_base_id == kb_id
         )
     )
-    doc = result.scalar_one_or_none()
-    if not doc:
+    if not exists:
         raise HTTPException(status_code=404, detail="Document not found")
-    await db.delete(doc)
+
+    # Delete chunks first, then the document — all via raw SQL to avoid ORM cascades
+    await _safe_delete_chunks(db, document_id=doc_id)
+    await db.execute(sa_text("DELETE FROM documents WHERE id = :did"), {"did": str(doc_id)})
 
     # Update KB counters
     from backend.services.rag.pipeline import _update_kb_counters
@@ -471,3 +483,23 @@ async def _get_kb_owned_or_403(
     if not kb:
         raise HTTPException(status_code=404, detail="Knowledge base not found or not owned by you")
     return kb
+
+
+async def _safe_delete_chunks(
+    db: AsyncSession,
+    knowledge_base_id: uuid.UUID | None = None,
+    document_id: uuid.UUID | None = None,
+) -> None:
+    """Delete chunks, ignoring errors if the chunks table doesn't exist (no pgvector).
+
+    Uses a savepoint so a failure doesn't abort the outer transaction.
+    """
+    try:
+        async with db.begin_nested():
+            if document_id:
+                await db.execute(sa_text("DELETE FROM chunks WHERE document_id = :did"), {"did": str(document_id)})
+            elif knowledge_base_id:
+                await db.execute(sa_text("DELETE FROM chunks WHERE knowledge_base_id = :kid"), {"kid": str(knowledge_base_id)})
+    except Exception:
+        # chunks table doesn't exist — savepoint rolled back, outer txn intact
+        pass

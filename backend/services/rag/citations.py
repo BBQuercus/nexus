@@ -31,6 +31,7 @@ def format_retrieval_context(result: RetrievalResult) -> tuple[str, float]:
             header_parts.append(f"Page {chunk.page_number}")
         if chunk.section_title:
             header_parts.append(f"Section: {chunk.section_title}")
+        header_parts.append(f"Chunk {chunk.chunk_index}")
         header_parts.append(f"Score: {chunk.score:.2f}")
 
         header = ", ".join(header_parts)
@@ -43,20 +44,24 @@ def format_retrieval_context(result: RetrievalResult) -> tuple[str, float]:
     return "\n\n---\n\n".join(parts), confidence
 
 
+def _chunk_to_dict(chunk: ScoredChunk) -> dict:
+    """Serialize a ScoredChunk to a JSON-safe dict."""
+    return {
+        "chunk_id": str(chunk.id),
+        "document_id": str(chunk.document_id),
+        "knowledge_base_id": str(chunk.knowledge_base_id) if chunk.knowledge_base_id else None,
+        "filename": chunk.filename,
+        "chunk_index": chunk.chunk_index,
+        "page": chunk.page_number,
+        "section": chunk.section_title,
+        "score": round(chunk.score, 3),
+        "snippet": chunk.content[:300],
+    }
+
+
 def build_citations_json(result: RetrievalResult) -> list[dict]:
     """Build citations JSON array for storing on messages."""
-    return [
-        {
-            "chunk_id": str(chunk.id),
-            "document_id": str(chunk.document_id),
-            "filename": chunk.filename,
-            "page": chunk.page_number,
-            "section": chunk.section_title,
-            "score": round(chunk.score, 3),
-            "snippet": chunk.content[:200],
-        }
-        for chunk in result.chunks
-    ]
+    return [_chunk_to_dict(chunk) for chunk in result.chunks]
 
 
 def build_retrieval_sse_event(result: RetrievalResult) -> dict:
@@ -64,16 +69,5 @@ def build_retrieval_sse_event(result: RetrievalResult) -> dict:
     return {
         "query": result.query,
         "confidence": round(result.confidence, 3),
-        "sources": [
-            {
-                "chunk_id": str(chunk.id),
-                "document_id": str(chunk.document_id),
-                "filename": chunk.filename,
-                "page": chunk.page_number,
-                "section": chunk.section_title,
-                "score": round(chunk.score, 3),
-                "snippet": chunk.content[:200],
-            }
-            for chunk in result.chunks
-        ],
+        "sources": [_chunk_to_dict(chunk) for chunk in result.chunks],
     }

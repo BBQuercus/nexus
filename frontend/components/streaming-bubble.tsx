@@ -22,8 +22,7 @@ function StreamingExecBlock({ tool }: { tool: ToolCall }) {
         )}
         {!tool.isRunning && tool.exitCode !== undefined && (
           <span className={`flex items-center gap-1 ${tool.exitCode === 0 ? 'text-accent' : 'text-error'}`}>
-            {tool.exitCode === 0 ? <Check size={10} /> : null}
-            exit {tool.exitCode}
+            {tool.exitCode === 0 ? <Check size={10} /> : <span>exit {tool.exitCode}</span>}
           </span>
         )}
       </div>

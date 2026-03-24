@@ -48,9 +48,8 @@ function ExecBlock({ tool }: { tool: ToolCall }) {
             </span>
           ) : tool.exitCode !== undefined ? (
             <span className={`flex items-center gap-1 ${tool.exitCode === 0 ? 'text-accent' : 'text-error'}`}>
-              {tool.exitCode === 0 ? <Check size={10} /> : null}
-              exit {tool.exitCode}
-              {tool.duration !== undefined && <span className="ml-1 text-text-tertiary">{(tool.duration / 1000).toFixed(2)}s</span>}
+              {tool.exitCode === 0 ? <Check size={10} /> : <span>exit {tool.exitCode}</span>}
+              {tool.duration !== undefined && <span className="text-text-tertiary">{(tool.duration / 1000).toFixed(2)}s</span>}
             </span>
           ) : null}
         </div>
@@ -539,7 +538,17 @@ export default function MessageBubble({ message }: { message: Message }) {
 
   const renderedHtml = useMemo(() => {
     if (message.role === 'user') return null;
-    return message.content ? renderMarkdown(message.content) : '';
+    if (!message.content) return '';
+    let html = renderMarkdown(message.content);
+    // Convert [Source N] and [Source N — filename] references into styled badges
+    html = html.replace(
+      /\[Source\s+(\d+)(?:\s*[—–-]\s*([^\]]+))?\]/gi,
+      (_match, num, filename) => {
+        const label = filename ? `${filename.trim()}` : `Source ${num}`;
+        return `<span class="inline-flex items-center gap-1 px-1.5 py-0.5 mx-0.5 rounded text-[10px] font-mono bg-accent/10 text-accent border border-accent/20 align-middle" title="Source ${num}${filename ? `: ${filename.trim()}` : ''}"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>${label}</span>`;
+      },
+    );
+    return html;
   }, [message.content, message.role]);
 
   // Post-process mermaid
@@ -610,16 +619,15 @@ export default function MessageBubble({ message }: { message: Message }) {
               <button onClick={handleCopy} className="flex items-center gap-1 text-[10px] text-text-tertiary hover:text-text-secondary cursor-pointer">
                 {copied ? <Check size={10} className="text-accent" /> : <Copy size={10} />} {copied ? 'Copied' : 'Copy'}
               </button>
-              <div className="h-3 w-[1px] bg-border-default/30 mx-0.5" />
               <button
                 onClick={() => setShowBranchInput(!showBranchInput)}
-                className={`flex items-center gap-1.5 text-[10px] font-bold py-0.5 px-2 rounded transition-all cursor-pointer ${
+                className={`flex items-center gap-1 text-[10px] cursor-pointer transition-colors ${
                   showBranchInput
-                    ? 'text-accent bg-accent/10 border border-accent/20'
-                    : 'text-accent bg-accent/5 border border-accent/15 hover:bg-accent/10'
+                    ? 'text-accent'
+                    : 'text-text-tertiary hover:text-text-secondary'
                 }`}
               >
-                <GitBranch size={10} /> New Branch
+                <GitBranch size={10} /> Branch
               </button>
             </div>
           {showBranchInput && (
@@ -675,16 +683,15 @@ export default function MessageBubble({ message }: { message: Message }) {
               <RetryWithModelMenu messageId={message.id} onClose={() => setShowRetryMenu(false)} />
             )}
           </div>
-          <div className="h-3 w-[1px] bg-border-default/30 mx-0.5" />
           <button
             onClick={() => setShowBranchInput(!showBranchInput)}
-            className={`flex items-center gap-1.5 text-[10px] font-bold py-0.5 px-2 rounded transition-all cursor-pointer ${
+            className={`flex items-center gap-1 text-[10px] cursor-pointer transition-colors ${
               showBranchInput
-                ? 'text-accent bg-accent/10 border border-accent/20'
-                : 'text-accent bg-accent/5 border border-accent/15 hover:bg-accent/10'
+                ? 'text-accent'
+                : 'text-text-tertiary hover:text-text-secondary'
             }`}
           >
-            <GitBranch size={10} /> New Branch
+            <GitBranch size={10} /> Branch
           </button>
           <FeedbackPanel message={message} />
         </div>

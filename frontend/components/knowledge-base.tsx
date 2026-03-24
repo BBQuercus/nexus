@@ -5,9 +5,38 @@ import * as api from '@/lib/api';
 import type { KnowledgeBase, KBDocument } from '@/lib/types';
 import {
   BookOpen, Plus, Trash2, Upload, X, FileText, Check,
-  AlertCircle, Loader2, ArrowLeft, Search, ChevronRight,
+  Loader2, Search,
 } from 'lucide-react';
 import { toast } from './toast';
+import { getToken } from '@/lib/auth';
+import PageShell from './page-shell';
+import ConfirmDialog from './confirm-dialog';
+import { useStore } from '@/lib/store';
+
+// Upload directly to the backend, bypassing the Next.js proxy which can
+// buffer/break multipart uploads in dev mode.
+const UPLOAD_BASE = typeof window !== 'undefined' && window.location.port === '3000'
+  ? 'http://localhost:8000'
+  : '';
+
+async function directUpload(url: string, files: File[]): Promise<{ documents: Record<string, unknown>[] }> {
+  const formData = new FormData();
+  files.forEach((file) => formData.append('files', file));
+  const headers: Record<string, string> = {};
+  const token = getToken();
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  const resp = await fetch(`${UPLOAD_BASE}${url}`, {
+    method: 'POST',
+    headers,
+    credentials: 'include',
+    body: formData,
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail || resp.statusText);
+  }
+  return resp.json();
+}
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -30,28 +59,75 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-function KBCard({ kb, onClick }: { kb: KnowledgeBase; onClick: () => void }) {
+// ── Sidebar ──
+
+function KBSidebar({
+  knowledgeBases,
+  selectedId,
+  onSelect,
+  onCreate,
+  loading,
+}: {
+  knowledgeBases: KnowledgeBase[];
+  selectedId: string | null;
+  onSelect: (kb: KnowledgeBase | null) => void;
+  onCreate: () => void;
+  loading: boolean;
+}) {
   return (
-    <button
-      onClick={onClick}
-      className="w-full text-left p-4 bg-surface-1 border border-border-default rounded-lg hover:border-accent/30 transition-colors cursor-pointer group"
-    >
-      <div className="flex items-center gap-2 mb-1.5">
-        <BookOpen size={14} className="text-accent shrink-0" />
-        <span className="text-sm font-medium text-text-primary truncate">{kb.name}</span>
-        <ChevronRight size={14} className="text-text-tertiary ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
+    <div className="flex flex-col h-full">
+      {/* Header */}
+      <div className="flex items-center gap-2 p-3 border-b border-border-default">
+        <div className="flex-1" />
+        <button
+          onClick={onCreate}
+          title="New knowledge base"
+          className="w-7 h-7 flex items-center justify-center bg-surface-1 border border-border-default rounded-lg text-text-tertiary hover:text-accent hover:border-accent/30 cursor-pointer transition-colors"
+        >
+          <Plus size={13} />
+        </button>
       </div>
-      {kb.description && (
-        <p className="text-xs text-text-tertiary mb-2 line-clamp-2">{kb.description}</p>
-      )}
-      <div className="flex items-center gap-3 text-[10px] text-text-tertiary font-mono">
-        <span>{kb.documentCount} doc{kb.documentCount !== 1 ? 's' : ''}</span>
-        <span>{kb.chunkCount} chunks</span>
-        <StatusBadge status={kb.status} />
+
+      {/* List */}
+      <div className="flex-1 overflow-y-auto px-2 py-2">
+        {loading ? (
+          <div className="flex items-center justify-center py-8 text-text-tertiary">
+            <Loader2 size={14} className="animate-spin" />
+          </div>
+        ) : knowledgeBases.length === 0 ? (
+          <div className="text-center py-8 text-text-tertiary text-[11px]">
+            No knowledge bases yet
+          </div>
+        ) : (
+          <div className="space-y-0.5">
+            {knowledgeBases.map((kb) => (
+              <button
+                key={kb.id}
+                onClick={() => onSelect(kb)}
+                className={`w-full text-left px-2.5 py-2 rounded-lg transition-colors cursor-pointer group ${
+                  selectedId === kb.id
+                    ? 'bg-accent/8 text-accent'
+                    : 'text-text-secondary hover:bg-surface-1'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <BookOpen size={12} className={selectedId === kb.id ? 'text-accent' : 'text-text-tertiary'} />
+                  <span className="text-xs font-medium truncate flex-1">{kb.name}</span>
+                </div>
+                <div className="flex items-center gap-2 mt-0.5 ml-5 text-[10px] text-text-tertiary font-mono">
+                  <span>{kb.documentCount} doc{kb.documentCount !== 1 ? 's' : ''}</span>
+                  <StatusBadge status={kb.status} />
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
-    </button>
+    </div>
   );
 }
+
+// ── Document Row ──
 
 function DocumentRow({ doc, kbId, onDelete }: { doc: KBDocument; kbId: string; onDelete: () => void }) {
   const [deleting, setDeleting] = useState(false);
@@ -69,14 +145,15 @@ function DocumentRow({ doc, kbId, onDelete }: { doc: KBDocument; kbId: string; o
   };
 
   return (
-    <div className="flex items-center gap-3 px-3 py-2.5 border border-border-default rounded-lg">
-      <FileText size={14} className="text-text-tertiary shrink-0" />
+    <div className="flex items-center gap-3 px-4 py-3 border border-border-default rounded-lg bg-surface-0">
+      <FileText size={16} className="text-text-tertiary shrink-0" />
       <div className="flex-1 min-w-0">
-        <div className="text-xs font-medium text-text-primary truncate">{doc.filename}</div>
-        <div className="text-[10px] text-text-tertiary font-mono">
+        <div className="text-sm font-medium text-text-primary truncate">{doc.filename}</div>
+        <div className="text-[11px] text-text-tertiary font-mono">
           {formatBytes(doc.fileSizeBytes)}
           {doc.pageCount && <span> / {doc.pageCount} pages</span>}
         </div>
+        {doc.errorMessage && <div className="text-[11px] text-error mt-0.5">{doc.errorMessage}</div>}
       </div>
       <StatusBadge status={doc.status} />
       <button
@@ -84,18 +161,19 @@ function DocumentRow({ doc, kbId, onDelete }: { doc: KBDocument; kbId: string; o
         disabled={deleting}
         className="text-text-tertiary hover:text-error cursor-pointer transition-colors disabled:opacity-50"
       >
-        <Trash2 size={12} />
+        <Trash2 size={13} />
       </button>
     </div>
   );
 }
 
-function KBDetail({ kb, onBack }: { kb: KnowledgeBase; onBack: () => void }) {
+// ── KB Detail (main content) ──
+
+function KBDetail({ kb, onRefresh }: { kb: KnowledgeBase; onRefresh: () => void }) {
   const [documents, setDocuments] = useState<KBDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const dropRef = useRef<HTMLDivElement>(null);
   const [dragOver, setDragOver] = useState(false);
 
   const loadDocs = useCallback(async () => {
@@ -114,17 +192,18 @@ function KBDetail({ kb, onBack }: { kb: KnowledgeBase; onBack: () => void }) {
   useEffect(() => {
     const hasProcessing = documents.some((d) => d.status === 'processing');
     if (!hasProcessing) return;
-    const interval = setInterval(loadDocs, 3000);
+    const interval = setInterval(() => { loadDocs(); onRefresh(); }, 3000);
     return () => clearInterval(interval);
-  }, [documents, loadDocs]);
+  }, [documents, loadDocs, onRefresh]);
 
   const handleUpload = async (files: FileList | File[]) => {
     if (!files.length) return;
     setUploading(true);
     try {
-      await api.uploadKBDocuments(kb.id, Array.from(files));
+      await directUpload(`/api/knowledge-bases/${kb.id}/documents`, Array.from(files));
       toast.success(`${files.length} file${files.length > 1 ? 's' : ''} uploaded`);
       await loadDocs();
+      onRefresh();
     } catch (e) {
       toast.error((e as Error).message || 'Upload failed');
     }
@@ -137,40 +216,62 @@ function KBDetail({ kb, onBack }: { kb: KnowledgeBase; onBack: () => void }) {
     handleUpload(e.dataTransfer.files);
   };
 
+  const handleDeleteKB = async () => {
+    const confirmed = await useStore.getState().showConfirm({
+      title: `Delete "${kb.name}"?`,
+      message: 'All documents and chunks will be permanently deleted.',
+      confirmLabel: 'Delete',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
+    try {
+      await api.deleteKnowledgeBase(kb.id);
+      toast.success('Knowledge base deleted');
+      onRefresh();
+    } catch {
+      toast.error('Failed to delete');
+    }
+  };
+
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex items-center gap-2 p-4 border-b border-border-default">
-        <button onClick={onBack} className="text-text-tertiary hover:text-text-secondary cursor-pointer">
-          <ArrowLeft size={16} />
+    <div className="flex-1 overflow-y-auto p-8 max-w-3xl mx-auto w-full">
+      {/* Header */}
+      <div className="flex items-start justify-between mb-6">
+        <div>
+          <h2 className="text-xl font-semibold text-text-primary">{kb.name}</h2>
+          {kb.description && <p className="text-sm text-text-tertiary mt-1">{kb.description}</p>}
+          <div className="flex items-center gap-3 mt-2 text-[11px] text-text-tertiary font-mono">
+            <span>{kb.documentCount} documents</span>
+            <span>{kb.chunkCount} chunks</span>
+            <span>{kb.embeddingModel}</span>
+          </div>
+        </div>
+        <button
+          onClick={handleDeleteKB}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] text-error/70 hover:text-error border border-error/20 hover:border-error/40 rounded-lg transition-colors cursor-pointer"
+        >
+          <Trash2 size={11} /> Delete
         </button>
-        <div className="flex-1 min-w-0">
-          <h2 className="text-sm font-medium text-text-primary truncate">{kb.name}</h2>
-          {kb.description && <p className="text-[10px] text-text-tertiary truncate">{kb.description}</p>}
-        </div>
-        <div className="text-[10px] text-text-tertiary font-mono">
-          {kb.documentCount} docs / {kb.chunkCount} chunks
-        </div>
       </div>
 
       {/* Upload zone */}
       <div
-        ref={dropRef}
         onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
         onDragLeave={() => setDragOver(false)}
         onDrop={handleDrop}
-        className={`mx-4 mt-4 border-2 border-dashed rounded-lg p-4 text-center transition-colors ${
-          dragOver ? 'border-accent bg-accent/5' : 'border-border-default'
+        className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors mb-6 ${
+          dragOver ? 'border-accent bg-accent/5' : 'border-border-default hover:border-border-focus'
         }`}
       >
         {uploading ? (
           <div className="flex items-center justify-center gap-2 text-sm text-text-secondary">
-            <Loader2 size={14} className="animate-spin" /> Uploading...
+            <Loader2 size={16} className="animate-spin" /> Uploading and processing...
           </div>
         ) : (
           <>
-            <Upload size={20} className="mx-auto mb-2 text-text-tertiary" />
-            <p className="text-xs text-text-tertiary">
-              Drag & drop files here or{' '}
+            <Upload size={28} className="mx-auto mb-3 text-text-tertiary" />
+            <p className="text-sm text-text-secondary">
+              Drag & drop files or{' '}
               <button
                 onClick={() => fileInputRef.current?.click()}
                 className="text-accent hover:underline cursor-pointer"
@@ -178,8 +279,8 @@ function KBDetail({ kb, onBack }: { kb: KnowledgeBase; onBack: () => void }) {
                 browse
               </button>
             </p>
-            <p className="text-[10px] text-text-tertiary mt-1">
-              PDF, DOCX, Excel, CSV, TXT, JSON, Markdown
+            <p className="text-[11px] text-text-tertiary mt-2">
+              PDF, DOCX, PPTX, Excel, CSV, TXT, JSON, Markdown
             </p>
           </>
         )}
@@ -194,18 +295,18 @@ function KBDetail({ kb, onBack }: { kb: KnowledgeBase; onBack: () => void }) {
       </div>
 
       {/* Document list */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-2">
+      <div className="space-y-2">
         {loading ? (
-          <div className="flex items-center justify-center py-8 text-text-tertiary">
+          <div className="flex items-center justify-center py-12 text-text-tertiary">
             <Loader2 size={16} className="animate-spin" />
           </div>
         ) : documents.length === 0 ? (
-          <div className="text-center py-8 text-text-tertiary text-xs">
+          <div className="text-center py-12 text-text-tertiary text-sm">
             No documents yet. Upload files to get started.
           </div>
         ) : (
           documents.map((doc) => (
-            <DocumentRow key={doc.id} doc={doc} kbId={kb.id} onDelete={loadDocs} />
+            <DocumentRow key={doc.id} doc={doc} kbId={kb.id} onDelete={() => { loadDocs(); onRefresh(); }} />
           ))
         )}
       </div>
@@ -213,7 +314,83 @@ function KBDetail({ kb, onBack }: { kb: KnowledgeBase; onBack: () => void }) {
   );
 }
 
-export default function KnowledgeBasePanel({ onClose }: { onClose: () => void }) {
+// ── Create form (main content) ──
+
+function CreateKBForm({
+  value,
+  onChange,
+  onSubmit,
+  onCancel,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onSubmit: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center h-full p-8">
+      <div className="w-full max-w-md">
+        <h2 className="text-lg font-semibold text-text-primary mb-1">New Knowledge Base</h2>
+        <p className="text-xs text-text-tertiary mb-6">
+          Give your knowledge base a name. You can upload documents after creating it.
+        </p>
+        <input
+          autoFocus
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') onSubmit();
+            if (e.key === 'Escape') onCancel();
+          }}
+          placeholder="e.g. Q4 Reports, Product Documentation..."
+          className="w-full bg-surface-1 border border-border-default rounded-lg px-3 py-2.5 text-sm text-text-primary placeholder:text-text-tertiary outline-none focus:border-accent/40 mb-4"
+        />
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onSubmit}
+            disabled={!value.trim()}
+            className="flex items-center gap-1.5 px-4 py-2 text-xs font-medium bg-accent text-surface-0 rounded-lg hover:bg-accent/90 transition-colors cursor-pointer disabled:opacity-40"
+          >
+            <Plus size={13} /> Create
+          </button>
+          <button
+            onClick={onCancel}
+            className="px-4 py-2 text-xs text-text-tertiary hover:text-text-secondary cursor-pointer"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Empty state ──
+
+function EmptyContent({ onCreate }: { onCreate: () => void }) {
+  return (
+    <div className="flex flex-col items-center justify-center h-full text-center p-8">
+      <BookOpen size={48} className="text-text-tertiary opacity-30 mb-4" />
+      <h3 className="text-sm font-medium text-text-secondary mb-1">Select a knowledge base</h3>
+      <p className="text-xs text-text-tertiary mb-4 max-w-xs">
+        Choose a knowledge base from the sidebar, or create a new one to start uploading documents for RAG-powered conversations.
+      </p>
+      <button
+        onClick={onCreate}
+        className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium bg-accent text-surface-0 rounded-lg hover:bg-accent/90 transition-colors cursor-pointer"
+      >
+        <Plus size={13} /> New Knowledge Base
+      </button>
+    </div>
+  );
+}
+
+// ── Main view ──
+
+export default function KnowledgeBaseView() {
+  const confirmDialog = useStore((s) => s.confirmDialog);
+  const resolveConfirm = useStore((s) => s.resolveConfirm);
+
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedKB, setSelectedKB] = useState<KnowledgeBase | null>(null);
@@ -224,13 +401,27 @@ export default function KnowledgeBasePanel({ onClose }: { onClose: () => void })
     try {
       const kbs = await api.listKnowledgeBases();
       setKnowledgeBases(kbs);
+      // If selected KB was deleted, deselect it
+      if (selectedKB && !kbs.find((kb) => kb.id === selectedKB.id)) {
+        setSelectedKB(null);
+      }
     } catch {
       toast.error('Failed to load knowledge bases');
     }
     setLoading(false);
-  }, []);
+  }, [selectedKB]);
 
-  useEffect(() => { loadKBs(); }, [loadKBs]);
+  useEffect(() => {
+    loadKBs().then(() => {
+      // Auto-select KB from URL params (e.g. ?kb=xxx&doc=yyy)
+      if (typeof window === 'undefined') return;
+      const params = new URLSearchParams(window.location.search);
+      const kbId = params.get('kb');
+      if (kbId) {
+        api.getKnowledgeBase(kbId).then((kb) => setSelectedKB(kb)).catch(() => {});
+      }
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleCreate = async () => {
     if (!newName.trim()) return;
@@ -246,101 +437,39 @@ export default function KnowledgeBasePanel({ onClose }: { onClose: () => void })
     }
   };
 
-  const handleDelete = async (kbId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    try {
-      await api.deleteKnowledgeBase(kbId);
-      setKnowledgeBases((prev) => prev.filter((kb) => kb.id !== kbId));
-      if (selectedKB?.id === kbId) setSelectedKB(null);
-      toast.success('Knowledge base deleted');
-    } catch {
-      toast.error('Failed to delete');
-    }
-  };
-
-  if (selectedKB) {
-    return (
-      <div className="fixed inset-0 z-50 bg-surface-0/80 backdrop-blur-sm flex items-center justify-center p-4">
-        <div className="w-full max-w-2xl h-[80vh] bg-surface-0 border border-border-default rounded-xl shadow-2xl flex flex-col overflow-hidden">
-          <KBDetail kb={selectedKB} onBack={() => { setSelectedKB(null); loadKBs(); }} />
-        </div>
-      </div>
-    );
-  }
+  const sidebar = (
+    <KBSidebar
+      knowledgeBases={knowledgeBases}
+      selectedId={selectedKB?.id || null}
+      onSelect={(kb) => { setSelectedKB(kb); setCreating(false); }}
+      onCreate={() => { setSelectedKB(null); setCreating(true); }}
+      loading={loading}
+    />
+  );
 
   return (
-    <div className="fixed inset-0 z-50 bg-surface-0/80 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="w-full max-w-lg bg-surface-0 border border-border-default rounded-xl shadow-2xl overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-border-default">
-          <div className="flex items-center gap-2">
-            <BookOpen size={16} className="text-accent" />
-            <h2 className="text-sm font-medium text-text-primary">Knowledge Bases</h2>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setCreating(true)}
-              className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] bg-accent text-surface-0 rounded-lg hover:bg-accent/90 transition-colors cursor-pointer"
-            >
-              <Plus size={12} /> New
-            </button>
-            <button onClick={onClose} className="text-text-tertiary hover:text-text-secondary cursor-pointer">
-              <X size={16} />
-            </button>
-          </div>
-        </div>
-
-        {/* Create form */}
-        {creating && (
-          <div className="flex items-center gap-2 p-4 border-b border-border-default bg-surface-1/50">
-            <input
-              autoFocus
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') handleCreate(); if (e.key === 'Escape') setCreating(false); }}
-              placeholder="Knowledge base name..."
-              className="flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-tertiary outline-none"
-            />
-            <button
-              onClick={handleCreate}
-              disabled={!newName.trim()}
-              className="text-accent hover:text-accent/80 cursor-pointer disabled:opacity-50"
-            >
-              <Check size={16} />
-            </button>
-            <button onClick={() => setCreating(false)} className="text-text-tertiary hover:text-text-secondary cursor-pointer">
-              <X size={14} />
-            </button>
-          </div>
-        )}
-
-        {/* KB List */}
-        <div className="max-h-[60vh] overflow-y-auto p-4 space-y-2">
-          {loading ? (
-            <div className="flex items-center justify-center py-12 text-text-tertiary">
-              <Loader2 size={16} className="animate-spin" />
-            </div>
-          ) : knowledgeBases.length === 0 ? (
-            <div className="text-center py-12">
-              <BookOpen size={32} className="mx-auto mb-3 text-text-tertiary opacity-50" />
-              <p className="text-sm text-text-tertiary">No knowledge bases yet</p>
-              <p className="text-xs text-text-tertiary mt-1">Create one to upload documents for RAG-powered conversations</p>
-            </div>
-          ) : (
-            knowledgeBases.map((kb) => (
-              <div key={kb.id} className="relative group">
-                <KBCard kb={kb} onClick={() => setSelectedKB(kb)} />
-                <button
-                  onClick={(e) => handleDelete(kb.id, e)}
-                  className="absolute top-3 right-3 text-text-tertiary hover:text-error opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                >
-                  <Trash2 size={12} />
-                </button>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
-    </div>
+    <PageShell sidebar={sidebar} title="Knowledge Bases">
+      {creating ? (
+        <CreateKBForm
+          value={newName}
+          onChange={setNewName}
+          onSubmit={handleCreate}
+          onCancel={() => { setCreating(false); setNewName(''); }}
+        />
+      ) : selectedKB ? (
+        <KBDetail kb={selectedKB} onRefresh={loadKBs} />
+      ) : (
+        <EmptyContent onCreate={() => setCreating(true)} />
+      )}
+      <ConfirmDialog
+        open={confirmDialog.open}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        confirmLabel={confirmDialog.confirmLabel}
+        variant={confirmDialog.variant}
+        onConfirm={() => resolveConfirm(true)}
+        onCancel={() => resolveConfirm(false)}
+      />
+    </PageShell>
   );
 }

@@ -29,7 +29,17 @@ export function mapRawMessages(raw: Array<Record<string, unknown>>, conversation
       toolCalls: (m.tool_calls as Message['toolCalls']) || undefined,
       images: (m.images as Message['images']) || undefined,
       files: (m.files as Message['files']) || undefined,
-      citations: (m.citations as Message['citations']) || undefined,
+      citations: m.citations ? (m.citations as Array<Record<string, unknown>>).map((c) => ({
+        chunkId: (c.chunk_id as string) || (c.chunkId as string) || '',
+        documentId: (c.document_id as string) || (c.documentId as string) || '',
+        knowledgeBaseId: (c.knowledge_base_id as string) || (c.knowledgeBaseId as string) || undefined,
+        filename: (c.filename as string) || '',
+        chunkIndex: (c.chunk_index as number) ?? (c.chunkIndex as number) ?? undefined,
+        page: (c.page as number) || undefined,
+        section: (c.section as string) || undefined,
+        score: (c.score as number) || 0,
+        snippet: (c.snippet as string) || '',
+      })) : undefined,
       feedback: (m.feedback as Message['feedback']) || undefined,
       contexts,
       parentId: (m.parent_id as string) || undefined,
@@ -149,7 +159,18 @@ export function processSseEvent(
     }
 
     case 'retrieval_results': {
-      const sources = (event.sources as Citation[]) || [];
+      const rawSources = (event.sources as Array<Record<string, unknown>>) || [];
+      const sources: Citation[] = rawSources.map((s) => ({
+        chunkId: (s.chunk_id as string) || (s.chunkId as string) || '',
+        documentId: (s.document_id as string) || (s.documentId as string) || '',
+        knowledgeBaseId: (s.knowledge_base_id as string) || (s.knowledgeBaseId as string) || undefined,
+        filename: (s.filename as string) || '',
+        chunkIndex: (s.chunk_index as number) ?? (s.chunkIndex as number) ?? undefined,
+        page: (s.page as number) || undefined,
+        section: (s.section as string) || undefined,
+        score: (s.score as number) || 0,
+        snippet: (s.snippet as string) || '',
+      }));
       const retrievalResult: RetrievalResult = {
         query: (event.query as string) || '',
         confidence: (event.confidence as number) || 0,
@@ -255,6 +276,7 @@ export function useStreaming() {
       numResponses: number;
       contextIds?: string[];
       agentPersonaId?: string;
+      knowledgeBaseIds?: string[];
     },
   ) => {
     const store = useStore.getState();
@@ -289,7 +311,7 @@ export function useStreaming() {
       const response = await api.sendMessage(
         convId, text, opts.attachmentIds, opts.model,
         opts.parentId, opts.numResponses, controller.signal,
-        opts.contextIds, opts.agentPersonaId,
+        opts.contextIds, opts.agentPersonaId, opts.knowledgeBaseIds,
       );
       for await (const event of streamSSE(response)) {
         const result = processSseEvent(

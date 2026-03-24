@@ -19,7 +19,6 @@ import ToastContainer from './toast';
 import ErrorBoundary from './error-boundary';
 import KeyboardShortcuts from './keyboard-shortcuts';
 import HealthBanner from './health-banner';
-import KnowledgeBasePanel from './knowledge-base';
 import { Upload } from 'lucide-react';
 import * as api from '@/lib/api';
 import { MODELS } from '@/lib/types';
@@ -28,7 +27,6 @@ export default function Workspace() {
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  const [kbPanelOpen, setKbPanelOpen] = useState(false);
   const dragCounterRef = useRef(0);
   const focusModeRef = useRef(false);
   focusModeRef.current = focusMode;
@@ -60,12 +58,6 @@ export default function Workspace() {
     return () => window.removeEventListener('nexus:open-shortcuts', handler);
   }, []);
 
-  // Listen for open-knowledge-bases event from sidebar
-  useEffect(() => {
-    const handler = () => setKbPanelOpen(true);
-    window.addEventListener('nexus:open-knowledge-bases', handler);
-    return () => window.removeEventListener('nexus:open-knowledge-bases', handler);
-  }, []);
 
   // Auto-close sidebar on mobile when selecting a conversation
   useEffect(() => {
@@ -366,7 +358,6 @@ export default function Workspace() {
 
       {commandPaletteOpen && <CommandPalette />}
       {shortcutsOpen && <KeyboardShortcuts onClose={() => setShortcutsOpen(false)} />}
-      {kbPanelOpen && <KnowledgeBasePanel onClose={() => setKbPanelOpen(false)} />}
       <ToastContainer />
       <ConfirmDialog
         open={confirmDialog.open}

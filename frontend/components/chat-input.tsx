@@ -5,9 +5,11 @@ import { useStore } from '@/lib/store';
 import * as api from '@/lib/api';
 import type { Message } from '@/lib/types';
 import { MODELS } from '@/lib/types';
-import { ArrowUp, Square, Paperclip, X, Terminal, Trash2, HelpCircle, Download, Cpu, FileSpreadsheet, FileImage, FileText, File, Settings2, MessageSquare } from 'lucide-react';
+import { ArrowUp, Square, Paperclip, X, Terminal, Trash2, HelpCircle, Download, Cpu, FileSpreadsheet, FileImage, FileText, File, Settings2, MessageSquare, BookOpen } from 'lucide-react';
+import type { KnowledgeBase } from '@/lib/types';
 import ModelPicker from './model-picker';
 import AgentPicker from './agent-picker';
+import KBPicker from './kb-picker';
 import { toast } from './toast';
 import { useStreaming } from '@/lib/useStreaming';
 
@@ -216,6 +218,21 @@ export default function ChatInput() {
   const activeModel = useStore((s) => s.activeModel);
   const activePersona = useStore((s) => s.activePersona);
   const sandboxId = useStore((s) => s.sandboxId);
+  const activeKBIds = useStore((s) => s.activeKnowledgeBaseIds);
+  const toggleKB = useStore((s) => s.toggleKnowledgeBase);
+  const [kbNames, setKbNames] = useState<Record<string, string>>({});
+
+  // Load KB names when active IDs change
+  useEffect(() => {
+    if (activeKBIds.length === 0) return;
+    const missing = activeKBIds.filter((id) => !kbNames[id]);
+    if (missing.length === 0) return;
+    api.listKnowledgeBases().then((kbs) => {
+      const map: Record<string, string> = { ...kbNames };
+      kbs.forEach((kb) => { map[kb.id] = kb.name; });
+      setKbNames(map);
+    }).catch(() => {});
+  }, [activeKBIds]); // eslint-disable-line react-hooks/exhaustive-deps
   const messages = useStore((s) => s.messages);
   const setActiveConversationId = useStore((s) => s.setActiveConversationId);
   const setMessages = useStore((s) => s.setMessages);
@@ -529,6 +546,7 @@ export default function ChatInput() {
       setMessages([...messages, userMsg]);
     }
 
+    const activeKBIds = useStore.getState().activeKnowledgeBaseIds;
     await streamSend(text, convId, {
       attachmentIds,
       model: activePersona?.defaultModel || activeModel,
@@ -536,6 +554,7 @@ export default function ChatInput() {
       numResponses,
       contextIds: contextIds.length > 0 ? contextIds : undefined,
       agentPersonaId: activePersona?.id,
+      knowledgeBaseIds: activeKBIds.length > 0 ? activeKBIds : undefined,
     });
   }, [content, pendingFiles, attachedContexts, isStreaming, activeConversationId, activeModel, activePersona, sandboxId, messages,
     setActiveConversationId, setMessages, setConversations, branchingFromId, setBranchingFromId,
@@ -676,8 +695,17 @@ export default function ChatInput() {
       style={{ '--safe-bottom-pad': '1.25rem' } as React.CSSProperties}
     >
     <div className="max-w-4xl mx-auto w-full">
-      {attachedContexts.length > 0 && (
+      {(attachedContexts.length > 0 || activeKBIds.length > 0) && (
         <div className="flex flex-wrap gap-1.5 mb-2">
+          {activeKBIds.map((kbId) => (
+            <div key={kbId} className="flex items-center gap-1.5 px-2 py-1 bg-accent/10 border border-accent/20 rounded-lg text-[11px] text-accent">
+              <BookOpen size={10} />
+              <span className="truncate max-w-[160px]">{kbNames[kbId] || 'Knowledge Base'}</span>
+              <button onClick={() => toggleKB(kbId)} className="text-accent/60 hover:text-accent cursor-pointer">
+                <X size={10} />
+              </button>
+            </div>
+          ))}
           {attachedContexts.map((ctx) => (
             <div key={ctx.id} className="flex items-center gap-1.5 px-2 py-1 bg-accent/10 border border-accent/20 rounded-lg text-[11px] text-accent">
               <MessageSquare size={10} />
@@ -800,6 +828,7 @@ export default function ChatInput() {
       <div className="mt-2 flex items-center gap-3 pb-0.5">
         <ModelPicker />
         <AgentPicker />
+        <KBPicker />
         <div className="flex-1" />
         {!isStreaming && (
           <ChatSettings numResponses={numResponses} setNumResponses={setNumResponses} />
