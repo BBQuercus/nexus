@@ -5,16 +5,28 @@ from typing import Any, Optional
 
 from sqlalchemy import (
     Boolean,
+    Computed,
     DateTime,
     ForeignKey,
     Integer,
     JSON,
+    LargeBinary,
     Numeric,
     String,
     Text,
     text,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import TSVECTOR, UUID
+
+# pgvector: The Python package may be installed but the Postgres extension might
+# not be.  We import the type unconditionally (needed for model definition) but
+# provide a flag that startup code checks to decide whether to skip vector columns.
+try:
+    from pgvector.sqlalchemy import Vector as _PgVector
+    _has_pgvector_python = True
+except ImportError:
+    _PgVector = None  # type: ignore[assignment,misc]
+    _has_pgvector_python = False
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
@@ -69,6 +81,7 @@ class Conversation(Base):
     )
     sandbox_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     sandbox_template: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    knowledge_base_ids: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
     forked_from_message_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True), ForeignKey("messages.id"), nullable=True
     )
@@ -115,6 +128,7 @@ class Message(Base):
     tool_result: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
     images: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
     attachments: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
+    citations: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
     feedback: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     token_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     cost_usd: Mapped[Optional[Decimal]] = mapped_column(
@@ -186,6 +200,7 @@ class AgentPersona(Base):
     default_mode: Mapped[str] = mapped_column(String, default="code")
     icon: Mapped[str] = mapped_column(String, default="🤖")
     tools_enabled: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
+    knowledge_base_ids: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
     is_public: Mapped[bool] = mapped_column(Boolean, default=False)
     usage_count: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(
@@ -295,6 +310,164 @@ class AnalyticsEvent(Base):
     )
     event_type: Mapped[str] = mapped_column(String)
     event_data: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+# ── RAG Models ──
+
+
+class KnowledgeBase(Base):
+    __tablename__ = "knowledge_bases"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id")
+    )
+    name: Mapped[str] = mapped_column(String)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    embedding_model: Mapped[str] = mapped_column(
+        String, default="text-embedding-3-small"
+    )
+    chunk_strategy: Mapped[str] = mapped_column(String, default="contextual")
+    document_count: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
+    chunk_count: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
+    status: Mapped[str] = mapped_column(String, default="ready")
+    is_public: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    user: Mapped["User"] = relationship()
+    documents: Mapped[list["Document"]] = relationship(
+        back_populates="knowledge_base", cascade="all, delete-orphan"
+    )
+
+
+class Document(Base):
+    __tablename__ = "documents"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
+    )
+    knowledge_base_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("knowledge_bases.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id")
+    )
+    conversation_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("conversations.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    filename: Mapped[str] = mapped_column(String)
+    content_type: Mapped[str] = mapped_column(String)
+    file_size_bytes: Mapped[int] = mapped_column(Integer)
+    page_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    raw_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    metadata_: Mapped[Optional[Any]] = mapped_column("metadata", JSON, nullable=True)
+    status: Mapped[str] = mapped_column(String, default="processing")
+    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    knowledge_base: Mapped[Optional["KnowledgeBase"]] = relationship(back_populates="documents")
+    chunks: Mapped[list["Chunk"]] = relationship(
+        back_populates="document", cascade="all, delete-orphan"
+    )
+
+
+class Chunk(Base):
+    __tablename__ = "chunks"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
+    )
+    document_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE"), index=True
+    )
+    knowledge_base_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("knowledge_bases.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    conversation_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("conversations.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    content: Mapped[str] = mapped_column(Text)
+    context_prefix: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    chunk_index: Mapped[int] = mapped_column(Integer)
+    page_number: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    section_title: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    if _has_pgvector_python:
+        embedding = mapped_column(_PgVector(1536), nullable=True)
+    else:
+        embedding = mapped_column(LargeBinary, nullable=True)
+    token_count: Mapped[int] = mapped_column(Integer, default=0)
+    metadata_: Mapped[Optional[Any]] = mapped_column("metadata", JSON, nullable=True)
+    tsv = mapped_column(
+        TSVECTOR,
+        Computed("to_tsvector('english', content)", persisted=True),
+        nullable=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    document: Mapped["Document"] = relationship(back_populates="chunks")
+
+
+class KnowledgeBaseAgent(Base):
+    __tablename__ = "knowledge_base_agents"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
+    )
+    knowledge_base_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("knowledge_bases.id", ondelete="CASCADE")
+    )
+    agent_persona_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("agent_personas.id", ondelete="CASCADE")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class RetrievalLog(Base):
+    __tablename__ = "retrieval_logs"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
+    )
+    message_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("messages.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    query: Mapped[str] = mapped_column(Text)
+    rewritten_queries: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
+    chunks_retrieved: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
+    total_candidates: Mapped[int] = mapped_column(Integer, default=0)
+    retrieval_time_ms: Mapped[int] = mapped_column(Integer, default=0)
+    rerank_time_ms: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

@@ -3,7 +3,7 @@ import { useStore } from './store';
 import type { StreamingState } from './store';
 import * as api from './api';
 import { streamSSE } from './sse';
-import type { Message, ToolCall } from './types';
+import type { Message, ToolCall, Citation, RetrievalResult } from './types';
 import { toast } from '@/components/toast';
 
 /** Map raw API message objects to typed Message[] */
@@ -29,6 +29,7 @@ export function mapRawMessages(raw: Array<Record<string, unknown>>, conversation
       toolCalls: (m.tool_calls as Message['toolCalls']) || undefined,
       images: (m.images as Message['images']) || undefined,
       files: (m.files as Message['files']) || undefined,
+      citations: (m.citations as Message['citations']) || undefined,
       feedback: (m.feedback as Message['feedback']) || undefined,
       contexts,
       parentId: (m.parent_id as string) || undefined,
@@ -147,6 +148,30 @@ export function processSseEvent(
       break;
     }
 
+    case 'retrieval_results': {
+      const sources = (event.sources as Citation[]) || [];
+      const retrievalResult: RetrievalResult = {
+        query: (event.query as string) || '',
+        confidence: (event.confidence as number) || 0,
+        sources,
+      };
+      if (opts.isMulti) {
+        opts.updateBranch(bi, (b) => ({
+          citations: [...b.citations, ...sources],
+          retrievalResult,
+        }));
+      } else {
+        store.setStreaming({
+          citations: [...store.streaming.citations, ...sources],
+          retrievalResult,
+        });
+      }
+      // Auto-open sources panel when citations arrive
+      store.setRightPanelTab('sources');
+      if (!store.rightPanelOpen) store.setRightPanelOpen(true);
+      break;
+    }
+
     case 'preview':
       store.setPreviewUrl((event.url as string) || '');
       store.setRightPanelTab('preview');
@@ -229,6 +254,7 @@ export function useStreaming() {
       parentId?: string;
       numResponses: number;
       contextIds?: string[];
+      agentPersonaId?: string;
     },
   ) => {
     const store = useStore.getState();
@@ -240,7 +266,7 @@ export function useStreaming() {
     const isMulti = opts.numResponses > 1;
 
     if (isMulti) {
-      const emptyBranch: StreamingState = { content: '', reasoning: '', toolCalls: [], images: [], files: [] };
+      const emptyBranch: StreamingState = { content: '', reasoning: '', toolCalls: [], images: [], files: [], citations: [], retrievalResult: null };
       store.setMultiStreaming({
         branches: Array.from({ length: opts.numResponses }, () => ({ ...emptyBranch })),
         activeBranchIndex: 0,
@@ -263,7 +289,7 @@ export function useStreaming() {
       const response = await api.sendMessage(
         convId, text, opts.attachmentIds, opts.model,
         opts.parentId, opts.numResponses, controller.signal,
-        opts.contextIds,
+        opts.contextIds, opts.agentPersonaId,
       );
       for await (const event of streamSSE(response)) {
         const result = processSseEvent(
@@ -308,6 +334,7 @@ export function useStreaming() {
         cost: finalCost,
         images: finalState.images.length > 0 ? [...finalState.images] : undefined,
         files: finalState.files.length > 0 ? [...finalState.files] : undefined,
+        citations: finalState.citations.length > 0 ? [...finalState.citations] : undefined,
       };
       useStore.getState().setMessages((prev: Message[]) => [...prev, assistantMsg]);
       useStore.getState().resetStreaming();

@@ -37,11 +37,10 @@ body {
   -webkit-overflow-scrolling: touch;
 }
 
-/* Safe area insets for notched devices */
-@supports (padding: env(safe-area-inset-bottom)) {
-  .safe-bottom {
-    padding-bottom: env(safe-area-inset-bottom);
-  }
+/* Safe area insets for notched devices — adds to existing padding */
+.safe-bottom {
+  --_safe-pb: env(safe-area-inset-bottom, 0px);
+  padding-bottom: calc(var(--_safe-pb) + var(--safe-bottom-pad, 1.25rem));
 }
 
 ::selection {
@@ -63,7 +62,7 @@ code {
   background: var(--color-surface-1);
   padding: 2px 6px;
   border: 1px solid var(--color-border-subtle);
-  border-radius: 4px;
+  border-radius: 6px;
 }
 
 pre {
@@ -91,13 +90,13 @@ pre code {
   padding-left: 1em;
   color: var(--color-text-secondary);
   margin: 0.5em 0;
-  border-radius: 0 4px 4px 0;
+  border-radius: 0 8px 8px 0;
   background: var(--color-surface-0);
   padding: 0.5em 1em;
 }
 .markdown-content a { color: var(--color-accent); }
 .markdown-content a:hover { color: var(--color-accent-hover); }
-.markdown-content table { border-collapse: collapse; width: 100%; margin: 0.5em 0; border-radius: 6px; overflow: hidden; }
+.markdown-content table { border-collapse: collapse; width: 100%; margin: 0.5em 0; border-radius: 8px; overflow: hidden; }
 .markdown-content th, .markdown-content td {
   text-align: left;
   padding: 6px 12px;
@@ -152,7 +151,7 @@ pre code {
   border: none;
   cursor: pointer;
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: 6px;
   transition: color 0.15s, background 0.15s;
 }
 .code-copy-btn:hover {

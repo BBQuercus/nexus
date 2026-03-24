@@ -69,6 +69,19 @@ export default function ChatMessages() {
         setSandboxId((conv.sandbox_id as string) || null);
         setSandboxStatus(conv.sandbox_id ? 'running' : 'none');
 
+        // Restore active persona from conversation
+        const personaId = (conv.agent_persona_id as string) || null;
+        if (personaId) {
+          try {
+            const persona = await api.getAgent(personaId);
+            useStore.getState().setActivePersona(persona);
+          } catch {
+            useStore.getState().setActivePersona(null);
+          }
+        } else {
+          useStore.getState().setActivePersona(null);
+        }
+
         try {
           const artifacts = await api.getArtifacts(activeConversationId!);
           setArtifacts(artifacts);
@@ -91,7 +104,7 @@ export default function ChatMessages() {
 
   return (
     <div className="relative flex-1 min-h-0">
-      <div ref={containerRef} className="absolute inset-0 overflow-y-auto px-2 sm:px-4 py-4 sm:py-6">
+      <div ref={containerRef} className="absolute inset-0 overflow-y-auto px-3 sm:px-6 py-4 sm:py-6">
         {loading && messages.length === 0 ? (
           <MessageSkeleton />
         ) : (

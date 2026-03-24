@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { User, Conversation, Message, Artifact, AgentPersona, AgentMode, ToolCall, ConversationTree } from './types';
+import type { User, Conversation, Message, Artifact, AgentPersona, ToolCall, ConversationTree, Citation, RetrievalResult } from './types';
 
 export interface StreamingImage {
   filename: string;
@@ -18,6 +18,8 @@ export interface StreamingState {
   toolCalls: ToolCall[];
   images: StreamingImage[];
   files: StreamingFile[];
+  citations: Citation[];
+  retrievalResult: RetrievalResult | null;
 }
 
 export interface MultiStreamingState {
@@ -42,11 +44,10 @@ export interface AppState {
   activeConversationId: string | null;
   messages: Message[];
   activeModel: string;
-  activeMode: AgentMode;
   activePersona: AgentPersona | null;
   sandboxStatus: 'none' | 'creating' | 'running' | 'stopped';
   sandboxId: string | null;
-  rightPanelTab: 'terminal' | 'files' | 'preview' | 'artifacts' | 'tree';
+  rightPanelTab: 'terminal' | 'files' | 'preview' | 'artifacts' | 'tree' | 'sources';
   activeLeafId: string | null;
   conversationTree: ConversationTree | null;
   branchingFromId: string | null;
@@ -69,7 +70,6 @@ export interface AppActions {
   setActiveConversationId: (id: string | null) => void;
   setMessages: (messages: Message[] | ((prev: Message[]) => Message[])) => void;
   setActiveModel: (model: string) => void;
-  setActiveMode: (mode: AgentMode) => void;
   setActivePersona: (persona: AgentPersona | null) => void;
   setSandboxStatus: (status: AppState['sandboxStatus']) => void;
   setSandboxId: (id: string | null) => void;
@@ -98,7 +98,7 @@ export interface AppActions {
   reset: () => void;
 }
 
-const emptyStreaming: StreamingState = { content: '', reasoning: '', toolCalls: [], images: [], files: [] };
+const emptyStreaming: StreamingState = { content: '', reasoning: '', toolCalls: [], images: [], files: [], citations: [], retrievalResult: null };
 
 // Restore persisted state from localStorage
 function getPersistedState(): Partial<AppState> {
@@ -123,7 +123,6 @@ const initialState: AppState = {
   activeConversationId: null,
   messages: [],
   activeModel: 'azure_ai/claude-sonnet-4-5-swc',
-  activeMode: 'code',
   activePersona: null,
   sandboxStatus: 'none',
   sandboxId: null,
@@ -161,7 +160,6 @@ export const useStore = create<AppState & AppActions>((set) => ({
     try { localStorage.setItem('nexus:activeModel', model); } catch {}
     set({ activeModel: model });
   },
-  setActiveMode: (mode) => set({ activeMode: mode }),
   setActivePersona: (persona) => set({ activePersona: persona }),
   setSandboxStatus: (status) => set({ sandboxStatus: status }),
   setSandboxId: (id) => set({ sandboxId: id }),

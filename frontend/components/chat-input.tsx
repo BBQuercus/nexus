@@ -7,6 +7,7 @@ import type { Message } from '@/lib/types';
 import { MODELS } from '@/lib/types';
 import { ArrowUp, Square, Paperclip, X, Terminal, Trash2, HelpCircle, Download, Cpu, FileSpreadsheet, FileImage, FileText, File, Settings2, MessageSquare } from 'lucide-react';
 import ModelPicker from './model-picker';
+import AgentPicker from './agent-picker';
 import { toast } from './toast';
 import { useStreaming } from '@/lib/useStreaming';
 
@@ -213,6 +214,7 @@ export default function ChatInput() {
   const isStreaming = useStore((s) => s.isStreaming);
   const activeConversationId = useStore((s) => s.activeConversationId);
   const activeModel = useStore((s) => s.activeModel);
+  const activePersona = useStore((s) => s.activePersona);
   const sandboxId = useStore((s) => s.sandboxId);
   const messages = useStore((s) => s.messages);
   const setActiveConversationId = useStore((s) => s.setActiveConversationId);
@@ -474,7 +476,10 @@ export default function ChatInput() {
     let convId = activeConversationId;
     if (!convId) {
       try {
-        const conv = await api.createConversation({ model: activeModel });
+        const conv = await api.createConversation({
+          model: activePersona?.defaultModel || activeModel,
+          ...(activePersona ? { agent_persona_id: activePersona.id } : {}),
+        });
         convId = conv.id;
         setActiveConversationId(convId);
         api.listConversations().then((r) => setConversations(r.conversations));
@@ -482,6 +487,13 @@ export default function ChatInput() {
         console.error('Failed to create conversation:', e);
         toast.error('Failed to create conversation');
         return;
+      }
+    } else if (activePersona) {
+      // Attach persona to existing conversation so the backend uses its system prompt
+      try {
+        await api.updateConversation(convId, { agent_persona_id: activePersona.id });
+      } catch (e) {
+        console.error('Failed to attach persona to conversation:', e);
       }
     }
 
@@ -519,12 +531,13 @@ export default function ChatInput() {
 
     await streamSend(text, convId, {
       attachmentIds,
-      model: activeModel,
+      model: activePersona?.defaultModel || activeModel,
       parentId,
       numResponses,
       contextIds: contextIds.length > 0 ? contextIds : undefined,
+      agentPersonaId: activePersona?.id,
     });
-  }, [content, pendingFiles, attachedContexts, isStreaming, activeConversationId, activeModel, sandboxId, messages,
+  }, [content, pendingFiles, attachedContexts, isStreaming, activeConversationId, activeModel, activePersona, sandboxId, messages,
     setActiveConversationId, setMessages, setConversations, branchingFromId, setBranchingFromId,
     numResponses, streamSend, slashCommands]);
 
@@ -786,6 +799,7 @@ export default function ChatInput() {
 
       <div className="mt-2 flex items-center gap-3 pb-0.5">
         <ModelPicker />
+        <AgentPicker />
         <div className="flex-1" />
         {!isStreaming && (
           <ChatSettings numResponses={numResponses} setNumResponses={setNumResponses} />

@@ -28,6 +28,7 @@ class CreateConversationRequest(BaseModel):
     agent_mode: str = "chat"
     agent_persona_id: Optional[uuid.UUID] = None
     sandbox_template: Optional[str] = None
+    knowledge_base_ids: Optional[list[uuid.UUID]] = None
 
 
 class UpdateConversationRequest(BaseModel):
@@ -45,6 +46,8 @@ class SendMessageRequest(BaseModel):
     parent_id: Optional[uuid.UUID] = None
     num_responses: Optional[int] = 1  # 1-5 parallel responses
     context_conversation_ids: Optional[list[uuid.UUID]] = None  # @mentioned conversations
+    agent_persona_id: Optional[uuid.UUID] = None  # Override persona for this message
+    knowledge_base_ids: Optional[list[uuid.UUID]] = None  # Attach KBs for RAG
 
 
 class SwitchBranchRequest(BaseModel):
@@ -86,6 +89,7 @@ def _serialize_message(m: Message) -> dict:
         "tool_result": m.tool_result,
         "images": m.images,
         "attachments": m.attachments,
+        "citations": m.citations,
         "feedback": m.feedback,
         "token_count": m.token_count,
         "cost_usd": float(m.cost_usd) if m.cost_usd else None,
@@ -110,6 +114,7 @@ async def create_conversation(
         agent_mode=body.agent_mode,
         agent_persona_id=body.agent_persona_id,
         sandbox_template=body.sandbox_template,
+        knowledge_base_ids=[str(kid) for kid in body.knowledge_base_ids] if body.knowledge_base_ids else None,
     )
     db.add(conv)
     await db.flush()
@@ -202,6 +207,7 @@ async def get_conversation(
         "sandbox_template": conv.sandbox_template,
         "active_leaf_id": str(conv.active_leaf_id) if conv.active_leaf_id else None,
         "forked_from_message_id": str(conv.forked_from_message_id) if conv.forked_from_message_id else None,
+        "knowledge_base_ids": conv.knowledge_base_ids,
         "created_at": conv.created_at.isoformat() if conv.created_at else None,
         "updated_at": conv.updated_at.isoformat() if conv.updated_at else None,
         "messages": [_serialize_message(m) for m in path_messages],
@@ -344,6 +350,18 @@ async def send_message(
     if model != conv.model or mode != conv.agent_mode:
         conv.model = model
         conv.agent_mode = mode
+        await db.flush()
+        await db.commit()
+
+    # If a persona was specified in this request, attach it to the conversation
+    if body.agent_persona_id and body.agent_persona_id != conv.agent_persona_id:
+        conv.agent_persona_id = body.agent_persona_id
+        await db.flush()
+        await db.commit()
+
+    # Update knowledge base IDs if provided
+    if body.knowledge_base_ids is not None:
+        conv.knowledge_base_ids = [str(kid) for kid in body.knowledge_base_ids]
         await db.flush()
         await db.commit()
 

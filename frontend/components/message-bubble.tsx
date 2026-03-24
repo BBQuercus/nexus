@@ -1,7 +1,8 @@
 'use client';
 
 import { useMemo, useRef, useEffect, useState } from 'react';
-import type { Message, CostData, ToolCall } from '@/lib/types';
+import type { Message, CostData, ToolCall, Citation } from '@/lib/types';
+import { CitationBar, ConfidenceBadge } from './citation-chip';
 import { MODELS } from '@/lib/types';
 import { renderMarkdown } from '@/lib/markdown';
 import { useStore } from '@/lib/store';
@@ -651,6 +652,9 @@ export default function MessageBubble({ message }: { message: Message }) {
         )}
         {renderedHtml && (
           <div ref={contentRef} className="markdown-content text-sm text-text-primary" dangerouslySetInnerHTML={{ __html: renderedHtml }} />
+        )}
+        {message.citations && message.citations.length > 0 && (
+          <CitationBar citations={message.citations} />
         )}
         {message.cost && <CostBadge data={message.cost} />}
         <div className="relative flex items-center gap-3 mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity">

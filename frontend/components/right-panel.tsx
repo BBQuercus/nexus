@@ -3,12 +3,13 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useStore } from '@/lib/store';
 import { useIsMobile } from '@/lib/useMediaQuery';
-import { Terminal, FolderOpen, Eye, Layers, Network, X } from 'lucide-react';
+import { Terminal, FolderOpen, Eye, Layers, Network, BookOpen, X } from 'lucide-react';
 import TerminalPanel from './terminal-panel';
 import FilesPanel from './files-panel';
 import PreviewPanel from './preview-panel';
 import ArtifactsPanel from './artifacts-panel';
 import TreePanel from './tree-panel';
+import SourcesPanel from './sources-panel';
 
 const ALL_TABS = [
   { key: 'terminal' as const, label: 'Terminal', icon: <Terminal size={12} />, needsSandbox: true },
@@ -16,6 +17,7 @@ const ALL_TABS = [
   { key: 'preview' as const, label: 'Preview', icon: <Eye size={12} />, needsSandbox: true },
   { key: 'artifacts' as const, label: 'Artifacts', icon: <Layers size={12} />, needsSandbox: false },
   { key: 'tree' as const, label: 'Tree', icon: <Network size={12} />, needsSandbox: false },
+  { key: 'sources' as const, label: 'Sources', icon: <BookOpen size={12} />, needsSandbox: false },
 ];
 
 const MIN_WIDTH = 280;
@@ -40,14 +42,19 @@ export default function RightPanel() {
   const tree = useStore((s) => s.conversationTree);
   const hasBranches = tree?.nodes.some((n) => n.childCount > 1) ?? false;
 
+  const streamingCitations = useStore((s) => s.streaming.citations);
+  const messages = useStore((s) => s.messages);
+  const hasCitations = streamingCitations.length > 0 || messages.some((m) => m.citations && m.citations.length > 0);
+
   const visibleTabs = useMemo(() => {
     return ALL_TABS.filter((tab) => {
       if (tab.needsSandbox && !hasSandbox) return false;
       if (tab.key === 'artifacts' && artifacts.length === 0 && !hasSandbox) return false;
       if (tab.key === 'tree' && !hasBranches) return false;
+      if (tab.key === 'sources' && !hasCitations) return false;
       return true;
     });
-  }, [hasSandbox, artifacts.length, hasBranches]);
+  }, [hasSandbox, artifacts.length, hasBranches, hasCitations]);
 
   // If the current tab is no longer visible, switch to first available
   useEffect(() => {
@@ -127,7 +134,7 @@ export default function RightPanel() {
           <button
             key={tab.key}
             onClick={() => setRightPanelTab(tab.key)}
-            className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-[11px] font-medium tracking-wide uppercase rounded-md transition-colors cursor-pointer ${
+            className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-[11px] font-medium tracking-wide uppercase rounded-lg transition-colors cursor-pointer ${
               activeTab === tab.key
                 ? 'text-accent bg-accent/8'
                 : 'text-text-tertiary hover:text-text-secondary hover:bg-surface-1'
@@ -140,7 +147,7 @@ export default function RightPanel() {
         {/* Close button on mobile/tablet */}
         <button
           onClick={() => setRightPanelOpen(false)}
-          className="lg:hidden flex items-center justify-center px-2 py-1.5 text-text-tertiary hover:text-text-secondary rounded-md cursor-pointer transition-colors"
+          className="lg:hidden flex items-center justify-center px-2 py-1.5 text-text-tertiary hover:text-text-secondary rounded-lg cursor-pointer transition-colors"
         >
           <X size={14} />
         </button>
@@ -152,6 +159,7 @@ export default function RightPanel() {
         {activeTab === 'preview' && <PreviewPanel />}
         {activeTab === 'artifacts' && <ArtifactsPanel />}
         {activeTab === 'tree' && <TreePanel />}
+        {activeTab === 'sources' && <SourcesPanel />}
       </div>
     </div>
   );

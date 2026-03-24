@@ -367,7 +367,7 @@ export default function TreePanel() {
       <div className="flex flex-col h-full">
         <PanelHeader messageCount={0} branchCount={0} />
         <div className="flex-1 flex flex-col items-center justify-center gap-3 px-6 text-center">
-          <div className="w-10 h-10 rounded-xl bg-surface-1 border border-border-default flex items-center justify-center">
+          <div className="w-10 h-10 rounded-lg bg-surface-1 border border-border-default flex items-center justify-center">
             <GitBranch size={16} className="text-text-tertiary" />
           </div>
           <p className="text-xs text-text-tertiary">No conversation yet</p>
@@ -381,7 +381,7 @@ export default function TreePanel() {
       <div className="flex flex-col h-full">
         <PanelHeader messageCount={totalMessages} branchCount={0} />
         <div className="flex-1 flex flex-col items-center justify-center gap-3 px-6 text-center">
-          <div className="w-10 h-10 rounded-xl bg-accent/5 border border-accent/20 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-lg bg-accent/5 border border-accent/20 flex items-center justify-center">
             <GitBranch size={16} className="text-accent/50" />
           </div>
           <div>

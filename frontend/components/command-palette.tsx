@@ -7,6 +7,7 @@ import { logout as apiLogout } from '@/lib/api';
 import { clearToken } from '@/lib/auth';
 import { toast } from './toast';
 import { Search, Terminal, FolderOpen, Eye, Layers, LogOut, Users, Plus, MessageSquare, Cpu, Trash2, HelpCircle, Download } from 'lucide-react';
+import { ProviderLogo } from './provider-logos';
 
 interface CommandAction {
   id: string;
@@ -34,12 +35,13 @@ export default function CommandPalette() {
     ...MODELS.map((m, i) => ({
       id: `model-${m.id}`,
       label: `Use ${m.name}`,
+      icon: <ProviderLogo provider={m.provider} size={13} />,
       shortcut: i < 9 ? `\u2303${i + 1}` : undefined,
       category: 'Models',
       handler: () => setActiveModel(m.id),
     })),
     { id: 'new-chat', label: 'New Conversation', icon: <Plus size={13} />, shortcut: '\u2318N', category: 'Actions', handler: () => {
-      (async () => { try { const conv = await (await import('@/lib/api')).createConversation({ model: useStore.getState().activeModel, agent_mode: useStore.getState().activeMode }); useStore.getState().setActiveConversationId(conv.id); useStore.getState().setMessages([]); const r = await (await import('@/lib/api')).listConversations(); useStore.getState().setConversations(r.conversations); } catch {} })();
+      (async () => { try { const conv = await (await import('@/lib/api')).createConversation({ model: useStore.getState().activeModel }); useStore.getState().setActiveConversationId(conv.id); useStore.getState().setMessages([]); const r = await (await import('@/lib/api')).listConversations(); useStore.getState().setConversations(r.conversations); } catch {} })();
     }},
     { id: 'focus-input', label: 'Focus Chat Input', icon: <MessageSquare size={13} />, shortcut: '\u2318J', category: 'Actions', handler: () => { const ta = document.querySelector('textarea'); if (ta) { ta.focus(); ta.select(); } } },
     { id: 'toggle-panel', label: 'Toggle Right Panel', category: 'Navigation', handler: () => setRightPanelOpen(!rightPanelOpen) },
@@ -54,7 +56,7 @@ export default function CommandPalette() {
       if (ta) { ta.focus(); const nativeSet = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set; nativeSet?.call(ta, '/model '); ta.dispatchEvent(new Event('input', { bubbles: true })); }
     }},
     { id: 'slash-clear', label: '/clear — New conversation', icon: <Trash2 size={13} />, category: 'Slash Commands', handler: () => {
-      (async () => { try { const conv = await (await import('@/lib/api')).createConversation({ model: useStore.getState().activeModel, agent_mode: useStore.getState().activeMode }); useStore.getState().setActiveConversationId(conv.id); useStore.getState().setMessages([]); const r = await (await import('@/lib/api')).listConversations(); useStore.getState().setConversations(r.conversations); } catch {} })();
+      (async () => { try { const conv = await (await import('@/lib/api')).createConversation({ model: useStore.getState().activeModel }); useStore.getState().setActiveConversationId(conv.id); useStore.getState().setMessages([]); const r = await (await import('@/lib/api')).listConversations(); useStore.getState().setConversations(r.conversations); } catch {} })();
     }},
     { id: 'slash-help', label: '/help — Keyboard shortcuts', icon: <HelpCircle size={13} />, category: 'Slash Commands', handler: () => {
       window.dispatchEvent(new CustomEvent('nexus:open-shortcuts'));
@@ -136,7 +138,7 @@ export default function CommandPalette() {
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh] sm:pt-[20vh] px-3 sm:px-0">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={close} />
-      <div className="relative w-full max-w-lg bg-surface-0 border border-border-default rounded-xl shadow-2xl overflow-hidden animate-fade-in-up" style={{ animationDuration: '0.15s' }}>
+      <div className="relative w-full max-w-lg bg-surface-0 border border-border-default rounded-lg shadow-2xl overflow-hidden animate-fade-in-up" style={{ animationDuration: '0.15s' }}>
         <div className="flex items-center gap-2 px-4 py-3 border-b border-border-default">
           <Search size={14} className="text-text-tertiary shrink-0" />
           <input

@@ -54,14 +54,12 @@ export default function AgentsView() {
     const params = new URLSearchParams(window.location.search);
     const name = params.get('name');
     const prompt = params.get('prompt');
-    const mode = params.get('mode');
     const model = params.get('model');
     if (name || prompt) {
       setEditing({
         ...emptyAgent,
         name: name || '',
         systemPrompt: prompt || '',
-        defaultMode: (mode as AgentMode) || emptyAgent.defaultMode,
         defaultModel: model || emptyAgent.defaultModel,
       });
       window.history.replaceState({}, '', '/agents');
@@ -72,7 +70,7 @@ export default function AgentsView() {
   const handleSave = async () => {
     if (!editing || !editing.name.trim()) return;
     try {
-      const data: Partial<AgentPersona> = { name: editing.name, icon: editing.icon, description: editing.description, systemPrompt: editing.systemPrompt, defaultModel: editing.defaultModel, defaultMode: editing.defaultMode, isPublic: editing.isPublic };
+      const data: Partial<AgentPersona> = { name: editing.name, icon: editing.icon, description: editing.description, systemPrompt: editing.systemPrompt, defaultModel: editing.defaultModel, isPublic: editing.isPublic };
       if (editing.id) await api.updateAgent(editing.id, data);
       else await api.createAgent(data);
       setAgents(await api.listAgents());
@@ -210,30 +208,15 @@ export default function AgentsView() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="agent-model">Default Model</Label>
-                  <Select
-                    id="agent-model"
-                    value={editing.defaultModel}
-                    onChange={(e) => setEditing({ ...editing, defaultModel: e.target.value })}
-                  >
-                    {MODEL_OPTIONS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
-                  </Select>
-                </div>
-
-                <div>
-                  <Label htmlFor="agent-mode">Default Mode</Label>
-                  <Select
-                    id="agent-mode"
-                    value={editing.defaultMode}
-                    onChange={(e) => setEditing({ ...editing, defaultMode: e.target.value as AgentMode })}
-                  >
-                    <option value="chat">Chat</option>
-                    <option value="code">Code</option>
-                    <option value="architect">Architect</option>
-                  </Select>
-                </div>
+              <div>
+                <Label htmlFor="agent-model">Default Model</Label>
+                <Select
+                  id="agent-model"
+                  value={editing.defaultModel}
+                  onChange={(e) => setEditing({ ...editing, defaultModel: e.target.value })}
+                >
+                  {MODEL_OPTIONS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+                </Select>
               </div>
 
               <div className="flex items-center justify-between py-1">

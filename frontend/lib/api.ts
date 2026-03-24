@@ -1,4 +1,4 @@
-import type { Conversation, Message, Artifact, AgentPersona, User, FileNode, ConversationTree } from './types';
+import type { Conversation, Message, Artifact, AgentPersona, User, FileNode, ConversationTree, KnowledgeBase, KBDocument, Citation } from './types';
 import { getToken, clearToken } from './auth';
 
 export class ApiError extends Error {
@@ -107,7 +107,6 @@ function mapConversation(c: Record<string, unknown>): Conversation {
     createdAt: (c.created_at as string) || (c.createdAt as string) || '',
     updatedAt: (c.updated_at as string) || (c.updatedAt as string) || '',
     model: (c.model as string) || undefined,
-    mode: (c.agent_mode as Conversation['mode']) || (c.mode as Conversation['mode']) || undefined,
     sandboxId: (c.sandbox_id as string) || (c.sandboxId as string) || undefined,
     personaId: (c.persona_id as string) || (c.personaId as string) || undefined,
     messageCount: (c.message_count as number) || (c.messageCount as number) || undefined,
@@ -117,7 +116,6 @@ function mapConversation(c: Record<string, unknown>): Conversation {
 export async function createConversation(params: {
   title?: string;
   model?: string;
-  mode?: string;
   personaId?: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [key: string]: any;
@@ -176,11 +174,12 @@ export async function sendMessage(
   content: string,
   attachments?: string[],
   model?: string,
-  mode?: string,
   parentId?: string,
   numResponses?: number,
   signal?: AbortSignal,
   contextIds?: string[],
+  agentPersonaId?: string,
+  knowledgeBaseIds?: string[],
 ): Promise<Response> {
   const token = getToken();
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -191,10 +190,12 @@ export async function sendMessage(
     credentials: 'include',
     signal,
     body: JSON.stringify({
-      content, attachments, model, mode,
+      content, attachments, model,
       parent_id: parentId,
       ...(numResponses && numResponses > 1 ? { num_responses: numResponses } : {}),
       ...(contextIds && contextIds.length > 0 ? { context_conversation_ids: contextIds } : {}),
+      ...(agentPersonaId ? { agent_persona_id: agentPersonaId } : {}),
+      ...(knowledgeBaseIds && knowledgeBaseIds.length > 0 ? { knowledge_base_ids: knowledgeBaseIds } : {}),
     }),
   });
   if (!response.ok) {
@@ -347,26 +348,56 @@ export async function deleteSandbox(id: string): Promise<void> {
 
 // ── Agents ──
 
+function agentToSnake(params: Partial<AgentPersona>) {
+  return {
+    name: params.name,
+    description: params.description,
+    system_prompt: params.systemPrompt,
+    default_model: params.defaultModel,
+    icon: params.icon,
+    is_public: params.isPublic,
+  };
+}
+
+function agentFromSnake(raw: Record<string, unknown>): AgentPersona {
+  return {
+    id: (raw.id as string) || '',
+    name: (raw.name as string) || '',
+    icon: (raw.icon as string) || 'Bot',
+    description: (raw.description as string) || '',
+    systemPrompt: (raw.system_prompt as string) || (raw.systemPrompt as string) || '',
+    defaultModel: (raw.default_model as string) || (raw.defaultModel as string) || undefined,
+    tools: (raw.tools_enabled as string[]) || (raw.tools as string[]) || undefined,
+    isPublic: (raw.is_public as boolean) ?? (raw.isPublic as boolean) ?? false,
+    authorId: (raw.user_id as string) || (raw.authorId as string) || undefined,
+    createdAt: (raw.created_at as string) || (raw.createdAt as string) || undefined,
+  };
+}
+
 export async function createAgent(params: Partial<AgentPersona>): Promise<AgentPersona> {
-  return apiFetch<AgentPersona>('/api/agents', {
+  const raw = await apiFetch<Record<string, unknown>>('/api/agents', {
     method: 'POST',
-    body: JSON.stringify(params),
+    body: JSON.stringify(agentToSnake(params)),
   });
+  return agentFromSnake(raw);
 }
 
 export async function listAgents(): Promise<AgentPersona[]> {
-  return apiFetch<AgentPersona[]>('/api/agents');
+  const raw = await apiFetch<Record<string, unknown>[]>('/api/agents');
+  return raw.map(agentFromSnake);
 }
 
 export async function getAgent(id: string): Promise<AgentPersona> {
-  return apiFetch<AgentPersona>(`/api/agents/${id}`);
+  const raw = await apiFetch<Record<string, unknown>>(`/api/agents/${id}`);
+  return agentFromSnake(raw);
 }
 
 export async function updateAgent(id: string, params: Partial<AgentPersona>): Promise<AgentPersona> {
-  return apiFetch<AgentPersona>(`/api/agents/${id}`, {
+  const raw = await apiFetch<Record<string, unknown>>(`/api/agents/${id}`, {
     method: 'PATCH',
-    body: JSON.stringify(params),
+    body: JSON.stringify(agentToSnake(params)),
   });
+  return agentFromSnake(raw);
 }
 
 export async function deleteAgent(id: string): Promise<void> {
@@ -487,4 +518,117 @@ export async function getCurrentUser(): Promise<User> {
 
 export async function logout(): Promise<void> {
   return apiFetch<void>('/auth/logout', { method: 'POST' });
+}
+
+// ── Knowledge Bases ──
+
+function kbFromSnake(raw: Record<string, unknown>): KnowledgeBase {
+  return {
+    id: (raw.id as string) || '',
+    userId: (raw.user_id as string) || '',
+    name: (raw.name as string) || '',
+    description: (raw.description as string) || undefined,
+    embeddingModel: (raw.embedding_model as string) || 'text-embedding-3-small',
+    chunkStrategy: (raw.chunk_strategy as string) || 'contextual',
+    documentCount: (raw.document_count as number) || 0,
+    chunkCount: (raw.chunk_count as number) || 0,
+    status: (raw.status as KnowledgeBase['status']) || 'ready',
+    isPublic: (raw.is_public as boolean) ?? false,
+    createdAt: (raw.created_at as string) || '',
+    updatedAt: (raw.updated_at as string) || '',
+  };
+}
+
+function kbDocFromSnake(raw: Record<string, unknown>): KBDocument {
+  return {
+    id: (raw.id as string) || '',
+    filename: (raw.filename as string) || '',
+    contentType: (raw.content_type as string) || '',
+    fileSizeBytes: (raw.file_size_bytes as number) || 0,
+    pageCount: (raw.page_count as number) || undefined,
+    status: (raw.status as KBDocument['status']) || 'processing',
+    errorMessage: (raw.error_message as string) || undefined,
+    metadata: raw.metadata as Record<string, unknown> | undefined,
+    createdAt: (raw.created_at as string) || '',
+  };
+}
+
+export async function createKnowledgeBase(params: { name: string; description?: string; isPublic?: boolean }): Promise<KnowledgeBase> {
+  const raw = await apiFetch<Record<string, unknown>>('/api/knowledge-bases', {
+    method: 'POST',
+    body: JSON.stringify({ name: params.name, description: params.description, is_public: params.isPublic }),
+  });
+  return kbFromSnake(raw);
+}
+
+export async function listKnowledgeBases(): Promise<KnowledgeBase[]> {
+  const raw = await apiFetch<Record<string, unknown>[]>('/api/knowledge-bases');
+  return raw.map(kbFromSnake);
+}
+
+export async function getKnowledgeBase(id: string): Promise<KnowledgeBase> {
+  const raw = await apiFetch<Record<string, unknown>>(`/api/knowledge-bases/${id}`);
+  return kbFromSnake(raw);
+}
+
+export async function updateKnowledgeBase(id: string, params: { name?: string; description?: string; isPublic?: boolean }): Promise<KnowledgeBase> {
+  const raw = await apiFetch<Record<string, unknown>>(`/api/knowledge-bases/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ name: params.name, description: params.description, is_public: params.isPublic }),
+  });
+  return kbFromSnake(raw);
+}
+
+export async function deleteKnowledgeBase(id: string): Promise<void> {
+  return apiFetch<void>(`/api/knowledge-bases/${id}`, { method: 'DELETE' });
+}
+
+export async function uploadKBDocuments(kbId: string, files: File[]): Promise<{ documents: KBDocument[] }> {
+  const formData = new FormData();
+  files.forEach((file) => formData.append('files', file));
+  const raw = await apiFetch<{ documents: Record<string, unknown>[] }>(`/api/knowledge-bases/${kbId}/documents`, {
+    method: 'POST',
+    body: formData,
+  });
+  return { documents: raw.documents.map(kbDocFromSnake) };
+}
+
+export async function listKBDocuments(kbId: string): Promise<KBDocument[]> {
+  const raw = await apiFetch<Record<string, unknown>[]>(`/api/knowledge-bases/${kbId}/documents`);
+  return raw.map(kbDocFromSnake);
+}
+
+export async function deleteKBDocument(kbId: string, docId: string): Promise<void> {
+  return apiFetch<void>(`/api/knowledge-bases/${kbId}/documents/${docId}`, { method: 'DELETE' });
+}
+
+export async function searchKnowledgeBase(kbId: string, query: string, topK?: number): Promise<{
+  query: string; confidence: number; totalCandidates: number; results: Array<{
+    chunkId: string; documentId: string; filename: string; page?: number;
+    section?: string; score: number; content: string; contextPrefix?: string;
+  }>;
+}> {
+  return apiFetch(`/api/knowledge-bases/${kbId}/search`, {
+    method: 'POST',
+    body: JSON.stringify({ query, top_k: topK }),
+  });
+}
+
+export async function uploadConversationDocuments(convId: string, files: File[]): Promise<{ documents: KBDocument[] }> {
+  const formData = new FormData();
+  files.forEach((file) => formData.append('files', file));
+  const raw = await apiFetch<{ documents: Record<string, unknown>[] }>(`/api/conversations/${convId}/documents`, {
+    method: 'POST',
+    body: formData,
+  });
+  return { documents: raw.documents.map(kbDocFromSnake) };
+}
+
+export async function listConversationDocuments(convId: string): Promise<KBDocument[]> {
+  const raw = await apiFetch<Record<string, unknown>[]>(`/api/conversations/${convId}/documents`);
+  return raw.map(kbDocFromSnake);
+}
+
+export async function getRetrievalLog(messageId: string): Promise<Record<string, unknown>> {
+  return apiFetch(`/api/messages/${messageId}/retrieval`);
 }

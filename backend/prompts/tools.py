@@ -120,25 +120,57 @@ TOOLS = [
     },
 ]
 
+KNOWLEDGE_SEARCH_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "knowledge_search",
+        "description": (
+            "Search uploaded documents and knowledge bases for relevant information. "
+            "Use this when the user asks about data, facts, or content from uploaded files, "
+            "documents, or knowledge bases. Returns relevant passages with source citations."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "The search query. Be specific and include key terms from the user's question.",
+                },
+                "knowledge_base_ids": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Optional: specific knowledge base IDs to search. If omitted, searches all available sources.",
+                },
+            },
+            "required": ["query"],
+        },
+    },
+}
+
 
 def get_tools_for_mode(
-    mode: str, tools_enabled: Optional[list[str]] = None
+    mode: str,
+    tools_enabled: Optional[list[str]] = None,
+    has_knowledge: bool = False,
 ) -> list[dict]:
     """Get the tools available for a given agent mode.
 
     Args:
         mode: One of 'chat', 'code', 'architect'
         tools_enabled: Optional list of specific tool names to enable
+        has_knowledge: Whether knowledge bases or documents are available
 
     Returns:
         List of tool definitions for function calling
     """
     if mode == "chat":
-        # Chat mode only gets web_search
-        return [t for t in TOOLS if t["function"]["name"] == "web_search"]
+        base = [t for t in TOOLS if t["function"]["name"] == "web_search"]
+    elif tools_enabled is not None:
+        base = [t for t in TOOLS if t["function"]["name"] in tools_enabled]
+    else:
+        base = list(TOOLS)
 
-    if tools_enabled is not None:
-        return [t for t in TOOLS if t["function"]["name"] in tools_enabled]
+    if has_knowledge:
+        base.append(KNOWLEDGE_SEARCH_TOOL)
 
-    # Code and architect modes get all tools
-    return TOOLS
+    return base

@@ -54,6 +54,7 @@ export interface Message {
   model?: string;
   images?: { filename: string; url: string }[];
   files?: { filename: string; fileType: string; sandboxId?: string }[];
+  citations?: Citation[];
   contexts?: { id: string; title: string }[];
   parentId?: string | null;
   branchIndex?: number;
@@ -101,11 +102,55 @@ export interface AgentPersona {
   description: string;
   systemPrompt: string;
   defaultModel?: string;
-  defaultMode?: string;
   tools?: string[];
   isPublic?: boolean;
   authorId?: string;
   createdAt?: string;
+}
+
+// ── RAG Types ──
+
+export interface Citation {
+  chunkId: string;
+  documentId: string;
+  filename: string;
+  page?: number;
+  section?: string;
+  score: number;
+  snippet: string;
+}
+
+export interface RetrievalResult {
+  query: string;
+  confidence: number;
+  sources: Citation[];
+}
+
+export interface KnowledgeBase {
+  id: string;
+  userId: string;
+  name: string;
+  description?: string;
+  embeddingModel: string;
+  chunkStrategy: string;
+  documentCount: number;
+  chunkCount: number;
+  status: 'ready' | 'processing' | 'error';
+  isPublic: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface KBDocument {
+  id: string;
+  filename: string;
+  contentType: string;
+  fileSizeBytes: number;
+  pageCount?: number;
+  status: 'processing' | 'ready' | 'error';
+  errorMessage?: string;
+  metadata?: Record<string, unknown>;
+  createdAt: string;
 }
 
 export interface FileNode {

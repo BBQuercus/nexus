@@ -88,12 +88,40 @@ ARCHITECT_SYSTEM_PROMPT = """You are Nexus in Architect mode — a senior softwa
 - Pre-installed packages: pandas, numpy, matplotlib, seaborn, plotly, scipy, scikit-learn, openpyxl, python-pptx, reportlab, Pillow, requests"""
 
 
-def build_system_prompt(mode: str, persona: Optional[object] = None) -> str:
+RAG_SYSTEM_ADDENDUM = """
+## Knowledge Base Access
+You have access to uploaded documents and knowledge bases via the `knowledge_search` tool.
+
+### When to use knowledge_search:
+- When the user asks about data, facts, or content from uploaded documents
+- When you need specific numbers, quotes, or details that may be in the documents
+- When the user references "the file", "the report", "the data", etc.
+
+### Citation Rules:
+- ALWAYS cite your sources using [Source N] notation matching the search results
+- Include the filename and page/section when available
+- If evidence is weak or contradictory, say so explicitly
+- NEVER fabricate data that wasn't in the retrieved context
+- If the search returns low-confidence results, tell the user you're not sure and suggest they rephrase
+
+### For data analysis with knowledge bases:
+- First use knowledge_search to understand what data is available
+- Then use execute_code to load and analyze the actual files in the sandbox
+- Combine retrieved context with computed results for the richest answers
+"""
+
+
+def build_system_prompt(
+    mode: str,
+    persona: Optional[object] = None,
+    has_knowledge: bool = False,
+) -> str:
     """Build the system prompt based on mode and optional persona.
 
     Args:
         mode: One of 'chat', 'code', 'architect'
         persona: Optional AgentPersona ORM object with system_prompt attribute
+        has_knowledge: Whether knowledge bases/documents are available
 
     Returns:
         Combined system prompt string
@@ -107,6 +135,9 @@ def build_system_prompt(mode: str, persona: Optional[object] = None) -> str:
     base = base_prompts.get(mode, CODE_SYSTEM_PROMPT)
 
     if persona and hasattr(persona, "system_prompt") and persona.system_prompt:
-        return f"{base}\n\n## Custom Persona Instructions\n{persona.system_prompt}"
+        base = f"{base}\n\n## Custom Persona Instructions\n{persona.system_prompt}"
+
+    if has_knowledge:
+        base = f"{base}\n{RAG_SYSTEM_ADDENDUM}"
 
     return base
