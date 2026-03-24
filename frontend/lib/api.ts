@@ -68,15 +68,9 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
       || response.statusText;
     const requestId = response.headers.get('X-Request-Id') || undefined;
 
-    // Handle 401 — redirect to login
+    // Handle 401 — clear stale token but don't redirect (let callers handle it)
     if (response.status === 401) {
       clearToken();
-      getToast()?.error('Session expired. Please log in again.');
-      // Preserve current URL to redirect back after login
-      const returnUrl = typeof window !== 'undefined' ? window.location.pathname : '';
-      if (typeof window !== 'undefined') {
-        window.location.href = `/login${returnUrl ? `?return=${encodeURIComponent(returnUrl)}` : ''}`;
-      }
     }
 
     // Toast for all other API errors (except error reporting itself)
