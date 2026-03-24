@@ -1,15 +1,31 @@
 import type { Conversation, Message, Artifact, AgentPersona, User, FileNode, ConversationTree } from './types';
-import { getToken } from './auth';
+import { getToken, clearToken } from './auth';
 
 export class ApiError extends Error {
   status: number;
   body: unknown;
-  constructor(status: number, message: string, body?: unknown) {
+  requestId?: string;
+  constructor(status: number, message: string, body?: unknown, requestId?: string) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.body = body;
+    this.requestId = requestId;
   }
+}
+
+// Lazy-import toast to avoid circular deps at module load time
+let _toast: typeof import('@/components/toast').toast | null = null;
+function getToast() {
+  if (!_toast) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      _toast = require('@/components/toast').toast;
+    } catch {
+      return null;
+    }
+  }
+  return _toast;
 }
 
 async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -26,6 +42,14 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
     headers['Content-Type'] = 'application/json';
   }
 
+  // Include CSRF token for state-changing requests when using cookie auth
+  if (!token && typeof document !== 'undefined') {
+    const csrfMatch = document.cookie.match(/csrf_token=([^;]+)/);
+    if (csrfMatch) {
+      headers['X-CSRF-Token'] = csrfMatch[1];
+    }
+  }
+
   const response = await fetch(path, {
     ...options,
     headers,
@@ -39,8 +63,28 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
     } catch {
       errorBody = await response.text().catch(() => null);
     }
-    const message = (errorBody as { detail?: string })?.detail || response.statusText;
-    throw new ApiError(response.status, message, errorBody);
+    const message = (errorBody as { detail?: string })?.detail
+      || (errorBody as { message?: string })?.message
+      || response.statusText;
+    const requestId = response.headers.get('X-Request-Id') || undefined;
+
+    // Handle 401 — redirect to login
+    if (response.status === 401) {
+      clearToken();
+      getToast()?.error('Session expired. Please log in again.');
+      // Preserve current URL to redirect back after login
+      const returnUrl = typeof window !== 'undefined' ? window.location.pathname : '';
+      if (typeof window !== 'undefined') {
+        window.location.href = `/login${returnUrl ? `?return=${encodeURIComponent(returnUrl)}` : ''}`;
+      }
+    }
+
+    // Toast for all other API errors (except error reporting itself)
+    if (response.status !== 401 && !path.includes('/api/errors')) {
+      getToast()?.error(message || 'Something went wrong');
+    }
+
+    throw new ApiError(response.status, message, errorBody, requestId);
   }
 
   if (response.status === 204) return undefined as T;
@@ -141,6 +185,7 @@ export async function sendMessage(
   mode?: string,
   parentId?: string,
   numResponses?: number,
+  signal?: AbortSignal,
 ): Promise<Response> {
   const token = getToken();
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -149,6 +194,7 @@ export async function sendMessage(
     method: 'POST',
     headers,
     credentials: 'include',
+    signal,
     body: JSON.stringify({
       content, attachments, model, mode,
       parent_id: parentId,
@@ -184,14 +230,17 @@ export async function submitFeedback(
   });
 }
 
-export async function regenerateMessage(conversationId: string, messageId: string): Promise<Response> {
+export async function regenerateMessage(conversationId: string, messageId: string, signal?: AbortSignal, model?: string): Promise<Response> {
   const token = getToken();
   const headers: Record<string, string> = {};
   if (token) headers['Authorization'] = `Bearer ${token}`;
+  if (model) headers['Content-Type'] = 'application/json';
   const response = await fetch(`${SSE_BASE}/api/conversations/${conversationId}/messages/${messageId}/regenerate`, {
     method: 'POST',
     headers,
     credentials: 'include',
+    signal,
+    ...(model ? { body: JSON.stringify({ model }) } : {}),
   });
   if (!response.ok) {
     throw new ApiError(response.status, response.statusText);
@@ -330,6 +379,50 @@ export async function deleteAgent(id: string): Promise<void> {
 
 export async function duplicateAgent(id: string): Promise<AgentPersona> {
   return apiFetch<AgentPersona>(`/api/agents/${id}/duplicate`, { method: 'POST' });
+}
+
+// ── Error Reporting ──
+
+export async function reportError(params: {
+  message: string;
+  stack?: string;
+  url?: string;
+  component?: string;
+  request_id?: string;
+  extra?: Record<string, unknown>;
+}): Promise<void> {
+  try {
+    await apiFetch<void>('/api/errors', {
+      method: 'POST',
+      body: JSON.stringify({
+        ...params,
+        user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
+      }),
+    });
+  } catch {
+    // Don't throw if error reporting itself fails
+  }
+}
+
+// ── Health ──
+
+export interface HealthCheck {
+  status: 'ok' | 'degraded';
+  checks: {
+    db: { status: string; error?: string };
+    llm: { status: string; error?: string };
+    daytona: { status: string; error?: string };
+  };
+  latency_ms: number;
+}
+
+export async function getHealth(): Promise<HealthCheck> {
+  // Hit backend directly (bypass Next.js rewrite)
+  const base = typeof window !== 'undefined' && window.location.port === '5173'
+    ? 'http://localhost:8000'
+    : '';
+  const resp = await fetch(`${base}/health`);
+  return resp.json();
 }
 
 // ── User ──

@@ -21,6 +21,7 @@ export class TerminalSocket {
   onExit: ((code: number) => void) | null = null;
   onConnect: ConnectionEventHandler | null = null;
   onDisconnect: ConnectionEventHandler | null = null;
+  onReconnecting: ((attempt: number, maxAttempts: number) => void) | null = null;
 
   constructor(sandboxId: string) {
     this.sandboxId = sandboxId;
@@ -103,6 +104,7 @@ export class TerminalSocket {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) return;
     const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
     this.reconnectAttempts++;
+    this.onReconnecting?.(this.reconnectAttempts, this.maxReconnectAttempts);
     this.reconnectTimer = setTimeout(() => this.connect(), delay);
   }
 
