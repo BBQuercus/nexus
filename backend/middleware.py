@@ -36,6 +36,53 @@ SECURITY_HEADERS: list[tuple[bytes, bytes]] = [
 ]
 
 
+_UUID_PATTERN = None
+
+
+def _normalize_path(path: str) -> str:
+    """Replace UUIDs in path segments with {id} to avoid high-cardinality metrics."""
+    global _UUID_PATTERN
+    if _UUID_PATTERN is None:
+        import re
+        _UUID_PATTERN = re.compile(
+            r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
+            re.IGNORECASE,
+        )
+    return _UUID_PATTERN.sub("{id}", path)
+
+
+class MetricsMiddleware:
+    """Record HTTP request count and duration as Prometheus metrics (pure ASGI)."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        from backend.telemetry import http_request_duration, http_requests_total
+
+        method = scope.get("method", "GET")
+        path = _normalize_path(scope.get("path", ""))
+        start = time.monotonic()
+        status_code = 500
+
+        async def capture_status(message: Message) -> None:
+            nonlocal status_code
+            if message["type"] == "http.response.start":
+                status_code = message.get("status", 500)
+            await send(message)
+
+        try:
+            await self.app(scope, receive, capture_status)
+        finally:
+            duration = time.monotonic() - start
+            http_requests_total.labels(method=method, path=path, status_code=str(status_code)).inc()
+            http_request_duration.labels(method=method, path=path).observe(duration)
+
+
 class SecurityHeadersMiddleware:
     """Add security headers to every HTTP response (pure ASGI)."""
 

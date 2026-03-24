@@ -1,0 +1,58 @@
+"""Redis connection manager for Nexus.
+
+Provides async Redis client for rate limiting, caching, and pub/sub.
+Falls back gracefully if Redis is unavailable.
+"""
+
+import asyncio
+from typing import Optional
+import redis.asyncio as redis
+from backend.config import settings
+from backend.logging_config import get_logger
+
+logger = get_logger("redis")
+
+_pool: Optional[redis.Redis] = None
+_available: bool = False
+
+
+async def get_redis() -> Optional[redis.Redis]:
+    """Get the Redis client. Returns None if Redis is unavailable."""
+    global _pool, _available
+
+    if _pool is None:
+        try:
+            _pool = redis.from_url(
+                settings.REDIS_URL,
+                encoding="utf-8",
+                decode_responses=True,
+                max_connections=20,
+                socket_connect_timeout=2,
+                socket_timeout=2,
+                retry_on_timeout=True,
+            )
+            # Test connection
+            await _pool.ping()
+            _available = True
+            logger.info("redis_connected", url=settings.REDIS_URL.split("@")[-1])  # Don't log auth
+        except Exception as e:
+            logger.warning("redis_unavailable", error=str(e), hint="Falling back to in-memory rate limiting")
+            _pool = None
+            _available = False
+
+    return _pool if _available else None
+
+
+async def close_redis():
+    """Close Redis connection pool."""
+    global _pool, _available
+    if _pool:
+        await _pool.close()
+        _pool = None
+        _available = False
+        logger.info("redis_disconnected")
+
+
+def is_redis_available() -> bool:
+    """Check if Redis is currently available."""
+    return _available
