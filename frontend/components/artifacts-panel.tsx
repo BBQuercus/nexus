@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useStore } from '@/lib/store';
 import type { Artifact } from '@/lib/types';
 import * as api from '@/lib/api';
+import VegaChart from './vega-chart';
 import {
   Pin, PinOff, Code2, Image, BarChart3, Table, FileText, GitBranch,
   Copy, Check, Download, LayoutGrid, LayoutList, Filter,
@@ -39,6 +40,7 @@ function getDocIcon(artifact: Artifact) {
 
 function ArtifactCard({ artifact, isGrid }: { artifact: Artifact; isGrid: boolean }) {
   const [copied, setCopied] = useState(false);
+  const [chartView, setChartView] = useState<{ toImageURL: (type: string) => Promise<string> } | null>(null);
   const sandboxId = useStore((s) => s.sandboxId);
   const setArtifacts = useStore((s) => s.setArtifacts);
   const artifacts = useStore((s) => s.artifacts);
@@ -97,6 +99,15 @@ function ArtifactCard({ artifact, isGrid }: { artifact: Artifact; isGrid: boolea
     URL.revokeObjectURL(url);
   };
 
+  const handleChartDownload = useCallback(async (format: 'png' | 'svg') => {
+    if (!chartView) return;
+    const imageUrl = await chartView.toImageURL(format);
+    const a = document.createElement('a');
+    a.href = imageUrl;
+    a.download = `${artifact.label.replace(/\.[^.]+$/, '')}.${format}`;
+    a.click();
+  }, [artifact.label, chartView]);
+
   const lineCount = artifact.type === 'code' && artifact.content
     ? artifact.content.split('\n').length
     : undefined;
@@ -129,6 +140,14 @@ function ArtifactCard({ artifact, isGrid }: { artifact: Artifact; isGrid: boolea
     : docExt === 'pptx' || docExt === 'ppt' ? 'bg-orange-500/15 text-orange-400'
     : docExt === 'pdf' ? 'bg-red-500/15 text-red-400'
     : 'bg-surface-2 text-text-tertiary';
+  const chartSpec = useMemo(() => {
+    if (artifact.type !== 'chart' || !artifact.content) return null;
+    try {
+      return JSON.parse(artifact.content) as Record<string, unknown>;
+    } catch {
+      return null;
+    }
+  }, [artifact.content, artifact.type]);
 
   return (
     <div className={`bg-surface-1 border border-border-default hover:border-border-focus rounded-lg transition-colors ${isGrid ? 'p-3' : 'p-2.5 flex items-start gap-3'}`}>
@@ -136,6 +155,11 @@ function ArtifactCard({ artifact, isGrid }: { artifact: Artifact; isGrid: boolea
       {isGrid && isImagePreviewable && previewUrl && (
         <div className="mb-2 rounded overflow-hidden border border-border-default bg-bg">
           <img src={previewUrl} alt={artifact.label} className="w-full h-24 object-contain" />
+        </div>
+      )}
+      {isGrid && artifact.type === 'chart' && chartSpec && (
+        <div className="mb-2 rounded overflow-hidden border border-border-default bg-surface-0">
+          <VegaChart spec={chartSpec} className="max-h-52 overflow-x-auto p-2" onViewReady={setChartView} />
         </div>
       )}
 
@@ -178,6 +202,11 @@ function ArtifactCard({ artifact, isGrid }: { artifact: Artifact; isGrid: boolea
         <div className="text-[10px] text-text-tertiary font-mono mt-0.5">
           {new Date(artifact.createdAt).toLocaleTimeString()}
         </div>
+        {artifact.type === 'chart' && chartSpec && !isGrid && (
+          <div className="mt-2 rounded-lg border border-border-default bg-surface-0">
+            <VegaChart spec={chartSpec} className="max-h-72 overflow-x-auto p-2" onViewReady={setChartView} />
+          </div>
+        )}
 
         {/* Action buttons */}
         <div className="flex items-center gap-1.5 mt-2">
@@ -190,13 +219,29 @@ function ArtifactCard({ artifact, isGrid }: { artifact: Artifact; isGrid: boolea
               {copied ? 'Copied' : 'Copy'}
             </button>
           )}
-          {(artifact.type === 'image' || artifact.type === 'chart') && (
+          {artifact.type === 'image' && (
             <button
               onClick={() => handleDownload(artifact.label.replace(/\.[^.]+$/, '') + '.png', 'image/png')}
               className="flex items-center gap-1 px-2 py-0.5 text-[9px] font-medium rounded border border-border-default bg-surface-2 text-text-tertiary hover:text-text-secondary hover:border-border-focus cursor-pointer transition-colors"
             >
               <Download size={9} /> Download PNG
             </button>
+          )}
+          {artifact.type === 'chart' && (
+            <>
+              <button
+                onClick={() => void handleChartDownload('png')}
+                className="flex items-center gap-1 px-2 py-0.5 text-[9px] font-medium rounded border border-border-default bg-surface-2 text-text-tertiary hover:text-text-secondary hover:border-border-focus cursor-pointer transition-colors"
+              >
+                <Download size={9} /> PNG
+              </button>
+              <button
+                onClick={() => void handleChartDownload('svg')}
+                className="flex items-center gap-1 px-2 py-0.5 text-[9px] font-medium rounded border border-border-default bg-surface-2 text-text-tertiary hover:text-text-secondary hover:border-border-focus cursor-pointer transition-colors"
+              >
+                <Download size={9} /> SVG
+              </button>
+            </>
           )}
           {artifact.type === 'table' && (
             <button

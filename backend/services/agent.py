@@ -14,6 +14,7 @@ from backend.prompts.tools import get_tools_for_mode
 from backend.services import extraction
 from backend.services import llm as llm_service
 from backend.services import sandbox as sandbox_service
+from backend.services.chart_tool import normalize_chart_spec
 from backend.services.sql_tool import build_run_sql_script
 from backend.services.tables import detect_table, rows_to_csv
 from backend.services.web import call_api, web_browse
@@ -472,6 +473,19 @@ async def run_agent_loop(
                                 "content": rows_to_csv(table),
                                 "metadata": {"rows": table},
                             })
+
+                elif func_name == "create_chart":
+                    spec = normalize_chart_spec(args.get("spec"))
+                    title = args.get("title") or "Interactive Chart"
+                    yield _sse_event("chart_output", {"spec": spec, "title": title})
+                    runtime_artifacts.append({
+                        "type": "chart",
+                        "label": title,
+                        "content": json.dumps(spec),
+                        "metadata": {"title": title},
+                    })
+                    tool_output = json.dumps({"title": title, "spec": spec}, indent=2)
+                    yield _sse_event("tool_output", {"tool": func_name, "output": tool_output, "tool_call_id": tool_call_id})
 
                 elif func_name == "call_api":
                     result = await call_api(
