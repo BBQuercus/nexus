@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import 'katex/dist/katex.min.css';
 import './globals.css';
+import { SkipNav } from '@/components/accessibility';
 
 export const metadata: Metadata = {
   title: 'Nexus',
@@ -12,6 +13,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body className="min-h-screen overflow-hidden">
+        <SkipNav />
         {children}
       </body>
     </html>

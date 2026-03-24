@@ -306,3 +306,25 @@ export const IMAGE_MODELS: ModelOption[] = [
 export const AUDIO_MODELS: ModelOption[] = [
   { name: 'GPT Audio 1.5', id: 'azure_ai/gpt-audio-1.5', provider: 'openai' },
 ];
+
+// ── Multi-Agent Types ──
+
+export type AgentStrategy = 'parallel' | 'sequential' | 'best_of_n' | 'debate';
+
+export interface AgentRunSummary {
+  id: string;
+  model: string;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  tokens: number;
+  cost: number;
+  durationMs: number;
+  score: number | null;
+  resultLength: number;
+  selected: boolean;
+}
+
+export interface MultiAgentWorkflowSummary {
+  workflowId: string;
+  strategy: AgentStrategy;
+  runs: AgentRunSummary[];
+}
