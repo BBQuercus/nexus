@@ -257,6 +257,14 @@ export default function Sidebar() {
             onChange={(e) => handleSearch(e.target.value)}
             className="flex-1 bg-transparent text-xs text-text-primary placeholder:text-text-tertiary outline-none"
           />
+          {search && (
+            <button
+              onClick={() => handleSearch('')}
+              className="text-text-tertiary hover:text-text-secondary cursor-pointer shrink-0"
+            >
+              <X size={11} />
+            </button>
+          )}
         </div>
         <button
           onClick={() => { setBulkMode(!bulkMode); setSelectedIds(new Set()); }}
@@ -297,10 +305,21 @@ export default function Sidebar() {
         </div>
       )}
 
+      {/* Search result count */}
+      {search.trim() && (
+        <div className="px-3 pb-1 text-[10px] font-mono text-text-tertiary">
+          {conversations.length === 0
+            ? 'No conversations found'
+            : `${conversations.length} result${conversations.length !== 1 ? 's' : ''}`}
+        </div>
+      )}
+
       {/* Conversation list */}
       <div className="flex-1 overflow-y-auto px-1.5 pb-4">
         {conversations.length === 0 ? (
-          <div className="p-6 text-center text-text-tertiary text-xs">No conversations</div>
+          <div className="p-6 text-center text-text-tertiary text-xs">
+            {search.trim() ? 'No conversations found' : 'No conversations'}
+          </div>
         ) : (
           groups.filter((g) => g.items.length > 0).map((group) => (
             <div key={group.label} className="mb-1">

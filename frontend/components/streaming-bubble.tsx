@@ -92,17 +92,20 @@ function BranchContent({ state, showCursor }: { state: StreamingState; showCurso
 
   if (!hasContent) {
     return (
-      <div className="flex items-center gap-3 py-3">
+      <div className="flex items-center gap-3 py-3 animate-fade-in-up" style={{ animationDuration: '0.2s' }}>
         <div className="w-7 h-7 rounded-lg flex items-center justify-center border border-accent/20 bg-accent/5">
           <Zap size={13} className="text-accent animate-pulse" />
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-[11px] font-mono text-accent tracking-widest uppercase">Thinking</span>
-          <div className="flex gap-0.5">
-            <span className="w-1 h-1 rounded-full bg-accent animate-bounce" style={{ animationDelay: '0ms' }} />
-            <span className="w-1 h-1 rounded-full bg-accent animate-bounce" style={{ animationDelay: '150ms' }} />
-            <span className="w-1 h-1 rounded-full bg-accent animate-bounce" style={{ animationDelay: '300ms' }} />
+        <div className="flex flex-col gap-0.5">
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-mono text-accent tracking-widest uppercase">Thinking</span>
+            <div className="flex gap-0.5">
+              <span className="w-1 h-1 rounded-full bg-accent animate-bounce" style={{ animationDelay: '0ms' }} />
+              <span className="w-1 h-1 rounded-full bg-accent animate-bounce" style={{ animationDelay: '150ms' }} />
+              <span className="w-1 h-1 rounded-full bg-accent animate-bounce" style={{ animationDelay: '300ms' }} />
+            </div>
           </div>
+          <span className="text-[10px] text-text-tertiary thinking-indicator">Nexus is thinking...</span>
         </div>
       </div>
     );

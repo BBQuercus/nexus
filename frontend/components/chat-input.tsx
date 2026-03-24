@@ -124,6 +124,26 @@ interface SlashCommand {
   execute: (args: string) => void;
 }
 
+function getDraftKey(conversationId: string | null): string {
+  return conversationId ? `nexus:draft:${conversationId}` : 'nexus:draft:__global__';
+}
+
+function loadDraft(conversationId: string | null): string {
+  try {
+    return localStorage.getItem(getDraftKey(conversationId)) || '';
+  } catch {
+    return '';
+  }
+}
+
+function saveDraft(conversationId: string | null, content: string) {
+  try {
+    const key = getDraftKey(conversationId);
+    if (content) localStorage.setItem(key, content);
+    else localStorage.removeItem(key);
+  } catch {}
+}
+
 export default function ChatInput() {
   const [content, setContent] = useState('');
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
@@ -132,6 +152,8 @@ export default function ChatInput() {
   const [slashHighlightIndex, setSlashHighlightIndex] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const draftTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const prevConvIdRef = useRef<string | null | undefined>(undefined);
 
   const isStreaming = useStore((s) => s.isStreaming);
   const activeConversationId = useStore((s) => s.activeConversationId);
@@ -261,6 +283,28 @@ export default function ChatInput() {
     }
   }, [pendingPrompt, setPendingPrompt]);
 
+  // Draft persistence: restore on conversation switch, save previous
+  useEffect(() => {
+    if (prevConvIdRef.current !== undefined) {
+      // Save draft for previous conversation
+      saveDraft(prevConvIdRef.current, content);
+    }
+    // Restore draft for new conversation
+    const restored = loadDraft(activeConversationId);
+    setContent(restored);
+    prevConvIdRef.current = activeConversationId;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeConversationId]);
+
+  // Debounced save to localStorage on content change
+  useEffect(() => {
+    clearTimeout(draftTimerRef.current);
+    draftTimerRef.current = setTimeout(() => {
+      saveDraft(activeConversationId, content);
+    }, 300);
+    return () => clearTimeout(draftTimerRef.current);
+  }, [content, activeConversationId]);
+
   // Auto-focus textarea on conversation switch
   useEffect(() => {
     if (!isStreaming) {
@@ -367,6 +411,8 @@ export default function ChatInput() {
     setBranchingFromId(null);
     setContent('');
     setPendingFiles([]);
+    saveDraft(convId, '');
+    saveDraft(activeConversationId, '');
 
     // Add user message optimistically
     const userMsg: Message = {
