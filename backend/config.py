@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     SERVER_SECRET: str
 
     JWT_ENCODING_ALGORITHM: str = "HS256"
+    JWT_ACCESS_TOKEN_MINUTES: int = 60  # 1 hour access token
+    JWT_REFRESH_TOKEN_DAYS: int = 7  # 7 day refresh token
+    # Keep for backwards compat during migration
     JWT_VALIDITY_DAYS: int = 7
 
     SERPAPI_API_KEY: str = ""

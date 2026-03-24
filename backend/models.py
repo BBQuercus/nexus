@@ -195,6 +195,30 @@ class AgentPersona(Base):
     user: Mapped["User"] = relationship(back_populates="agent_personas")
 
 
+class FrontendError(Base):
+    __tablename__ = "frontend_errors"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id")
+    )
+    message: Mapped[str] = mapped_column(Text)
+    stack: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    url: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    user_agent: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    component: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    request_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    extra: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
 class UsageLog(Base):
     __tablename__ = "usage_logs"
 

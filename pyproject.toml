@@ -20,6 +20,7 @@ dependencies = [
     "websockets>=14.0",
     "openai>=1.60.0",
     "serpapi>=0.1.5",
+    "structlog>=25.5.0",
 ]
 
 [tool.hatch.build.targets.wheel]
