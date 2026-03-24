@@ -3,7 +3,8 @@
 import { useEffect } from 'react';
 import { useStore } from '@/lib/store';
 import { useIsMobile, useIsDesktop } from '@/lib/useMediaQuery';
-import { PanelLeft, Zap } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { PanelLeft, Zap, ArrowLeft } from 'lucide-react';
 import UserDropdown from './user-dropdown';
 
 /**
@@ -115,16 +116,27 @@ export default function PageShell({
   );
 }
 
-/** Sidebar wrapper: page-specific content + user dropdown at the bottom */
+/** Sidebar wrapper: page-specific content + back link + user dropdown at the bottom */
 function SidebarChrome({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
   return (
     <div className="relative flex flex-col w-[85vw] sm:w-[272px] max-w-[320px] sm:min-w-[272px] bg-surface-0 border-r border-border-default shrink-0 h-full">
       <div className="absolute inset-0 grid-texture opacity-10 pointer-events-none" />
       <div className="relative flex-1 flex flex-col min-h-0">
         {children}
       </div>
-      <div className="relative px-3 pb-3 border-t border-border-default pt-2.5">
-        <UserDropdown />
+      <div className="relative border-t border-border-default">
+        <div className="px-3 pt-2">
+          <button
+            onClick={() => router.push('/')}
+            className="w-full flex items-center gap-2 px-2.5 py-2 text-[11px] text-text-tertiary hover:text-text-secondary cursor-pointer transition-colors rounded-lg hover:bg-surface-1"
+          >
+            <ArrowLeft size={11} /> Back to chat
+          </button>
+        </div>
+        <div className="px-3 pb-3 pt-1">
+          <UserDropdown />
+        </div>
       </div>
     </div>
   );

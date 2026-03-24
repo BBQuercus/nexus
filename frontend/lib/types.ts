@@ -113,7 +113,9 @@ export interface AgentPersona {
 export interface Citation {
   chunkId: string;
   documentId: string;
+  knowledgeBaseId?: string;
   filename: string;
+  chunkIndex?: number;
   page?: number;
   section?: string;
   score: number;

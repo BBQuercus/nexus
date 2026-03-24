@@ -42,7 +42,7 @@ class Settings(BaseSettings):
     COHERE_API_KEY: str = ""
     RAG_CHUNK_SIZE: int = 512  # tokens per chunk
     RAG_CHUNK_OVERLAP: int = 50
-    RAG_MAX_DOCUMENT_TOKENS: int = 100_000
+    RAG_MAX_DOCUMENT_TOKENS: int = 500_000
     RAG_CONFIDENCE_THRESHOLD: float = 0.3
     RAG_CONTEXTUAL_MODEL: str = "gpt-4.1-nano-swc"  # cheap model for context prefixes
 

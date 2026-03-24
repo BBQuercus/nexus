@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useStore } from '@/lib/store';
 import { logout as apiLogout } from '@/lib/api';
 import { clearToken } from '@/lib/auth';
-import { LogOut, User, Keyboard, Shield, Users } from 'lucide-react';
+import { LogOut, User, Keyboard, Shield, Users, BookOpen } from 'lucide-react';
 
 export default function UserDropdown() {
   const user = useStore((s) => s.user);
@@ -105,6 +105,11 @@ export default function UserDropdown() {
               className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-text-secondary hover:text-text-primary hover:bg-surface-1 cursor-pointer transition-colors">
               <Users size={13} className="text-text-tertiary shrink-0" />
               <span className="flex-1 text-left">Agents</span>
+            </a>
+            <a href="/knowledge" onClick={() => setOpen(false)}
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-text-secondary hover:text-text-primary hover:bg-surface-1 cursor-pointer transition-colors">
+              <BookOpen size={13} className="text-text-tertiary shrink-0" />
+              <span className="flex-1 text-left">Knowledge Bases</span>
             </a>
             {user?.isAdmin && (
               <a

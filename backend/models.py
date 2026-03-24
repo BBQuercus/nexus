@@ -349,7 +349,8 @@ class KnowledgeBase(Base):
 
     user: Mapped["User"] = relationship()
     documents: Mapped[list["Document"]] = relationship(
-        back_populates="knowledge_base", cascade="all, delete-orphan"
+        back_populates="knowledge_base", cascade="save-update, merge",
+        passive_deletes=True,
     )
 
 
@@ -385,7 +386,8 @@ class Document(Base):
 
     knowledge_base: Mapped[Optional["KnowledgeBase"]] = relationship(back_populates="documents")
     chunks: Mapped[list["Chunk"]] = relationship(
-        back_populates="document", cascade="all, delete-orphan"
+        back_populates="document", cascade="save-update, merge",
+        passive_deletes=True,
     )
 
 

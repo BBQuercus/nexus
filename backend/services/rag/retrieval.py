@@ -29,9 +29,11 @@ class ScoredChunk:
     """A chunk with retrieval scores and source metadata."""
     id: uuid.UUID
     document_id: uuid.UUID
+    knowledge_base_id: uuid.UUID | None
     content: str
     context_prefix: str | None
     filename: str
+    chunk_index: int
     page_number: int | None
     section_title: str | None
     score: float  # final score after fusion/reranking
@@ -80,11 +82,13 @@ async def _vector_search(
     params["query_vec"] = str(query_embedding)
     params["top_k"] = top_k
 
+    # Use CAST() instead of :: to avoid collisions with SQLAlchemy's
+    # :bind_param syntax (`:query_vec::vector` is ambiguous).
     sql = text(f"""
-        SELECT c.id, 1 - (c.embedding <=> :query_vec::vector) AS similarity
+        SELECT c.id, 1 - (c.embedding <=> CAST(:query_vec AS vector)) AS similarity
         FROM chunks c
         WHERE c.embedding IS NOT NULL AND ({scope_clause})
-        ORDER BY c.embedding <=> :query_vec::vector
+        ORDER BY c.embedding <=> CAST(:query_vec AS vector)
         LIMIT :top_k
     """)
 
@@ -119,17 +123,25 @@ def _rrf_merge(
     vector_results: list[tuple[uuid.UUID, float]],
     bm25_results: list[tuple[uuid.UUID, float]],
     k: int = 60,
-) -> list[tuple[uuid.UUID, float]]:
-    """Reciprocal Rank Fusion to combine vector and BM25 results."""
-    scores: dict[uuid.UUID, float] = {}
+) -> tuple[list[tuple[uuid.UUID, float]], dict[uuid.UUID, float]]:
+    """Reciprocal Rank Fusion to combine vector and BM25 results.
 
-    for rank, (chunk_id, _) in enumerate(vector_results):
+    Returns (ranked_ids_with_rrf_scores, vector_similarity_map).
+    The vector_similarity_map contains real 0-1 cosine similarity scores
+    for display purposes (RRF scores are small arbitrary numbers).
+    """
+    scores: dict[uuid.UUID, float] = {}
+    vector_sim: dict[uuid.UUID, float] = {}
+
+    for rank, (chunk_id, similarity) in enumerate(vector_results):
         scores[chunk_id] = scores.get(chunk_id, 0) + 1.0 / (k + rank + 1)
+        vector_sim[chunk_id] = similarity  # real cosine similarity 0-1
 
     for rank, (chunk_id, _) in enumerate(bm25_results):
         scores[chunk_id] = scores.get(chunk_id, 0) + 1.0 / (k + rank + 1)
 
-    return sorted(scores.items(), key=lambda x: x[1], reverse=True)
+    ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+    return ranked, vector_sim
 
 
 async def _load_chunks(
@@ -153,9 +165,11 @@ async def _load_chunks(
         chunk_map[chunk.id] = ScoredChunk(
             id=chunk.id,
             document_id=chunk.document_id,
+            knowledge_base_id=chunk.knowledge_base_id,
             content=chunk.content,
             context_prefix=chunk.context_prefix,
             filename=filename,
+            chunk_index=chunk.chunk_index,
             page_number=chunk.page_number,
             section_title=chunk.section_title,
             score=scores.get(chunk.id, 0.0),
@@ -223,39 +237,32 @@ async def retrieve(
     # Import here to avoid circular deps
     from backend.services.rag.embeddings import embed_query
 
-    # Run vector search and BM25 in parallel
-    import asyncio
-
+    # Run vector search and BM25 sequentially — SQLAlchemy async
+    # sessions are NOT safe for concurrent queries via asyncio.gather.
     query_embedding = await embed_query(query)
-    vector_results, bm25_results = await asyncio.gather(
-        _vector_search(db, query_embedding, scope, top_k=search_top_k),
-        _bm25_search(db, query, scope, top_k=search_top_k),
-    )
+    vector_results = await _vector_search(db, query_embedding, scope, top_k=search_top_k)
+    bm25_results = await _bm25_search(db, query, scope, top_k=search_top_k)
 
     # Reciprocal Rank Fusion
-    fused = _rrf_merge(vector_results, bm25_results)
+    fused, vector_sim = _rrf_merge(vector_results, bm25_results)
     total_candidates = len(fused)
     retrieval_ms = int((time.monotonic() - start) * 1000)
 
+    # Use real cosine similarity scores for display (not RRF rank scores).
+    # Chunks that only appeared in BM25 get a default low similarity.
+    display_scores = {cid: vector_sim.get(cid, 0.2) for cid, _ in fused}
+
     # Load full chunk data for top candidates
     candidate_ids = [cid for cid, _ in fused[:search_top_k]]
-    score_map = dict(fused)
-    chunks = await _load_chunks(db, candidate_ids, score_map)
+    chunks = await _load_chunks(db, candidate_ids, display_scores)
 
     # Rerank
     rerank_start = time.monotonic()
     reranked = await _rerank(query, chunks, top_k=top_k)
     rerank_ms = int((time.monotonic() - rerank_start) * 1000) if settings.RERANK_MODEL else None
 
-    # Confidence score = best chunk score (normalized to 0-1)
+    # Confidence = best chunk's real similarity score
     confidence = reranked[0].score if reranked else 0.0
-    # Normalize RRF scores (they're typically small) to 0-1 range for display
-    if reranked and not any(c.rerank_score is not None for c in reranked):
-        max_score = max(c.score for c in reranked) if reranked else 1.0
-        if max_score > 0:
-            for c in reranked:
-                c.score = c.score / max_score
-            confidence = 1.0 if reranked else 0.0
 
     total_ms = int((time.monotonic() - start) * 1000)
     logger.info(

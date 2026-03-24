@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useStore } from '@/lib/store';
 import * as api from '@/lib/api';
 import type { AgentPersona } from '@/lib/types';
-import { X, Plus, Save, Play, Trash2, Bot, ArrowLeft } from 'lucide-react';
+import { X, Plus, Save, Play, Trash2, Bot } from 'lucide-react';
 import * as icons from 'lucide-react';
 import PageShell from './page-shell';
 import ConfirmDialog from './confirm-dialog';
@@ -142,15 +142,6 @@ export default function AgentsView() {
         )}
       </div>
 
-      {/* Back to workspace */}
-      <div className="px-3 pb-1">
-        <button
-          onClick={() => router.push('/')}
-          className="w-full flex items-center gap-2 px-2.5 py-2 text-[11px] text-text-tertiary hover:text-text-secondary cursor-pointer transition-colors rounded-lg hover:bg-surface-1"
-        >
-          <ArrowLeft size={11} /> Back to workspace
-        </button>
-      </div>
     </>
   );
 

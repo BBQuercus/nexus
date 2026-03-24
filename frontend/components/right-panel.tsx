@@ -144,10 +144,10 @@ export default function RightPanel() {
             <span className="hidden sm:inline">{tab.label}</span>
           </button>
         ))}
-        {/* Close button on mobile/tablet */}
+        {/* Close button */}
         <button
           onClick={() => setRightPanelOpen(false)}
-          className="lg:hidden flex items-center justify-center px-2 py-1.5 text-text-tertiary hover:text-text-secondary rounded-lg cursor-pointer transition-colors"
+          className="flex items-center justify-center px-2 py-1.5 text-text-tertiary hover:text-text-secondary rounded-lg cursor-pointer transition-colors"
         >
           <X size={14} />
         </button>

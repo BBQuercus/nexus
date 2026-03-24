@@ -1,35 +1,37 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { AlertTriangle, Wifi, WifiOff } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { AlertTriangle, WifiOff } from 'lucide-react';
 import { getHealth, type HealthCheck } from '@/lib/api';
 
 export default function HealthBanner() {
   const [health, setHealth] = useState<HealthCheck | null>(null);
   const [offline, setOffline] = useState(false);
+  const intervalRef = useRef<ReturnType<typeof setInterval>>(undefined);
 
-  // Poll health every 60 seconds
   useEffect(() => {
     let mounted = true;
 
     const check = async () => {
       try {
         const result = await getHealth();
-        if (mounted) {
-          setHealth(result);
-          setOffline(false);
-        }
+        if (!mounted) return;
+        setHealth(result);
+        setOffline(false);
+
+        // Poll faster when degraded (every 10s), slower when ok (every 60s)
+        clearInterval(intervalRef.current);
+        intervalRef.current = setInterval(check, result.status === 'ok' ? 60_000 : 10_000);
       } catch {
         if (mounted) setOffline(true);
       }
     };
 
     check();
-    const interval = setInterval(check, 60_000);
-    return () => { mounted = false; clearInterval(interval); };
+    return () => { mounted = false; clearInterval(intervalRef.current); };
   }, []);
 
-  // Also detect browser online/offline
+  // Browser online/offline
   useEffect(() => {
     const handleOffline = () => setOffline(true);
     const handleOnline = () => setOffline(false);
@@ -52,10 +54,11 @@ export default function HealthBanner() {
 
   if (!health || health.status === 'ok') return null;
 
-  // Build degraded service list
   const degraded = Object.entries(health.checks)
     .filter(([, v]) => v.status !== 'ok' && v.status !== 'unconfigured')
     .map(([k]) => k === 'db' ? 'Database' : k === 'llm' ? 'AI models' : 'Sandbox');
+
+  if (degraded.length === 0) return null;
 
   return (
     <div className="flex items-center justify-center gap-2 px-3 py-1.5 bg-warning/10 border-b border-warning/20 text-warning text-xs">

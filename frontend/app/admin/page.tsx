@@ -65,14 +65,6 @@ export default function AdminPage() {
         ))}
       </div>
       <div className="flex-1" />
-      <div className="px-3 pb-1">
-        <a
-          href="/"
-          className="block w-full text-left px-2.5 py-2 text-[11px] text-text-tertiary hover:text-text-secondary cursor-pointer transition-colors rounded-lg hover:bg-surface-1"
-        >
-          ← Back to workspace
-        </a>
-      </div>
     </>
   );
 

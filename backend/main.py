@@ -154,7 +154,7 @@ async def _check_llm() -> dict:
     """Check LiteLLM proxy reachability."""
     try:
         import httpx
-        async with httpx.AsyncClient(timeout=3.0) as client:
+        async with httpx.AsyncClient(timeout=8.0) as client:
             resp = await client.get(f"{settings.LITE_LLM_URL}/health")
             if resp.status_code < 500:
                 return {"status": "ok"}

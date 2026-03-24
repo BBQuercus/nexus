@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useStore } from '@/lib/store';
 import * as api from '@/lib/api';
 import type { Conversation } from '@/lib/types';
-import { Plus, Search, X, Download, Pin, PinOff, Trash2, CheckSquare, Square, BookOpen } from 'lucide-react';
+import { Plus, Search, X, Download, Pin, PinOff, Trash2, CheckSquare, Square } from 'lucide-react';
 import { toast } from './toast';
 import UserDropdown from './user-dropdown';
 
@@ -412,19 +412,8 @@ export default function Sidebar() {
         )}
       </div>
 
-      {/* Knowledge Bases link */}
-      <div className="px-2 pt-1.5 border-t border-border-default">
-        <button
-          onClick={() => window.dispatchEvent(new CustomEvent('nexus:open-knowledge-bases'))}
-          className="w-full flex items-center gap-2 px-2.5 py-2 text-xs text-text-tertiary hover:text-text-secondary hover:bg-surface-1 rounded-lg transition-colors cursor-pointer"
-        >
-          <BookOpen size={13} />
-          Knowledge Bases
-        </button>
-      </div>
-
       {/* User dropdown */}
-      <div className="px-3 pb-3 pt-1">
+      <div className="px-3 pb-3 border-t border-border-default pt-2.5">
         <UserDropdown />
       </div>
 
