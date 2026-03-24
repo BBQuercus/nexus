@@ -173,8 +173,13 @@ async def callback(code: str, db: AsyncSession = Depends(get_db)):
     """Handle WorkOS callback, upsert user, issue access + refresh tokens."""
     from fastapi.responses import RedirectResponse
 
-    auth_response = exchange_code(code)
-    workos_user = auth_response.user
+    try:
+        auth_response = exchange_code(code)
+        workos_user = auth_response.user
+    except Exception as e:
+        logger.error("auth_callback_failed", error=str(e))
+        frontend_url = _get_frontend_url()
+        return RedirectResponse(url=f"{frontend_url}/login?error=auth_failed")
 
     result = await db.execute(
         select(User).where(User.workos_id == workos_user.id)
