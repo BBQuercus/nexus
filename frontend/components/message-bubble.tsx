@@ -593,12 +593,13 @@ export default function MessageBubble({ message }: { message: Message }) {
           <div className="flex justify-end gap-2 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
             <button onClick={() => {
               // Load message content + contexts into the main chat input
-              const parentId = message.parentId || undefined;
+              // parentId = the node to branch from (parent of this message, or message itself if root)
+              const branchFrom = message.parentId || message.id;
               window.dispatchEvent(new CustomEvent('nexus:edit-message', {
                 detail: {
                   content: message.content,
                   contexts: message.contexts || [],
-                  parentId,
+                  branchFrom,
                 },
               }));
             }} className="flex items-center gap-1 text-[10px] text-text-tertiary hover:text-text-secondary cursor-pointer">
