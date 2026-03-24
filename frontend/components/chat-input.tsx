@@ -470,26 +470,7 @@ export default function ChatInput() {
 
     if (!text && pendingFiles.length === 0 && attachedContexts.length === 0) return;
 
-    // Build context prefix from @mentioned conversations
-    let contextPrefix = '';
-    if (attachedContexts.length > 0) {
-      const contextParts: string[] = [];
-      for (const ctx of attachedContexts) {
-        try {
-          const data = await api.getConversation(ctx.id);
-          const msgs = (data.messages as Array<Record<string, unknown>>) || [];
-          const summary = msgs
-            .filter((m) => m.role === 'user' || m.role === 'assistant')
-            .slice(-10) // Last 10 messages max
-            .map((m) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${(m.content as string || '').slice(0, 300)}`)
-            .join('\n');
-          if (summary) contextParts.push(`[Context from "${ctx.title}"]\n${summary}`);
-        } catch {}
-      }
-      if (contextParts.length > 0) {
-        contextPrefix = contextParts.join('\n\n') + '\n\n---\n\n';
-      }
-    }
+    const contextIds = attachedContexts.map((c) => c.id);
 
     let convId = activeConversationId;
     if (!convId) {
@@ -515,7 +496,6 @@ export default function ChatInput() {
       }
     }
 
-    const fullText = contextPrefix + text;
     const parentId = branchingFromId || undefined;
     setBranchingFromId(null);
     setContent('');
@@ -537,11 +517,12 @@ export default function ChatInput() {
       setMessages([...messages, userMsg]);
     }
 
-    await streamSend(fullText, convId, {
+    await streamSend(text, convId, {
       attachmentIds,
       model: activeModel,
       parentId,
       numResponses,
+      contextIds: contextIds.length > 0 ? contextIds : undefined,
     });
   }, [content, pendingFiles, attachedContexts, isStreaming, activeConversationId, activeModel, sandboxId, messages,
     setActiveConversationId, setMessages, setConversations, branchingFromId, setBranchingFromId,
@@ -641,13 +622,14 @@ export default function ChatInput() {
   const hasContent = content.trim() || pendingFiles.length > 0;
 
   return (
-    <div className="shrink-0 border-t border-border-default bg-surface-0 px-3 sm:px-5 pt-4 sm:pt-5 safe-bottom"
+    <div className="shrink-0 bg-surface-0 px-3 sm:px-5 pt-4 sm:pt-5 safe-bottom"
       style={{ '--safe-bottom-pad': '1.25rem' } as React.CSSProperties}
     >
+    <div className="max-w-3xl mx-auto w-full">
       {attachedContexts.length > 0 && (
         <div className="flex flex-wrap gap-1.5 mb-2">
           {attachedContexts.map((ctx) => (
-            <div key={ctx.id} className="flex items-center gap-1.5 px-2 py-1 bg-accent/10 border border-accent/20 rounded-md text-[11px] text-accent">
+            <div key={ctx.id} className="flex items-center gap-1.5 px-2 py-1 bg-accent/10 border border-accent/20 rounded-lg text-[11px] text-accent">
               <MessageSquare size={10} />
               <span className="truncate max-w-[160px]">{ctx.title}</span>
               <button onClick={() => setAttachedContexts((prev) => prev.filter((c) => c.id !== ctx.id))} className="text-accent/60 hover:text-accent cursor-pointer">
@@ -719,7 +701,7 @@ export default function ChatInput() {
         )}
 
         <div
-          className="flex items-center gap-2 bg-surface-1 border border-border-default rounded-xl px-3 py-2 min-h-[44px] focus-within:border-accent/30 focus-within:shadow-[0_0_16px_-4px_var(--color-accent-dim)] transition-all"
+          className="flex items-center gap-2 bg-surface-1 border border-border-default rounded-lg px-3 py-2 min-h-[44px] focus-within:border-accent/30 focus-within:shadow-[0_0_16px_-4px_var(--color-accent-dim)] transition-all"
         >
           <textarea
             ref={textareaRef}
@@ -736,7 +718,7 @@ export default function ChatInput() {
 
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="p-1.5 text-text-tertiary hover:text-text-secondary shrink-0 cursor-pointer rounded-md hover:bg-surface-2 transition-colors"
+            className="p-1.5 text-text-tertiary hover:text-text-secondary shrink-0 cursor-pointer rounded-lg hover:bg-surface-2 transition-colors"
             title="Attach files"
           >
             <Paperclip size={14} />
@@ -765,13 +747,15 @@ export default function ChatInput() {
         </div>
       </div>
 
-      <div className="mt-2.5 px-1 flex items-center gap-3">
+      <div className="mt-2 flex items-center gap-3 pb-0.5">
         <ModelPicker />
         <TokenIndicator messages={messages} />
+        <div className="flex-1" />
         {!isStreaming && (
           <ChatSettings numResponses={numResponses} setNumResponses={setNumResponses} />
         )}
       </div>
+    </div>
     </div>
   );
 }
