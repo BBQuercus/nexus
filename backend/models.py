@@ -263,10 +263,10 @@ class Feedback(Base):
         UUID(as_uuid=True), ForeignKey("users.id")
     )
     message_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("messages.id")
+        UUID(as_uuid=True), ForeignKey("messages.id", ondelete="CASCADE")
     )
     conversation_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("conversations.id")
+        UUID(as_uuid=True), ForeignKey("conversations.id", ondelete="CASCADE")
     )
     rating: Mapped[str] = mapped_column(String)  # "up" or "down"
     tags: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)

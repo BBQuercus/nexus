@@ -289,6 +289,7 @@ async def me(
         "id": str(user.id),
         "email": user.email,
         "name": user.name,
-        "avatar_url": user.avatar_url,
+        "avatarUrl": user.avatar_url,
+        "isAdmin": user.is_admin,
         "created_at": user.created_at.isoformat() if user.created_at else None,
     }
