@@ -5,12 +5,80 @@ import { useStore } from '@/lib/store';
 import * as api from '@/lib/api';
 import type { Message } from '@/lib/types';
 import { MODELS } from '@/lib/types';
-import { ArrowUp, Square, Paperclip, X, Terminal, Trash2, HelpCircle, Download, Cpu } from 'lucide-react';
+import { ArrowUp, Square, Paperclip, X, Terminal, Trash2, HelpCircle, Download, Cpu, FileSpreadsheet, FileImage, FileText, File } from 'lucide-react';
 import ModelPicker from './model-picker';
 import { toast } from './toast';
 import { useStreaming } from '@/lib/useStreaming';
 
 const RESPONSE_COUNTS = [1, 3, 5] as const;
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function getFileCategory(file: File): 'image' | 'spreadsheet' | 'pdf' | 'other' {
+  const ext = file.name.split('.').pop()?.toLowerCase() || '';
+  if (file.type.startsWith('image/') || ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp'].includes(ext)) return 'image';
+  if (['xlsx', 'xls', 'csv', 'tsv'].includes(ext) || file.type.includes('spreadsheet') || file.type === 'text/csv') return 'spreadsheet';
+  if (ext === 'pdf' || file.type === 'application/pdf') return 'pdf';
+  return 'other';
+}
+
+function getFileTypeBadge(file: File): string {
+  const ext = file.name.split('.').pop()?.toUpperCase() || '';
+  const cat = getFileCategory(file);
+  if (cat === 'image') return ext || 'IMAGE';
+  if (cat === 'spreadsheet') return ext || 'SHEET';
+  if (cat === 'pdf') return 'PDF';
+  return ext || 'FILE';
+}
+
+function FilePreviewCard({ file, onRemove }: { file: File; onRemove: () => void }) {
+  const category = getFileCategory(file);
+  const [thumbUrl, setThumbUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (category === 'image') {
+      const url = URL.createObjectURL(file);
+      setThumbUrl(url);
+      return () => URL.revokeObjectURL(url);
+    }
+  }, [file, category]);
+
+  const icon = category === 'image' ? <FileImage size={16} className="text-blue-400" />
+    : category === 'spreadsheet' ? <FileSpreadsheet size={16} className="text-green-400" />
+    : category === 'pdf' ? <FileText size={16} className="text-red-400" />
+    : <File size={16} className="text-text-tertiary" />;
+
+  return (
+    <div className="relative group/card flex items-center gap-2 px-2.5 py-2 bg-surface-1 border border-border-default rounded-lg text-[11px] min-w-0 max-w-[200px]">
+      {category === 'image' && thumbUrl ? (
+        <img src={thumbUrl} alt={file.name} className="w-8 h-8 rounded object-cover shrink-0 border border-border-default" />
+      ) : (
+        <div className="w-8 h-8 rounded bg-surface-2 border border-border-default flex items-center justify-center shrink-0">
+          {icon}
+        </div>
+      )}
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-text-primary font-mono text-[11px] leading-tight">{file.name}</div>
+        <div className="flex items-center gap-1.5 mt-0.5">
+          <span className="px-1 py-0 text-[9px] font-bold uppercase rounded bg-surface-2 text-text-tertiary tracking-wide">
+            {getFileTypeBadge(file)}
+          </span>
+          <span className="text-[9px] text-text-tertiary">{formatFileSize(file.size)}</span>
+        </div>
+      </div>
+      <button
+        onClick={onRemove}
+        className="absolute -top-1.5 -right-1.5 w-4 h-4 flex items-center justify-center bg-surface-2 border border-border-default rounded-full text-text-tertiary hover:text-error hover:bg-error/10 cursor-pointer opacity-0 group-hover/card:opacity-100 transition-opacity"
+      >
+        <X size={8} />
+      </button>
+    </div>
+  );
+}
 
 interface SlashCommand {
   name: string;
@@ -182,6 +250,30 @@ export default function ChatInput() {
     }
   }, [content]);
 
+  // Clipboard image paste support
+  useEffect(() => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const handlePaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      const imageFiles: File[] = [];
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) imageFiles.push(file);
+        }
+      }
+      if (imageFiles.length > 0) {
+        e.preventDefault();
+        setPendingFiles((prev) => [...prev, ...imageFiles]);
+      }
+    };
+    ta.addEventListener('paste', handlePaste);
+    return () => ta.removeEventListener('paste', handlePaste);
+  }, []);
+
   const executeSlashCommand = useCallback((cmd: SlashCommand) => {
     // Extract args after the command name
     const match = content.match(/^\/(\S+)\s*(.*)/);
@@ -339,14 +431,9 @@ export default function ChatInput() {
   return (
     <div className="shrink-0 border-t border-border-default bg-surface-0 px-3 sm:px-4 py-2 sm:py-3 safe-bottom">
       {pendingFiles.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 mb-2">
+        <div className="flex flex-wrap gap-2 mb-2">
           {pendingFiles.map((file, i) => (
-            <div key={i} className="flex items-center gap-1.5 px-2.5 py-1 bg-surface-1 border border-border-default rounded-md text-[11px] text-text-secondary font-mono">
-              <span className="truncate max-w-[140px]">{file.name}</span>
-              <button onClick={() => removeFile(i)} className="text-text-tertiary hover:text-error cursor-pointer">
-                <X size={10} />
-              </button>
-            </div>
+            <FilePreviewCard key={i} file={file} onRemove={() => removeFile(i)} />
           ))}
         </div>
       )}

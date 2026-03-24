@@ -56,6 +56,7 @@ export interface Message {
   feedback?: 'up' | 'down' | null;
   model?: string;
   images?: { filename: string; url: string }[];
+  files?: { filename: string; fileType: string; sandboxId?: string }[];
   parentId?: string | null;
   branchIndex?: number;
 }
