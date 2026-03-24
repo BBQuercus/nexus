@@ -96,7 +96,7 @@ class Project(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
-    user: Mapped["User"] = relationship()
+    user: Mapped["User"] = relationship(back_populates="projects")
     conversations: Mapped[list["Conversation"]] = relationship(back_populates="project")
 
 
