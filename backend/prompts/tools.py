@@ -4,6 +4,68 @@ TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "call_api",
+            "description": "Make an HTTP request to an external API. Use this for fetching data from APIs, webhooks, and HTTP endpoints without sandbox execution.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "The URL to request",
+                    },
+                    "method": {
+                        "type": "string",
+                        "enum": ["GET", "POST", "PUT", "DELETE", "PATCH"],
+                        "default": "GET",
+                    },
+                    "headers": {
+                        "type": "object",
+                        "additionalProperties": {"type": "string"},
+                        "description": "Optional request headers",
+                    },
+                    "body": {
+                        "type": "string",
+                        "description": "Optional request body",
+                    },
+                    "auth_type": {
+                        "type": "string",
+                        "enum": ["none", "bearer", "basic"],
+                        "default": "none",
+                    },
+                    "auth_value": {
+                        "type": "string",
+                        "description": "Bearer token or base64 basic auth payload",
+                    },
+                },
+                "required": ["url"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "web_browse",
+            "description": "Fetch and read the content of a webpage. Returns extracted text, title, and metadata for articles, documentation, and general web pages.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "The URL to read",
+                    },
+                    "extract_links": {
+                        "type": "boolean",
+                        "default": False,
+                        "description": "Whether to include links found on the page",
+                    },
+                },
+                "required": ["url"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "execute_code",
             "description": "Execute code in the sandboxed environment. Supports Python, JavaScript, TypeScript, and Bash.",
             "parameters": {
