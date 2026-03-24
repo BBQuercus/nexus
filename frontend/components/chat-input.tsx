@@ -572,15 +572,22 @@ export default function ChatInput() {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       if (!detail) return;
+      const branchFrom = detail.branchFrom as string | undefined;
       // Load content into the input
       setContent(detail.content || '');
       // Restore context references
       if (detail.contexts && detail.contexts.length > 0) {
         setAttachedContexts(detail.contexts);
       }
-      // Set branching point so the edit creates a sibling
-      if (detail.parentId) {
-        setBranchingFromId(detail.parentId);
+      // Set branching point and trim messages after the branch point
+      if (branchFrom) {
+        setBranchingFromId(branchFrom);
+        // Trim messages visually so the user sees where the branch will happen
+        const msgs = useStore.getState().messages;
+        const branchIdx = msgs.findIndex((m) => m.id === branchFrom);
+        if (branchIdx !== -1) {
+          useStore.getState().setMessages(msgs.slice(0, branchIdx + 1));
+        }
       }
       // Focus the textarea
       setTimeout(() => textareaRef.current?.focus(), 50);
