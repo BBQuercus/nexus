@@ -47,12 +47,16 @@ export default function ModelPicker({
   const current = models.find((m) => m.id === selectedModel);
   const displayName = current?.name || selectedModel?.split('/').pop() || selectedModel || 'Select model';
 
-  // Group models by provider
-  const grouped = models.reduce((acc, model) => {
+  const groupByProvider = (modelList: ModelOption[]) => modelList.reduce((acc, model) => {
     if (!acc[model.provider]) acc[model.provider] = [];
     acc[model.provider].push(model);
     return acc;
   }, {} as Record<ModelProvider, ModelOption[]>);
+
+  const primaryModels = models.filter((model) => !model.legacy);
+  const legacyModels = models.filter((model) => model.legacy);
+  const grouped = groupByProvider(primaryModels);
+  const legacyGrouped = groupByProvider(legacyModels);
 
   const providerOrder: ModelProvider[] = ['anthropic', 'openai', 'meta', 'microsoft', 'xai', 'moonshot', 'deepseek'];
 
@@ -97,6 +101,36 @@ export default function ModelPicker({
               ))}
             </div>
           ))}
+          {legacyModels.length > 0 && (
+            <div>
+              <div className="h-px bg-border-subtle mx-3 mt-1" />
+              <div className="px-3 pt-2.5 pb-1.5">
+                <span className="text-[10px] font-medium text-text-tertiary uppercase tracking-wider">Legacy</span>
+              </div>
+              {providerOrder.filter((p) => legacyGrouped[p]?.length).map((provider) => (
+                <div key={`legacy-${provider}`}>
+                  <div className="flex items-center gap-2 px-3 pt-1.5 pb-1">
+                    <ProviderLogo provider={provider} size={12} className="text-text-tertiary/70" />
+                    <span className="text-[10px] font-medium text-text-tertiary/80 uppercase tracking-wider">
+                      {PROVIDER_LABELS[provider]}
+                    </span>
+                  </div>
+                  {legacyGrouped[provider].map((model) => (
+                    <button
+                      key={model.id}
+                      onClick={() => { handleChange(model.id); setOpen(false); }}
+                      className={`w-full flex items-center justify-between px-3 py-2 text-left hover:bg-surface-1 transition-colors cursor-pointer ${
+                        model.id === selectedModel ? 'bg-surface-1' : ''
+                      }`}
+                    >
+                      <span className="text-xs text-text-secondary">{model.name}</span>
+                      {model.id === selectedModel && <Check size={13} className="text-accent shrink-0" />}
+                    </button>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
