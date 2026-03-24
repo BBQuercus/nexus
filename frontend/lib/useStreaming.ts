@@ -30,6 +30,7 @@ export function mapRawMessages(raw: Array<Record<string, unknown>>, conversation
       images: (m.images as Message['images']) || undefined,
       files: (m.files as Message['files']) || undefined,
       tables: (m.tables as Message['tables']) || undefined,
+      charts: (m.charts as Message['charts']) || undefined,
       citations: m.citations ? (m.citations as Array<Record<string, unknown>>).map((c) => ({
         chunkId: (c.chunk_id as string) || (c.chunkId as string) || '',
         documentId: (c.document_id as string) || (c.documentId as string) || '',

@@ -397,6 +397,9 @@ pre code {
 }
 
 /* Vega chart tooltip */
+#vg-tooltip-element {
+  pointer-events: none;
+}
 #vg-tooltip-element.vg-tooltip {
   font-family: var(--font-ui);
   font-size: 11px;

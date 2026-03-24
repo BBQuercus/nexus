@@ -207,6 +207,7 @@ async def run_agent_loop(
     enriched_tool_calls: list[dict] = []
     collected_images: list[dict] = []
     collected_files: list[dict] = []
+    collected_charts: list[dict] = []
     runtime_artifacts: list[dict[str, Any]] = []
     rag_citations: list[dict] = []
     retrieval_log_ids: list[uuid.UUID] = []
@@ -312,7 +313,10 @@ async def run_agent_loop(
                     if sandbox is None:
                         yield _sse_event("tool_output", {"tool": func_name, "output": "Creating sandbox...", "tool_call_id": tool_call_id})
                         template = conversation.sandbox_template or "python-data-science"
-                        sandbox = await sandbox_service.create_sandbox(template=template)
+                        sandbox = await sandbox_service.create_sandbox(
+                            template=template,
+                            labels={"user_id": str(conversation.user_id)},
+                        )
                         sandbox_id = sandbox.id
                         conversation.sandbox_id = sandbox_id
                         await db.flush()
@@ -479,6 +483,7 @@ async def run_agent_loop(
                     spec = normalize_chart_spec(args.get("spec"))
                     title = args.get("title") or "Interactive Chart"
                     yield _sse_event("chart_output", {"spec": spec, "title": title})
+                    collected_charts.append({"spec": spec, "title": title})
                     runtime_artifacts.append({
                         "type": "chart",
                         "label": title,
@@ -613,6 +618,7 @@ async def run_agent_loop(
         reasoning=assistant_reasoning or None,
         tool_calls=enriched_tool_calls if enriched_tool_calls else None,
         images=collected_images if collected_images else None,
+        charts=collected_charts if collected_charts else None,
         attachments=(
             [{"type": "files", "files": collected_files}] if collected_files else None
         ),

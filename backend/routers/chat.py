@@ -97,6 +97,7 @@ def _serialize_message(m: Message) -> dict:
         "tool_calls": m.tool_calls,
         "tool_result": m.tool_result,
         "images": m.images,
+        "charts": m.charts,
         "files": extract_message_files(m.attachments),
         "attachments": m.attachments,
         "citations": m.citations,
