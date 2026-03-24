@@ -534,7 +534,6 @@ export default function MessageBubble({ message }: { message: Message }) {
   const sandboxId = useStore((s) => s.sandboxId);
   const [copied, setCopied] = useState(false);
   const [showBranchInput, setShowBranchInput] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
   const [showRetryMenu, setShowRetryMenu] = useState(false);
 
   const renderedHtml = useMemo(() => {
@@ -578,28 +577,33 @@ export default function MessageBubble({ message }: { message: Message }) {
       <div className="flex justify-end">
         <div className="group max-w-[95%] sm:max-w-[80%]">
           <SiblingNav message={message} />
-          {isEditing ? (
-            <InlineEditForm message={message} onClose={() => setIsEditing(false)} />
-          ) : (
-            <div className="bg-surface-2 border border-border-default rounded-xl rounded-br-sm text-text-primary px-4 py-2.5 text-sm whitespace-pre-wrap">
-              {message.content}
-              {message.contexts && message.contexts.length > 0 && (
-                <div className="flex flex-wrap gap-1 mt-2 pt-2 border-t border-border-default/30">
-                  {message.contexts.map((ctx) => (
-                    <span key={ctx.id} className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] text-accent bg-accent/10 border border-accent/20 rounded">
-                      <MessageSquare size={9} />
-                      {ctx.title}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-          {!isEditing && (
-            <div className="flex justify-end gap-2 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
-              <button onClick={() => setIsEditing(true)} className="flex items-center gap-1 text-[10px] text-text-tertiary hover:text-text-secondary cursor-pointer">
-                <Pencil size={10} /> Edit
-              </button>
+          <div className="bg-surface-2 border border-border-default rounded-xl rounded-br-sm text-text-primary px-4 py-2.5 text-sm whitespace-pre-wrap">
+            {message.content}
+            {message.contexts && message.contexts.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-2 pt-2 border-t border-border-default/30">
+                {message.contexts.map((ctx) => (
+                  <span key={ctx.id} className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] text-accent bg-accent/10 border border-accent/20 rounded">
+                    <MessageSquare size={9} />
+                    {ctx.title}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="flex justify-end gap-2 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button onClick={() => {
+              // Load message content + contexts into the main chat input
+              const parentId = message.parentId || undefined;
+              window.dispatchEvent(new CustomEvent('nexus:edit-message', {
+                detail: {
+                  content: message.content,
+                  contexts: message.contexts || [],
+                  parentId,
+                },
+              }));
+            }} className="flex items-center gap-1 text-[10px] text-text-tertiary hover:text-text-secondary cursor-pointer">
+              <Pencil size={10} /> Edit
+            </button>
               <button onClick={handleCopy} className="flex items-center gap-1 text-[10px] text-text-tertiary hover:text-text-secondary cursor-pointer">
                 {copied ? <Check size={10} className="text-accent" /> : <Copy size={10} />} {copied ? 'Copied' : 'Copy'}
               </button>
@@ -615,7 +619,6 @@ export default function MessageBubble({ message }: { message: Message }) {
                 <GitBranch size={10} /> New Branch
               </button>
             </div>
-          )}
           {showBranchInput && (
             <InlineBranchInput messageId={message.id} onClose={() => setShowBranchInput(false)} />
           )}
