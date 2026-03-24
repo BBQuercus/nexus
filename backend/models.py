@@ -75,7 +75,7 @@ class Conversation(Base):
     )
     title: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     model: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    agent_mode: Mapped[str] = mapped_column(String, default="chat")
+    agent_mode: Mapped[str] = mapped_column(String, default="code")
     agent_persona_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True), ForeignKey("agent_personas.id"), nullable=True
     )
