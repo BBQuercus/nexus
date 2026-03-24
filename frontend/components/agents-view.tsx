@@ -38,6 +38,28 @@ export default function AgentsView() {
 
   useEffect(() => { api.listAgents().then(setAgents).catch(() => setAgents([])); }, []);
 
+  // Auto-open editor with pre-filled data from URL params
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const name = params.get('name');
+    const prompt = params.get('prompt');
+    const mode = params.get('mode');
+    const model = params.get('model');
+    if (name || prompt) {
+      setEditing({
+        ...emptyAgent,
+        name: name || '',
+        systemPrompt: prompt || '',
+        defaultMode: (mode as AgentMode) || emptyAgent.defaultMode,
+        defaultModel: model || emptyAgent.defaultModel,
+      });
+      // Clean up URL params without navigation
+      window.history.replaceState({}, '', '/agents');
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleSave = async () => {
     if (!editing || !editing.name.trim()) return;
     try {
