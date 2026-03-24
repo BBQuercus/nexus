@@ -14,6 +14,7 @@ from fastapi.responses import Response
 from starlette.requests import Request
 
 from backend.auth import callback, get_current_user, logout_endpoint, refresh_token, validate_csrf
+from backend.main import _validate_ws_session, app, lifespan
 from backend.models import User
 from backend.routers.sandboxes import serve_output_file
 from backend.services import sandbox as sandbox_service
@@ -142,6 +143,68 @@ class AuthGuardTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(any(cookie.startswith("session=") and "Max-Age=0" in cookie for cookie in set_cookies))
         self.assertTrue(any(cookie.startswith("refresh_token=") and "Max-Age=0" in cookie for cookie in set_cookies))
         self.assertTrue(any(cookie.startswith("csrf_token=") and "Max-Age=0" in cookie for cookie in set_cookies))
+
+    def test_validate_ws_session_accepts_access_cookie(self):
+        user_id = uuid.uuid4()
+        token = self.make_token(user_id, "access")
+
+        resolved = _validate_ws_session(f"session={token}; other=value")
+
+        self.assertEqual(resolved, user_id)
+
+    def test_validate_ws_session_rejects_refresh_cookie(self):
+        user_id = uuid.uuid4()
+        token = self.make_token(user_id, "refresh")
+
+        resolved = _validate_ws_session(f"session={token}")
+
+        self.assertIsNone(resolved)
+
+    def test_validate_ws_session_rejects_missing_cookie(self):
+        self.assertIsNone(_validate_ws_session("csrf_token=abc"))
+
+
+class LifespanGuardTests(unittest.IsolatedAsyncioTestCase):
+    async def test_lifespan_skips_schema_management_when_disabled(self):
+        fake_engine = types.SimpleNamespace(dispose=AsyncMock())
+
+        with patch("backend.main.settings.AUTO_APPLY_DB_SCHEMA", False):
+            with patch.dict(os.environ, {}, clear=False):
+                with patch("backend.main.engine", fake_engine):
+                    with patch("backend.main.Base.metadata.create_all") as create_all:
+                        async with lifespan(app):
+                            pass
+
+        create_all.assert_not_called()
+        fake_engine.dispose.assert_awaited()
+
+    async def test_lifespan_runs_schema_management_in_dev_mode(self):
+        class FakeConn:
+            async def execute(self, _stmt):
+                return None
+
+            async def run_sync(self, fn):
+                fn(object())
+
+        class FakeBegin:
+            async def __aenter__(self):
+                return FakeConn()
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return False
+
+        begin_mock = lambda: FakeBegin()
+        fake_engine = types.SimpleNamespace(begin=begin_mock, dispose=AsyncMock())
+
+        with patch("backend.main.settings.AUTO_APPLY_DB_SCHEMA", False):
+            with patch.dict(os.environ, {"DEV_MODE": "1"}, clear=False):
+                with patch("backend.main.engine", fake_engine):
+                        with patch("backend.main.Base.metadata.create_all") as create_all:
+                            async with lifespan(app):
+                                pass
+
+        create_all.assert_called()
+        fake_engine.dispose.assert_awaited()
 
 
 class _ScalarResult:
