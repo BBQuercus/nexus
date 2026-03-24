@@ -294,6 +294,8 @@ def _validate_ws_session(cookie_header: str | None) -> uuid.UUID | None:
             settings.SERVER_SECRET,
             algorithms=[settings.JWT_ENCODING_ALGORITHM],
         )
+        if payload.get("type", "access") != "access":
+            return None
         user_id = payload.get("sub")
         return uuid.UUID(user_id) if user_id else None
     except Exception:
