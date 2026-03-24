@@ -7,7 +7,8 @@ import { renderMarkdown } from '@/lib/markdown';
 import { useStore } from '@/lib/store';
 import * as api from '@/lib/api';
 import { mapRawMessages } from '@/lib/useStreaming';
-import { Copy, GitBranch, RefreshCw, ChevronRight, ChevronDown, ChevronLeft, Terminal, Play, Check, Download, Clock, Coins, Cpu, ArrowRight, X, Link, FileEdit, Pencil, ChevronUp, ThumbsUp, ThumbsDown, FileSpreadsheet, FileText, Presentation, File as FileIcon } from 'lucide-react';
+import { Copy, GitBranch, RefreshCw, ChevronRight, ChevronDown, ChevronLeft, Terminal, Play, Check, Download, Clock, Coins, Cpu, ArrowRight, X, Link, FileEdit, Pencil, ChevronUp, ThumbsUp, ThumbsDown, FileSpreadsheet, FileText, Presentation, File as FileIcon, MessageSquare } from 'lucide-react';
+import { ProviderLogo } from './provider-logos';
 
 function CostBadge({ data }: { data: CostData }) {
   const model = data.model.split('/').pop() || data.model;
@@ -148,7 +149,7 @@ function FileArtifactCard({ file, sandboxId }: { file: { filename: string; fileT
       {downloadUrl && (
         <button
           onClick={handleDownload}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-md bg-accent text-bg hover:bg-accent-hover cursor-pointer transition-colors shrink-0"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-lg bg-accent text-bg hover:bg-accent-hover cursor-pointer transition-colors shrink-0"
         >
           <Download size={12} /> Download
         </button>
@@ -252,7 +253,7 @@ function InlineBranchInput({ messageId, onClose }: { messageId: string; onClose:
         <div className="w-full h-[2px] bg-border-default/40" />
         <div className="w-[2px] flex-1 border-l border-dashed border-border-default/50" />
       </div>
-      <div className="bg-surface-0 border border-border-default rounded-xl p-4 shadow-xl shadow-black/20 w-80 animate-fade-in-up" style={{ animationDuration: '0.15s' }}>
+      <div className="bg-surface-0 border border-border-default rounded-lg p-4 shadow-xl shadow-black/20 w-80 animate-fade-in-up" style={{ animationDuration: '0.15s' }}>
         <div className="flex items-center gap-2 mb-3">
           <span className="text-[10px] font-bold text-accent uppercase tracking-widest">Branch Thread</span>
           <span className="h-[1px] flex-1 bg-border-default/30" />
@@ -273,7 +274,7 @@ function InlineBranchInput({ messageId, onClose }: { messageId: string; onClose:
               <button
                 onClick={handleSubmit}
                 disabled={!branchText.trim() || isStreaming}
-                className="p-1.5 rounded-md bg-accent text-bg hover:bg-accent-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                className="p-1.5 rounded-lg bg-accent text-bg hover:bg-accent-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
               >
                 <ArrowRight size={14} />
               </button>
@@ -334,7 +335,7 @@ function InlineEditForm({ message, onClose }: { message: Message; onClose: () =>
   };
 
   return (
-    <div className="bg-surface-1 border border-accent/20 rounded-2xl rounded-br-sm px-4 py-2.5 animate-fade-in-up" style={{ animationDuration: '0.1s' }}>
+    <div className="bg-surface-1 border border-accent/20 rounded-xl rounded-br-sm px-4 py-2.5 animate-fade-in-up" style={{ animationDuration: '0.1s' }}>
       <textarea
         ref={textareaRef}
         value={editText}
@@ -349,13 +350,13 @@ function InlineEditForm({ message, onClose }: { message: Message; onClose: () =>
         rows={1}
       />
       <div className="flex justify-end gap-2 mt-2">
-        <button onClick={onClose} className="px-2.5 py-1 text-[10px] text-text-tertiary hover:text-text-secondary bg-surface-2 rounded-md cursor-pointer transition-colors">
+        <button onClick={onClose} className="px-2.5 py-1 text-[10px] text-text-tertiary hover:text-text-secondary bg-surface-2 rounded-lg cursor-pointer transition-colors">
           Cancel
         </button>
         <button
           onClick={handleSubmit}
           disabled={!editText.trim() || editText.trim() === message.content}
-          className="px-2.5 py-1 text-[10px] font-medium bg-accent text-bg rounded-md hover:bg-accent-hover cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="px-2.5 py-1 text-[10px] font-medium bg-accent text-bg rounded-lg hover:bg-accent-hover cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           Save & Submit
         </button>
@@ -390,19 +391,20 @@ function RetryWithModelMenu({ messageId, onClose }: { messageId: string; onClose
   };
 
   return (
-    <div ref={menuRef} className="absolute left-0 top-full mt-1 w-64 bg-surface-0 border border-border-default rounded-lg shadow-xl shadow-black/30 z-50 animate-fade-in-up overflow-hidden" style={{ animationDuration: '0.1s' }}>
-      <div className="px-3 py-1.5 text-[10px] uppercase tracking-wider text-text-tertiary font-medium border-b border-border-default">
+    <div ref={menuRef} className="absolute left-0 top-full mt-1 w-64 bg-surface-0 border border-border-default rounded-lg shadow-2xl shadow-black/40 z-50 animate-fade-in-up overflow-hidden" style={{ animationDuration: '0.1s' }}>
+      <div className="px-3 py-2 text-[10px] uppercase tracking-wider text-text-tertiary font-medium border-b border-border-default">
         Retry with model
       </div>
       {MODELS.map((m) => (
         <button
           key={m.id}
           onClick={() => handleRetry(m.id)}
-          className={`w-full flex items-center justify-between px-3 py-2 text-left hover:bg-surface-1 transition-colors cursor-pointer ${
+          className={`w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-surface-1 transition-colors cursor-pointer ${
             m.id === activeModel ? 'bg-surface-1' : ''
           }`}
         >
-          <span className="text-xs text-text-primary">{m.name}</span>
+          <ProviderLogo provider={m.provider} size={13} className="text-text-tertiary shrink-0" />
+          <span className="text-xs text-text-primary flex-1">{m.name}</span>
           {m.id === activeModel && <span className="text-[9px] text-text-tertiary font-mono">current</span>}
         </button>
       ))}
@@ -486,7 +488,7 @@ function FeedbackPanel({ message }: { message: Message }) {
         </>
       )}
       {showForm && (
-        <div className="absolute left-0 top-full mt-1.5 w-80 bg-surface-0 border border-border-default rounded-xl shadow-xl shadow-black/30 z-50 p-3 animate-fade-in-up" style={{ animationDuration: '0.12s' }}>
+        <div className="absolute left-0 top-full mt-1.5 w-80 bg-surface-0 border border-border-default rounded-lg shadow-xl shadow-black/30 z-50 p-3 animate-fade-in-up" style={{ animationDuration: '0.12s' }}>
           <div className="flex items-center justify-between mb-2">
             <span className="text-[10px] font-bold text-text-secondary uppercase tracking-wider">What went wrong?</span>
             <button onClick={() => setShowForm(false)} className="text-text-tertiary hover:text-text-secondary cursor-pointer"><X size={12} /></button>
@@ -496,7 +498,7 @@ function FeedbackPanel({ message }: { message: Message }) {
               <button
                 key={tag}
                 onClick={() => toggleTag(tag)}
-                className={`px-2 py-0.5 text-[10px] rounded-md border cursor-pointer transition-colors ${
+                className={`px-2 py-0.5 text-[10px] rounded-lg border cursor-pointer transition-colors ${
                   selectedTags.includes(tag)
                     ? 'bg-accent/15 border-accent/30 text-accent'
                     : 'bg-surface-1 border-border-default text-text-tertiary hover:text-text-secondary hover:border-border-focus'
@@ -579,8 +581,18 @@ export default function MessageBubble({ message }: { message: Message }) {
           {isEditing ? (
             <InlineEditForm message={message} onClose={() => setIsEditing(false)} />
           ) : (
-            <div className="bg-surface-2 border border-border-default rounded-2xl rounded-br-sm text-text-primary px-4 py-2.5 text-sm whitespace-pre-wrap">
+            <div className="bg-surface-2 border border-border-default rounded-xl rounded-br-sm text-text-primary px-4 py-2.5 text-sm whitespace-pre-wrap">
               {message.content}
+              {message.contexts && message.contexts.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-2 pt-2 border-t border-border-default/30">
+                  {message.contexts.map((ctx) => (
+                    <span key={ctx.id} className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] text-accent bg-accent/10 border border-accent/20 rounded">
+                      <MessageSquare size={9} />
+                      {ctx.title}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           )}
           {!isEditing && (

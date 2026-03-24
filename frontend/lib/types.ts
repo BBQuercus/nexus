@@ -57,6 +57,7 @@ export interface Message {
   model?: string;
   images?: { filename: string; url: string }[];
   files?: { filename: string; fileType: string; sandboxId?: string }[];
+  contexts?: { id: string; title: string }[];
   parentId?: string | null;
   branchIndex?: number;
 }
@@ -119,17 +120,20 @@ export interface FileNode {
   children?: FileNode[];
 }
 
+export type ModelProvider = 'anthropic' | 'openai' | 'meta';
+
 export interface ModelOption {
   name: string;
   id: string;
+  provider: ModelProvider;
 }
 
 export const MODELS: ModelOption[] = [
-  { name: 'Claude Sonnet 4.5', id: 'azure_ai/claude-sonnet-4-5-swc' },
-  { name: 'Claude Opus 4.5', id: 'azure_ai/claude-opus-4-5-swc' },
-  { name: 'GPT-5', id: 'gpt-5-gwc' },
-  { name: 'GPT-5 Mini', id: 'gpt-5-mini-gwc' },
-  { name: 'GPT-4.1', id: 'gpt-4.1-chn' },
-  { name: 'GPT-4o', id: 'gpt-4o-swc' },
-  { name: 'Llama 3.3 70B', id: 'Llama-3.3-70B-Instruct' },
+  { name: 'Claude Sonnet 4.5', id: 'azure_ai/claude-sonnet-4-5-swc', provider: 'anthropic' },
+  { name: 'Claude Opus 4.5', id: 'azure_ai/claude-opus-4-5-swc', provider: 'anthropic' },
+  { name: 'GPT-5', id: 'gpt-5-gwc', provider: 'openai' },
+  { name: 'GPT-5 Mini', id: 'gpt-5-mini-gwc', provider: 'openai' },
+  { name: 'GPT-4.1', id: 'gpt-4.1-chn', provider: 'openai' },
+  { name: 'GPT-4o', id: 'gpt-4o-swc', provider: 'openai' },
+  { name: 'Llama 3.3 70B', id: 'Llama-3.3-70B-Instruct', provider: 'meta' },
 ];
