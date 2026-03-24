@@ -15,7 +15,7 @@ from backend.auth import get_current_user, router as auth_router, validate_csrf
 from backend.config import settings
 from backend.db import Base, async_session, engine, get_db
 from backend.logging_config import get_logger, setup_logging
-from backend.middleware import GlobalExceptionMiddleware, RequestIdMiddleware, SecurityHeadersMiddleware
+from backend.middleware import GlobalExceptionMiddleware, MetricsMiddleware, RequestIdMiddleware, SecurityHeadersMiddleware
 from backend.models import FrontendError
 from backend.routers.admin import router as admin_router
 from backend.routers.agents import router as agents_router
@@ -28,6 +28,8 @@ from backend.routers.sandboxes import router as sandboxes_router
 from backend.routers.tts import router as tts_router
 from backend.routers.users import router as users_router
 from backend.services import sandbox as sandbox_service
+from backend.telemetry import CONTENT_TYPE_LATEST, generate_latest, setup_telemetry
+from backend.version import BUILD_SHA, VERSION
 import backend.indexes  # noqa: F401 — register DB indexes
 
 # Initialize structured logging
@@ -39,12 +41,24 @@ logger = get_logger("main")
 async def lifespan(app: FastAPI):
     from sqlalchemy import text as sa_text
 
+    import asyncio
+    from backend.redis import get_redis, close_redis
+    from backend.services.cleanup import start_cleanup_loop
+
     should_manage_schema = settings.AUTO_APPLY_DB_SCHEMA or bool(os.environ.get("DEV_MODE"))
     if not should_manage_schema:
         logger.info("database_schema_management_skipped")
+        await get_redis()
+        setup_telemetry(app=app, db_engine=engine)
+        cleanup_task = asyncio.create_task(start_cleanup_loop())
         yield
         logger.info("graceful_shutdown_started")
-        import asyncio
+        cleanup_task.cancel()
+        try:
+            await cleanup_task
+        except asyncio.CancelledError:
+            pass
+        await close_redis()
         await asyncio.sleep(1)
         await engine.dispose()
         logger.info("database_engine_disposed")
@@ -92,9 +106,17 @@ async def lifespan(app: FastAPI):
             pass  # table might not exist yet either — harmless
 
     logger.info("database_tables_ensured", pgvector=pgvector_ok)
+    await get_redis()
+    setup_telemetry(app=app, db_engine=engine)
+    cleanup_task = asyncio.create_task(start_cleanup_loop())
     yield
     logger.info("graceful_shutdown_started")
-    import asyncio
+    cleanup_task.cancel()
+    try:
+        await cleanup_task
+    except asyncio.CancelledError:
+        pass
+    await close_redis()
     await asyncio.sleep(1)
     await engine.dispose()
     logger.info("database_engine_disposed")
@@ -133,6 +155,9 @@ app.add_middleware(SecurityHeadersMiddleware)
 # RequestIdMiddleware generates request IDs and binds them to log context
 app.add_middleware(RequestIdMiddleware)
 
+# MetricsMiddleware records request count and duration for Prometheus
+app.add_middleware(MetricsMiddleware)
+
 # Include routers
 app.include_router(auth_router)
 app.include_router(chat_router)
@@ -148,6 +173,19 @@ app.include_router(knowledge_router)
 app.include_router(knowledge_doc_router)
 app.include_router(knowledge_retrieval_router)
 app.include_router(media_router)
+
+
+# ── Prometheus Metrics ──
+
+
+@app.get("/metrics")
+async def metrics():
+    """Prometheus metrics endpoint."""
+    from starlette.responses import Response
+    return Response(
+        content=generate_latest(),
+        media_type=CONTENT_TYPE_LATEST,
+    )
 
 
 # ── Health Check (deep) ──
@@ -290,6 +328,24 @@ async def _check_llm() -> dict:
         return result
 
 
+async def _check_redis() -> dict:
+    """Check Redis connectivity."""
+    from backend.redis import get_redis, is_redis_available
+    if not is_redis_available():
+        await get_redis()  # Try to reconnect
+    from backend.redis import is_redis_available as check_avail
+    if not check_avail():
+        return {"status": "unavailable", "note": "Using in-memory fallback"}
+    try:
+        r = await get_redis()
+        if r:
+            await r.ping()
+            return {"status": "ok"}
+        return {"status": "unavailable"}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+
 async def _check_daytona() -> dict:
     """Check Daytona API reachability."""
     if not settings.DAYTONA_API_URL:
@@ -315,16 +371,20 @@ async def health():
     import time
 
     start = time.monotonic()
-    db_check, llm_check, daytona_check = await asyncio.gather(
-        _check_db(), _check_llm(), _check_daytona()
+    db_check, llm_check, daytona_check, redis_check = await asyncio.gather(
+        _check_db(), _check_llm(), _check_daytona(), _check_redis()
     )
     latency_ms = round((time.monotonic() - start) * 1000, 1)
 
-    checks = {"db": db_check, "llm": llm_check, "daytona": daytona_check}
-    all_ok = all(c["status"] in ("ok", "unconfigured") for c in checks.values())
+    checks = {"db": db_check, "llm": llm_check, "daytona": daytona_check, "redis": redis_check}
+    # Redis unavailability doesn't degrade overall status (has in-memory fallback)
+    critical_checks = {k: v for k, v in checks.items() if k != "redis"}
+    all_ok = all(c["status"] in ("ok", "unconfigured") for c in critical_checks.values())
 
     return {
         "status": "ok" if all_ok else "degraded",
+        "version": VERSION,
+        "build_sha": BUILD_SHA,
         "checks": checks,
         "latency_ms": latency_ms,
     }

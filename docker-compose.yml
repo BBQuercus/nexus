@@ -20,5 +20,14 @@ services:
     depends_on:
       - postgres
 
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/var/lib/redis/data
+    command: redis-server --appendonly yes
+
 volumes:
   pgdata:
+  redisdata:

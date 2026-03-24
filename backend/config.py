@@ -46,6 +46,9 @@ class Settings(BaseSettings):
     RAG_CONFIDENCE_THRESHOLD: float = 0.3
     RAG_CONTEXTUAL_MODEL: str = "gpt-4.1-nano-swc"  # cheap model for context prefixes
 
+    # Redis
+    REDIS_URL: str = "redis://localhost:6379/0"
+
     PORT: int = 8000
     AUTO_APPLY_DB_SCHEMA: bool = False
 
