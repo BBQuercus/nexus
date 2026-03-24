@@ -567,6 +567,28 @@ export default function ChatInput() {
     return () => window.removeEventListener('nexus:branch-send', handler);
   }, [setBranchingFromId]);
 
+  // Handle edit-message events from message bubble Edit button
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (!detail) return;
+      // Load content into the input
+      setContent(detail.content || '');
+      // Restore context references
+      if (detail.contexts && detail.contexts.length > 0) {
+        setAttachedContexts(detail.contexts);
+      }
+      // Set branching point so the edit creates a sibling
+      if (detail.parentId) {
+        setBranchingFromId(detail.parentId);
+      }
+      // Focus the textarea
+      setTimeout(() => textareaRef.current?.focus(), 50);
+    };
+    window.addEventListener('nexus:edit-message', handler);
+    return () => window.removeEventListener('nexus:edit-message', handler);
+  }, [setBranchingFromId]);
+
   // Listen for file drops from the workspace-level drop zone
   useEffect(() => {
     const handler = (e: Event) => {
@@ -750,7 +772,6 @@ export default function ChatInput() {
 
       <div className="mt-2 flex items-center gap-3 pb-0.5">
         <ModelPicker />
-        <TokenIndicator messages={messages} />
         <div className="flex-1" />
         {!isStreaming && (
           <ChatSettings numResponses={numResponses} setNumResponses={setNumResponses} />
