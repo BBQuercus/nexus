@@ -475,6 +475,44 @@ class Chunk(Base):
     document: Mapped["Document"] = relationship(back_populates="chunks")
 
 
+class Memory(Base):
+    __tablename__ = "memories"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id")
+    )
+    project_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="SET NULL"), nullable=True
+    )
+    scope: Mapped[str] = mapped_column(String, default="global")
+    category: Mapped[str] = mapped_column(String, default="preference")
+    content: Mapped[str] = mapped_column(Text)
+    source_conversation_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), nullable=True
+    )
+    source_message_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), nullable=True
+    )
+    relevance_count: Mapped[int] = mapped_column(Integer, default=0)
+    active: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default=text("true")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    user: Mapped["User"] = relationship()
+
+
 class AuditEventLog(Base):
     """Append-only audit trail for sensitive actions."""
     __tablename__ = "audit_events"

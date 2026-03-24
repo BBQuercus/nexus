@@ -6,6 +6,7 @@ import type { StreamingState } from '@/lib/store';
 import { Zap, Terminal, Play, Download, Check, ChevronDown, Loader2, FileSpreadsheet, FileText, Presentation, File as FileIcon } from 'lucide-react';
 import type { ToolCall } from '@/lib/types';
 import VegaChart from './vega-chart';
+import FormRenderer from './form-renderer';
 import MarkdownContent from './markdown-content';
 
 function StreamingExecBlock({ tool }: { tool: ToolCall }) {
@@ -208,7 +209,7 @@ function SmoothMarkdown({ text, showCursor }: { text: string; showCursor: boolea
 }
 
 function BranchContent({ state, showCursor }: { state: StreamingState; showCursor: boolean }) {
-  const hasContent = state.content || state.reasoning || state.toolCalls.length > 0 || state.images.length > 0 || state.files.length > 0 || state.tables.length > 0 || state.charts.length > 0;
+  const hasContent = state.content || state.reasoning || state.toolCalls.length > 0 || state.images.length > 0 || state.files.length > 0 || state.tables.length > 0 || state.charts.length > 0 || state.forms.length > 0;
 
   if (!hasContent) {
     return (
@@ -244,7 +245,7 @@ function BranchContent({ state, showCursor }: { state: StreamingState; showCurso
           </div>
         </details>
       )}
-      {state.toolCalls.filter((tool) => tool.name !== 'create_chart').map((tool) => (
+      {state.toolCalls.filter((tool) => tool.name !== 'create_chart' && tool.name !== 'create_ui').map((tool) => (
         <StreamingExecBlock key={tool.id} tool={tool} />
       ))}
       {state.images.map((img, i) => (
@@ -258,6 +259,12 @@ function BranchContent({ state, showCursor }: { state: StreamingState; showCurso
       ))}
       {state.charts.map((chart, i) => (
         <StreamingChartCard key={i} spec={chart.spec} title={chart.title} />
+      ))}
+      {state.forms.map((form, i) => (
+        <FormRenderer key={i} spec={form} onSubmit={(data) => {
+          const formattedResponse = `Form response for "${form.title}":\n\`\`\`json\n${JSON.stringify(data, null, 2)}\n\`\`\``;
+          window.dispatchEvent(new CustomEvent('nexus:send-message', { detail: { text: formattedResponse } }));
+        }} />
       ))}
       {state.content && (
         <SmoothMarkdown text={state.content} showCursor={showCursor} />

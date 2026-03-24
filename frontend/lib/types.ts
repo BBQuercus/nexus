@@ -94,6 +94,7 @@ export interface Message {
   files?: { filename: string; fileType: string; sandboxId?: string }[];
   tables?: { rows: string[][]; label?: string }[];
   charts?: { spec: Record<string, unknown>; title?: string }[];
+  forms?: FormSpec[];
   citations?: Citation[];
   contexts?: { id: string; title: string }[];
   parentId?: string | null;
@@ -126,13 +127,42 @@ export interface CostData {
 export interface Artifact {
   id: string;
   conversationId: string;
-  type: 'code' | 'image' | 'chart' | 'table' | 'document' | 'diagram';
+  type: 'code' | 'image' | 'chart' | 'table' | 'document' | 'diagram' | 'form';
   label: string;
   content?: string;
   url?: string;
   metadata?: Record<string, unknown>;
   pinned?: boolean;
   createdAt: string;
+}
+
+export interface FormSpec {
+  title: string
+  description?: string
+  fields: FormField[]
+  submit_label?: string
+  allow_multiple?: boolean
+  tool_call_id?: string
+}
+
+export interface FormField {
+  id: string
+  type: 'text' | 'textarea' | 'number' | 'select' | 'multiselect' | 'checkbox' | 'radio' | 'date' | 'slider' | 'rating'
+  label: string
+  placeholder?: string
+  required?: boolean
+  default?: any
+  options?: string[]
+  validation?: {
+    min?: number
+    max?: number
+    pattern?: string
+    message?: string
+  }
+  condition?: {
+    field: string
+    equals: any
+  }
 }
 
 export interface StreamingTable {
@@ -191,6 +221,22 @@ export interface KnowledgeBase {
   isPublic: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+// ── Memory Types ──
+
+export interface Memory {
+  id: string;
+  scope: 'global' | 'project' | 'conversation';
+  category: 'preference' | 'fact' | 'decision' | 'instruction';
+  content: string;
+  project_id?: string;
+  source_conversation_id?: string;
+  source_message_id?: string;
+  relevance_count: number;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface KBDocument {

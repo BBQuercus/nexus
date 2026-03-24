@@ -223,6 +223,85 @@ TOOLS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_ui",
+            "description": "Create an interactive form or questionnaire. The user fills it out and the response is sent back to you as structured data.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string", "description": "Form title"},
+                    "description": {
+                        "type": "string",
+                        "description": "Instructions for the user",
+                    },
+                    "fields": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string",
+                                    "description": "Unique field identifier",
+                                },
+                                "type": {
+                                    "type": "string",
+                                    "enum": [
+                                        "text",
+                                        "textarea",
+                                        "number",
+                                        "select",
+                                        "multiselect",
+                                        "checkbox",
+                                        "radio",
+                                        "date",
+                                        "slider",
+                                        "rating",
+                                    ],
+                                    "description": "Field type",
+                                },
+                                "label": {"type": "string"},
+                                "placeholder": {"type": "string"},
+                                "required": {"type": "boolean", "default": False},
+                                "default": {},
+                                "options": {
+                                    "type": "array",
+                                    "items": {"type": "string"},
+                                    "description": "For select/radio/multiselect",
+                                },
+                                "validation": {
+                                    "type": "object",
+                                    "properties": {
+                                        "min": {"type": "number"},
+                                        "max": {"type": "number"},
+                                        "pattern": {"type": "string"},
+                                        "message": {"type": "string"},
+                                    },
+                                },
+                                "condition": {
+                                    "type": "object",
+                                    "properties": {
+                                        "field": {"type": "string"},
+                                        "equals": {},
+                                    },
+                                    "description": "Show only when another field has specific value",
+                                },
+                            },
+                            "required": ["id", "type", "label"],
+                        },
+                    },
+                    "submit_label": {"type": "string", "default": "Submit"},
+                    "allow_multiple": {
+                        "type": "boolean",
+                        "default": False,
+                        "description": "Allow resubmission",
+                    },
+                },
+                "required": ["title", "fields"],
+            },
+        },
+    },
 ]
 
 KNOWLEDGE_SEARCH_TOOL = {

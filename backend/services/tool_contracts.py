@@ -345,6 +345,18 @@ preview_app_contract = register_tool(
     )
 )
 
+FORM_TIMEOUT = TimeoutPolicy(timeout_seconds=15.0, description="Form creation")
+
+create_ui_contract = register_tool(
+    ToolContract(
+        name="create_ui",
+        description="Create interactive forms and questionnaires",
+        timeout=FORM_TIMEOUT,
+        retry=RetryPolicy(max_retries=0),
+        max_result_chars=100_000,
+    )
+)
+
 knowledge_search_contract = register_tool(
     ToolContract(
         name="knowledge_search",

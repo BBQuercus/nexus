@@ -1,4 +1,4 @@
-import type { User, Conversation, Message, Artifact, AgentPersona, ToolCall, ConversationTree, Citation, RetrievalResult, KnowledgeBase, StreamingTable, StreamingChart, Project } from '../types';
+import type { User, Conversation, Message, Artifact, AgentPersona, ToolCall, ConversationTree, Citation, RetrievalResult, KnowledgeBase, StreamingTable, StreamingChart, FormSpec, Project } from '../types';
 
 export interface StreamingImage {
   filename: string;
@@ -19,6 +19,7 @@ export interface StreamingState {
   files: StreamingFile[];
   tables: StreamingTable[];
   charts: StreamingChart[];
+  forms: FormSpec[];
   citations: Citation[];
   retrievalResult: RetrievalResult | null;
 }
@@ -134,6 +135,7 @@ export function cloneEmptyStreaming(): StreamingState {
     files: [],
     tables: [],
     charts: [],
+    forms: [],
     citations: [],
     retrievalResult: null,
   };

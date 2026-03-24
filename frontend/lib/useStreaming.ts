@@ -3,7 +3,7 @@ import { useStore } from './store';
 import type { StreamingState } from './store';
 import * as api from './api';
 import { streamSSE } from './sse';
-import type { Message, ToolCall, Citation, RetrievalResult } from './types';
+import type { Message, ToolCall, Citation, RetrievalResult, FormSpec } from './types';
 import { toast } from '@/components/toast';
 
 /** Map raw API message objects to typed Message[] */
@@ -31,6 +31,7 @@ export function mapRawMessages(raw: Array<Record<string, unknown>>, conversation
       files: (m.files as Message['files']) || undefined,
       tables: (m.tables as Message['tables']) || undefined,
       charts: (m.charts as Message['charts']) || undefined,
+      forms: (m.forms as Message['forms']) || undefined,
       citations: m.citations ? (m.citations as Array<Record<string, unknown>>).map((c) => ({
         chunkId: (c.chunk_id as string) || (c.chunkId as string) || '',
         documentId: (c.document_id as string) || (c.documentId as string) || '',
@@ -177,6 +178,24 @@ export function processSseEvent(
           const current = store.streamingByConversation[opts.conversationId] || store.streaming;
           store.setConversationStreaming(opts.conversationId, { tables: [...current.tables, tableEntry] });
         }
+      }
+      break;
+    }
+
+    case 'ui_form': {
+      const formEntry: FormSpec = {
+        title: (event.title as string) || 'Form',
+        description: (event.description as string) || undefined,
+        fields: (event.fields as FormSpec['fields']) || [],
+        submit_label: (event.submit_label as string) || 'Submit',
+        allow_multiple: (event.allow_multiple as boolean) || false,
+        tool_call_id: (event.tool_call_id as string) || undefined,
+      };
+      if (opts.isMulti) {
+        opts.updateBranch(bi, (b) => ({ forms: [...b.forms, formEntry] }));
+      } else {
+        const current = store.streamingByConversation[opts.conversationId] || store.streaming;
+        store.setConversationStreaming(opts.conversationId, { forms: [...current.forms, formEntry] });
       }
       break;
     }
@@ -339,7 +358,7 @@ export function useStreaming() {
     const isMulti = branchCount > 1;
 
     if (isMulti) {
-        const emptyBranch: StreamingState = { content: '', reasoning: '', toolCalls: [], images: [], files: [], tables: [], charts: [], citations: [], retrievalResult: null };
+        const emptyBranch: StreamingState = { content: '', reasoning: '', toolCalls: [], images: [], files: [], tables: [], charts: [], forms: [], citations: [], retrievalResult: null };
       store.setConversationMultiStreaming(convId, {
         branches: Array.from({ length: branchCount }, () => ({ ...emptyBranch })),
         activeBranchIndex: 0,
@@ -411,6 +430,7 @@ export function useStreaming() {
         files: finalState.files.length > 0 ? [...finalState.files] : undefined,
         tables: finalState.tables.length > 0 ? [...finalState.tables] : undefined,
         charts: finalState.charts.length > 0 ? [...finalState.charts] : undefined,
+        forms: finalState.forms.length > 0 ? [...finalState.forms] : undefined,
         citations: finalState.citations.length > 0 ? [...finalState.citations] : undefined,
       };
       useStore.getState().setConversationMessages(convId, (prev: Message[]) => [...prev, assistantMsg]);
