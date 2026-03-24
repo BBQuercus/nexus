@@ -5,7 +5,7 @@ import { useStore } from '@/lib/store';
 import * as api from '@/lib/api';
 import type { Message } from '@/lib/types';
 import { IMAGE_MODELS, MODELS } from '@/lib/types';
-import { ArrowUp, Square, Paperclip, X, Terminal, Trash2, HelpCircle, Download, Cpu, FileSpreadsheet, FileImage, FileText, File as FileIcon, Settings2, MessageSquare, BookOpen, Mic, MicOff, ImagePlus } from 'lucide-react';
+import { ArrowUp, Square, Paperclip, X, Terminal, Trash2, HelpCircle, Download, Cpu, FileSpreadsheet, FileImage, FileText, File as FileIcon, Settings2, MessageSquare, BookOpen, Mic, MicOff, ImagePlus, LoaderCircle } from 'lucide-react';
 import type { KnowledgeBase } from '@/lib/types';
 import ModelPicker from './model-picker';
 import AgentPicker from './agent-picker';
@@ -15,6 +15,35 @@ import { reloadConversation, useStreaming } from '@/lib/useStreaming';
 
 const RESPONSE_COUNTS = [1, 3, 5] as const;
 const CONTEXT_WINDOW = 128_000;
+
+type BrowserSpeechRecognition = {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onerror: ((event: { error: string }) => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+};
+
+type SpeechRecognitionAlternativeLike = { transcript: string };
+type SpeechRecognitionResultLike = {
+  isFinal: boolean;
+  length: number;
+  [index: number]: SpeechRecognitionAlternativeLike;
+};
+type SpeechRecognitionEventLike = {
+  resultIndex: number;
+  results: ArrayLike<SpeechRecognitionResultLike>;
+};
+
+declare global {
+  interface Window {
+    webkitSpeechRecognition?: new () => BrowserSpeechRecognition;
+    SpeechRecognition?: new () => BrowserSpeechRecognition;
+  }
+}
 
 function estimateTokens(text: string): number {
   // Rough estimate: ~4 chars per token for English text
@@ -206,7 +235,6 @@ export default function ChatInput() {
   const [imageModel, setImageModel] = useState(IMAGE_MODELS[0].id);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
-  const [isTranscribing, setIsTranscribing] = useState(false);
   const [slashMenuOpen, setSlashMenuOpen] = useState(false);
   const [slashHighlightIndex, setSlashHighlightIndex] = useState(0);
   const [mentionMenuOpen, setMentionMenuOpen] = useState(false);
@@ -217,7 +245,10 @@ export default function ChatInput() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
-  const recordedChunksRef = useRef<BlobPart[]>([]);
+  const recordingBaseContentRef = useRef('');
+  const transcriptionChunksRef = useRef<Blob[]>([]);
+  const isProcessingChunkRef = useRef(false);
+  const recordingMimeTypeRef = useRef('audio/webm');
   const draftTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const prevConvIdRef = useRef<string | null | undefined>(undefined);
 
@@ -612,6 +643,36 @@ export default function ChatInput() {
     mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
   }, []);
 
+  const flushTranscriptionChunks = useCallback(async () => {
+    if (isProcessingChunkRef.current || transcriptionChunksRef.current.length === 0) return;
+
+    const nextChunk = transcriptionChunksRef.current.shift();
+    if (!nextChunk || nextChunk.size === 0) return;
+
+    isProcessingChunkRef.current = true;
+    try {
+      const file = new File([nextChunk], `recording.${recordingMimeTypeRef.current.includes('ogg') ? 'ogg' : 'webm'}`, {
+        type: nextChunk.type || recordingMimeTypeRef.current,
+      });
+      const result = await api.transcribeAudio(file);
+      const transcript = result.text.trim();
+      if (transcript) {
+        setContent(() => {
+          const base = recordingBaseContentRef.current.trim();
+          return [base, transcript].filter(Boolean).join(base ? ' ' : '');
+        });
+        recordingBaseContentRef.current = [recordingBaseContentRef.current.trim(), transcript].filter(Boolean).join(recordingBaseContentRef.current.trim() ? ' ' : '');
+      }
+    } catch (e) {
+      console.error('Transcription failed', e);
+    } finally {
+      isProcessingChunkRef.current = false;
+      if (transcriptionChunksRef.current.length > 0) {
+        void flushTranscriptionChunks();
+      }
+    }
+  }, []);
+
   const handleGenerateImage = useCallback(async () => {
     const prompt = content.trim();
     if (!prompt || isGeneratingImage || isStreaming) return;
@@ -639,7 +700,6 @@ export default function ChatInput() {
   }, [content, isGeneratingImage, isStreaming, activeConversationId, activeModel, imageModel, setActiveConversationId, setConversations]);
 
   const toggleRecording = useCallback(async () => {
-    if (isTranscribing) return;
     if (isRecording) {
       mediaRecorderRef.current?.stop();
       setIsRecording(false);
@@ -654,37 +714,30 @@ export default function ChatInput() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaStreamRef.current = stream;
-      recordedChunksRef.current = [];
+      transcriptionChunksRef.current = [];
+      recordingBaseContentRef.current = content.trim();
       const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm';
+      recordingMimeTypeRef.current = mimeType;
       const recorder = new MediaRecorder(stream, { mimeType });
       mediaRecorderRef.current = recorder;
       recorder.ondataavailable = (event) => {
-        if (event.data.size > 0) recordedChunksRef.current.push(event.data);
-      };
-      recorder.onstop = async () => {
-        mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
-        mediaStreamRef.current = null;
-        const blob = new Blob(recordedChunksRef.current, { type: recorder.mimeType || 'audio/webm' });
-        if (blob.size === 0) return;
-        setIsTranscribing(true);
-        try {
-          const file = new File([blob], 'recording.webm', { type: blob.type || 'audio/webm' });
-          const result = await api.transcribeAudio(file);
-          setContent((prev) => (prev ? `${prev.trim()} ${result.text}` : result.text));
-          setTimeout(() => textareaRef.current?.focus(), 0);
-        } catch (e) {
-          console.error('Transcription failed', e);
-        } finally {
-          setIsTranscribing(false);
+        if (event.data.size > 0) {
+          transcriptionChunksRef.current.push(event.data);
+          void flushTranscriptionChunks();
         }
       };
-      recorder.start();
+      recorder.onstop = () => {
+        mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+        mediaStreamRef.current = null;
+        setTimeout(() => textareaRef.current?.focus(), 0);
+      };
+      recorder.start(1200);
       setIsRecording(true);
     } catch (e) {
       console.error('Recording failed', e);
       toast.error('Could not access microphone');
     }
-  }, [isRecording, isTranscribing]);
+  }, [content, flushTranscriptionChunks, isRecording]);
 
   // Handle edit-message events from message bubble Edit button
   useEffect(() => {
@@ -824,31 +877,34 @@ export default function ChatInput() {
         </div>
       )}
 
-      {(isRecording || isTranscribing) && (
-        <div className="mb-2 flex items-center justify-between gap-3 px-3 py-2.5 bg-accent/10 border border-accent/20 rounded-lg">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="flex items-center gap-1.5">
-              <span className={`w-2.5 h-2.5 rounded-full ${isRecording ? 'bg-error animate-pulse' : 'bg-accent animate-pulse'}`} />
-              <div className="flex items-end gap-0.5 h-4">
-                <span className="w-1 rounded-full bg-accent animate-pulse" style={{ height: '45%' }} />
-                <span className="w-1 rounded-full bg-accent animate-pulse" style={{ height: '100%', animationDelay: '0.12s' }} />
-                <span className="w-1 rounded-full bg-accent animate-pulse" style={{ height: '65%', animationDelay: '0.24s' }} />
-                <span className="w-1 rounded-full bg-accent animate-pulse" style={{ height: '90%', animationDelay: '0.36s' }} />
-              </div>
-            </div>
-            <div className="min-w-0">
-              <div className="text-xs font-medium text-text-primary">{isRecording ? 'Listening...' : 'Transcribing audio...'}</div>
-              <div className="text-[11px] text-text-tertiary">{isRecording ? 'Click the microphone again to stop and transcribe.' : 'Please wait while your recording is converted to text.'}</div>
-            </div>
+      {isGeneratingImage && (
+        <div className="mb-2 flex items-center gap-2.5 px-3 py-2 bg-accent/10 border border-accent/20 rounded-lg">
+          <LoaderCircle size={14} className="text-accent animate-spin shrink-0" />
+          <div className="min-w-0 text-[11px] text-text-secondary">
+            Generating with {IMAGE_MODELS.find((model) => model.id === imageModel)?.name || imageModel}
           </div>
-          {isRecording && (
-            <button
-              onClick={() => void toggleRecording()}
-              className="px-2.5 py-1.5 text-[11px] font-medium rounded-lg bg-error text-white hover:bg-error/90 cursor-pointer shrink-0"
-            >
-              Stop
-            </button>
-          )}
+        </div>
+      )}
+
+      {isRecording && (
+        <div className="mb-2 flex items-center justify-between gap-3 px-3 py-2.5 bg-accent/10 border border-accent/20 rounded-lg">
+          <div className="flex items-end gap-1 h-6">
+            {[36, 78, 52, 94, 64, 82, 40, 72].map((height, index) => (
+              <span
+                // Keep the waveform intentionally simple and prominent.
+                key={`${height}-${index}`}
+                className="w-1.5 rounded-full bg-accent animate-pulse"
+                style={{ height: `${height}%`, animationDelay: `${index * 0.08}s` }}
+              />
+            ))}
+          </div>
+          <button
+            onClick={() => void toggleRecording()}
+            className="px-2.5 py-1.5 text-[11px] font-medium rounded-lg bg-error text-white hover:bg-error/90 cursor-pointer shrink-0"
+            title="Stop listening"
+          >
+            Stop
+          </button>
         </div>
       )}
 
@@ -918,7 +974,7 @@ export default function ChatInput() {
                 : composeMode === 'image'
                   ? 'Describe the image you want to generate...'
                   : isRecording
-                    ? 'Listening...'
+                    ? ''
                     : 'Message Nexus... (/ for commands)'
             }
             disabled={isStreaming || isGeneratingImage}
@@ -955,8 +1011,7 @@ export default function ChatInput() {
                 ? 'text-error bg-error/10 hover:bg-error/15'
                 : 'text-text-tertiary hover:text-text-secondary hover:bg-surface-2'
             }`}
-            title={isRecording ? 'Stop recording' : isTranscribing ? 'Transcribing...' : 'Record voice message'}
-            disabled={isTranscribing}
+            title={isRecording ? 'Stop listening' : 'Start listening'}
           >
             {isRecording ? <MicOff size={14} /> : <Mic size={14} />}
           </button>
