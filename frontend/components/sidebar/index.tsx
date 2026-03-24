@@ -6,6 +6,8 @@ import * as api from '@/lib/api';
 import type { Conversation } from '@/lib/types';
 import { toast } from '../toast';
 import UserDropdown from '../user-dropdown';
+import ProjectSwitcher from '../project-switcher';
+import ContextWindowViz from '../context-window-viz';
 import SidebarActions from './sidebar-actions';
 import ConversationList from './conversation-list';
 
@@ -25,6 +27,7 @@ export default function Sidebar() {
   const setMessages = useStore((s) => s.setMessages);
   const activeModel = useStore((s) => s.activeModel);
   const togglePinConversation = useStore((s) => s.togglePinConversation);
+  const activeProjectId = useStore((s) => s.activeProjectId);
   const [search, setSearch] = useState('');
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>(undefined);
 
@@ -219,6 +222,12 @@ export default function Sidebar() {
   const yesterday = new Date(today.getTime() - 86400000);
   const weekAgo = new Date(today.getTime() - 7 * 86400000);
 
+  // Filter by active project
+  const filteredConversations = useMemo(() => {
+    if (!activeProjectId) return conversations;
+    return conversations.filter((c) => c.projectId === activeProjectId);
+  }, [conversations, activeProjectId]);
+
   const groups = useMemo(() => {
     const pinned: Conversation[] = [];
     const todayItems: Conversation[] = [];
@@ -226,7 +235,7 @@ export default function Sidebar() {
     const weekItems: Conversation[] = [];
     const olderItems: Conversation[] = [];
 
-    for (const conv of conversations) {
+    for (const conv of filteredConversations) {
       if (conv.pinned) { pinned.push(conv); continue; }
       const date = new Date(conv.updatedAt || conv.createdAt);
       if (date >= today) todayItems.push(conv);
@@ -242,11 +251,16 @@ export default function Sidebar() {
       { label: 'This Week', items: weekItems },
       { label: 'Older', items: olderItems },
     ];
-  }, [conversations, today, yesterday, weekAgo]);
+  }, [filteredConversations, today, yesterday, weekAgo]);
 
   return (
     <div className="relative flex flex-col w-[85vw] sm:w-[272px] max-w-[320px] bg-surface-0 border-r border-border-default shrink-0 h-full min-w-0 sm:min-w-[272px]">
       <div className="absolute inset-0 grid-texture opacity-10 pointer-events-none" />
+
+      {/* Project switcher */}
+      <div className="px-2 pt-2 pb-0.5">
+        <ProjectSwitcher />
+      </div>
 
       <SidebarActions
         search={search}
@@ -257,12 +271,12 @@ export default function Sidebar() {
         selectedCount={selectedIds.size}
         onBulkExport={handleBulkExport}
         onBulkDelete={handleBulkDelete}
-        conversationCount={conversations.length}
+        conversationCount={filteredConversations.length}
       />
 
       <ConversationList
         groups={groups}
-        conversations={conversations}
+        conversations={filteredConversations}
         search={search}
         activeConversationId={activeConversationId}
         bulkMode={bulkMode}
@@ -281,6 +295,9 @@ export default function Sidebar() {
         onRenameCancel={() => setRenamingId(null)}
         renameInputRef={renameInputRef}
       />
+
+      {/* Context window visualization */}
+      <ContextWindowViz />
 
       {/* User dropdown */}
       <div className="px-3 pb-3 border-t border-border-default pt-2.5">

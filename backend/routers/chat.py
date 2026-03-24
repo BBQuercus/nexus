@@ -144,6 +144,7 @@ async def create_conversation(
 @router.get("")
 async def list_conversations(
     search: Optional[str] = Query(None),
+    project_id: Optional[uuid.UUID] = Query(None),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     user_id: uuid.UUID = Depends(get_current_user),
@@ -152,6 +153,8 @@ async def list_conversations(
     query = select(Conversation).where(Conversation.user_id == user_id)
     if search:
         query = query.where(Conversation.title.ilike(f"%{search}%"))
+    if project_id:
+        query = query.where(Conversation.project_id == project_id)
     query = query.order_by(Conversation.updated_at.desc())
 
     # Count total
@@ -173,6 +176,7 @@ async def list_conversations(
                 "model": c.model,
                 "agent_mode": c.agent_mode,
                 "sandbox_id": c.sandbox_id,
+                "project_id": str(c.project_id) if c.project_id else None,
                 "created_at": c.created_at.isoformat() if c.created_at else None,
                 "updated_at": c.updated_at.isoformat() if c.updated_at else None,
             }

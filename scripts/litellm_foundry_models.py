@@ -179,6 +179,16 @@ PRESETS: dict[str, dict[str, Any]] = {
         "max_output_tokens": 128000,
         "supports_vision": False,
     },
+    "gpt-5.4-mini": {
+        "alias": "azure_ai/gpt-5.4-mini",
+        "model": "azure_ai/gpt-5.4-mini",
+        "api_base": "https://arti-cgpt-rg-swc-aoai.openai.azure.com/openai/deployments/gpt-5.4-mini/chat/completions?api-version=2025-04-01-preview",
+        "input_cost": 0.75,
+        "output_cost": 4.50,
+        "max_input_tokens": 400000,
+        "max_output_tokens": 128000,
+        "supports_vision": True,
+    },
     "gpt-audio-1.5": {
         "alias": "azure_ai/gpt-audio-1.5",
         "model": "azure_ai/gpt-audio-1.5",

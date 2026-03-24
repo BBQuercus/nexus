@@ -40,6 +40,9 @@ export default function CommandPalette() {
       category: 'Models',
       handler: () => setActiveModel(m.id),
     })),
+    { id: 'search-all', label: 'Search Everything', icon: <Search size={13} />, shortcut: '\u2318\u21E7F', category: 'Actions', handler: () => {
+      useStore.getState().setSearchPanelOpen(true);
+    }},
     { id: 'new-chat', label: 'New Conversation', icon: <Plus size={13} />, shortcut: '\u2318N', category: 'Actions', handler: () => {
       (async () => { try { const conv = await (await import('@/lib/api')).createConversation({ model: useStore.getState().activeModel }); useStore.getState().setActiveConversationId(conv.id); useStore.getState().setMessages([]); const r = await (await import('@/lib/api')).listConversations(); useStore.getState().setConversations(r.conversations); } catch {} })();
     }},

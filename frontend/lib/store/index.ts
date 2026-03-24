@@ -19,9 +19,11 @@ function getPersistedState(): Partial<AppState> {
   try {
     const convId = localStorage.getItem('nexus:activeConversationId');
     const model = localStorage.getItem('nexus:activeModel');
+    const projectId = localStorage.getItem('nexus:activeProjectId');
     return {
       ...(convId ? { activeConversationId: convId } : {}),
       ...(model ? { activeModel: model } : {}),
+      ...(projectId ? { activeProjectId: projectId } : {}),
     };
   } catch {
     return {};
@@ -59,6 +61,9 @@ const initialState: AppState = {
   confirmDialog: { ...emptyConfirm },
   activeKnowledgeBaseIds: [],
   diffView: null,
+  projects: [],
+  activeProjectId: null,
+  searchPanelOpen: false,
 };
 
 export const useStore = create<StoreState>((...args) => {

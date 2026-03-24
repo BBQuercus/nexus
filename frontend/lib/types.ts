@@ -14,9 +14,47 @@ export interface Conversation {
   model?: string;
   personaId?: string;
   sandboxId?: string;
+  projectId?: string;
   messageCount?: number;
   pinned?: boolean;
   preview?: string;
+}
+
+// ── Projects / Workspaces ──
+
+export interface Project {
+  id: string;
+  name: string;
+  description?: string;
+  icon?: string;
+  color?: string;
+  default_model?: string;
+  default_persona_id?: string;
+  knowledge_base_ids: string[];
+  pinned_conversation_ids: string[];
+  settings: Record<string, any>;
+  conversation_count?: number;
+  archived?: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SearchResult {
+  conversations: SearchHit[];
+  messages: SearchHit[];
+  artifacts: SearchHit[];
+  total: number;
+}
+
+export interface SearchHit {
+  id: string;
+  type: 'conversation' | 'message' | 'artifact';
+  title: string;
+  snippet: string;
+  conversation_id?: string;
+  project_id?: string;
+  created_at: string;
+  score?: number;
 }
 
 export interface MessageAttachment {
