@@ -244,7 +244,7 @@ function BranchContent({ state, showCursor }: { state: StreamingState; showCurso
           </div>
         </details>
       )}
-      {state.toolCalls.map((tool) => (
+      {state.toolCalls.filter((tool) => tool.name !== 'create_chart').map((tool) => (
         <StreamingExecBlock key={tool.id} tool={tool} />
       ))}
       {state.images.map((img, i) => (

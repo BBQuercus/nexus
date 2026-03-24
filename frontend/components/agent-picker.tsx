@@ -15,6 +15,7 @@ function AgentIcon({ name, size = 13, className = '' }: { name: string; size?: n
 export default function AgentPicker() {
   const activePersona = useStore((s) => s.activePersona);
   const setActivePersona = useStore((s) => s.setActivePersona);
+  const setActiveModel = useStore((s) => s.setActiveModel);
   const messages = useStore((s) => s.messages);
   const [open, setOpen] = useState(false);
   const [agents, setAgents] = useState<AgentPersona[]>([]);
@@ -97,7 +98,7 @@ export default function AgentPicker() {
             agents.map((agent) => (
               <button
                 key={agent.id}
-                onClick={() => { setActivePersona(agent); setOpen(false); }}
+                onClick={() => { setActivePersona(agent); if (agent.defaultModel) setActiveModel(agent.defaultModel); setOpen(false); }}
                 className={`w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-surface-1 transition-colors cursor-pointer ${
                   agent.id === activePersona?.id ? 'bg-surface-1' : ''
                 }`}

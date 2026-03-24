@@ -25,10 +25,17 @@ export default function VegaChart({ spec, className, onViewReady }: VegaChartPro
       if (!containerRef.current) return;
       try {
         const embed = (await import('vega-embed')).default;
-        const result = await embed(containerRef.current, spec, {
+        // Make chart responsive: fit container width, enable tooltips
+        const responsiveSpec = {
+          ...spec,
+          width: 'container',
+          autosize: { type: 'fit', contains: 'padding' },
+        };
+        const result = await embed(containerRef.current, responsiveSpec as Record<string, unknown>, {
           actions: false,
-          renderer: 'svg',
+          renderer: 'canvas',
           theme: 'dark',
+          tooltip: { theme: 'dark' },
         });
         viewInstance = result.view;
         if (mounted) {

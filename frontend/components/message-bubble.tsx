@@ -10,6 +10,7 @@ import * as api from '@/lib/api';
 import { mapRawMessages } from '@/lib/useStreaming';
 import { Copy, GitBranch, RefreshCw, ChevronRight, ChevronDown, ChevronLeft, Terminal, Play, Check, Download, Clock, Coins, Cpu, ArrowRight, X, Link, FileEdit, Pencil, ChevronUp, ThumbsUp, ThumbsDown, FileSpreadsheet, FileText, Presentation, File as FileIcon, MessageSquare, Volume2 } from 'lucide-react';
 import { ProviderLogo } from './provider-logos';
+import VegaChart from './vega-chart';
 
 function CostBadge({ data }: { data: CostData }) {
   const model = data.model.split('/').pop() || data.model;
@@ -647,7 +648,7 @@ export default function MessageBubble({ message }: { message: Message }) {
       <div className="group max-w-[95%] sm:max-w-[85%]">
         <SiblingNav message={message} />
         {message.reasoning && <ReasoningTrace content={message.reasoning} tokenCount={message.reasoningTokens} />}
-        {message.toolCalls?.map((tool) => <ExecBlock key={tool.id} tool={tool} />)}
+        {message.toolCalls?.filter((tool) => tool.name !== 'create_chart').map((tool) => <ExecBlock key={tool.id} tool={tool} />)}
         {message.images && message.images.length > 0 && (
           <div className="space-y-3 my-3">
             {message.images.map((img, i) => (
@@ -659,6 +660,18 @@ export default function MessageBubble({ message }: { message: Message }) {
           <div className="space-y-2 my-3">
             {message.files.map((file, i) => (
               <FileArtifactCard key={i} file={file} sandboxId={sandboxId} />
+            ))}
+          </div>
+        )}
+        {message.charts && message.charts.length > 0 && (
+          <div className="space-y-3 my-3">
+            {message.charts.map((chart, i) => (
+              <div key={i} className="rounded-lg border border-border-default overflow-hidden bg-surface-0">
+                <div className="px-3 py-2 bg-surface-1 text-[11px] font-mono text-text-secondary">
+                  {chart.title || 'Interactive Chart'}
+                </div>
+                <VegaChart spec={chart.spec} className="overflow-x-auto p-2" />
+              </div>
             ))}
           </div>
         )}

@@ -159,7 +159,7 @@ function ArtifactCard({ artifact, isGrid }: { artifact: Artifact; isGrid: boolea
       )}
       {isGrid && artifact.type === 'chart' && chartSpec && (
         <div className="mb-2 rounded overflow-hidden border border-border-default bg-surface-0">
-          <VegaChart spec={chartSpec} className="max-h-52 overflow-x-auto p-2" onViewReady={setChartView} />
+          <VegaChart spec={chartSpec} className="max-h-52 overflow-hidden p-2 w-full" onViewReady={setChartView} />
         </div>
       )}
 
@@ -203,8 +203,8 @@ function ArtifactCard({ artifact, isGrid }: { artifact: Artifact; isGrid: boolea
           {new Date(artifact.createdAt).toLocaleTimeString()}
         </div>
         {artifact.type === 'chart' && chartSpec && !isGrid && (
-          <div className="mt-2 rounded-lg border border-border-default bg-surface-0">
-            <VegaChart spec={chartSpec} className="max-h-72 overflow-x-auto p-2" onViewReady={setChartView} />
+          <div className="mt-2 rounded-lg border border-border-default bg-surface-0 overflow-hidden">
+            <VegaChart spec={chartSpec} className="max-h-72 overflow-hidden p-2 w-full" onViewReady={setChartView} />
           </div>
         )}
 
