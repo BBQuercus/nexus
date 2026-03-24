@@ -1,90 +1,159 @@
-"""FastAPI middleware for request tracing, error handling, security headers, and CSRF protection."""
+"""FastAPI middleware for request tracing, error handling, and security headers.
 
+Uses pure ASGI middleware instead of BaseHTTPMiddleware to avoid deadlocks
+with streaming responses (SSE).
+"""
+
+import json
 import time
 import traceback
 import uuid
+from typing import Any
 
 import structlog
-from fastapi import Request, Response
-from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
-from starlette.responses import JSONResponse
+from starlette.requests import Request
+from starlette.responses import Response
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from backend.logging_config import get_logger
 
 logger = get_logger("middleware")
 
+CSP_VALUE = (
+    "default-src 'self'; "
+    "script-src 'self' 'unsafe-eval' 'unsafe-inline'; "
+    "style-src 'self' 'unsafe-inline'; "
+    "img-src 'self' data: blob:; "
+    "connect-src 'self' ws: wss:; "
+    "font-src 'self' data:"
+)
 
-class SecurityHeadersMiddleware(BaseHTTPMiddleware):
-    """Add security headers to every response."""
-
-    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        response = await call_next(request)
-        response.headers["Content-Security-Policy"] = (
-            "default-src 'self'; "
-            "script-src 'self' 'unsafe-eval' 'unsafe-inline'; "
-            "style-src 'self' 'unsafe-inline'; "
-            "img-src 'self' data: blob:; "
-            "connect-src 'self' ws: wss:; "
-            "font-src 'self' data:"
-        )
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["X-Frame-Options"] = "DENY"
-        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-        return response
+SECURITY_HEADERS: list[tuple[bytes, bytes]] = [
+    (b"content-security-policy", CSP_VALUE.encode()),
+    (b"x-content-type-options", b"nosniff"),
+    (b"x-frame-options", b"DENY"),
+    (b"referrer-policy", b"strict-origin-when-cross-origin"),
+]
 
 
-class RequestIdMiddleware(BaseHTTPMiddleware):
-    """Attach a unique request ID to every request and bind it to the log context."""
+class SecurityHeadersMiddleware:
+    """Add security headers to every HTTP response (pure ASGI)."""
 
-    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        request_id = request.headers.get("X-Request-Id") or str(uuid.uuid4())
-        request.state.request_id = request_id
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        async def send_with_headers(message: Message) -> None:
+            if message["type"] == "http.response.start":
+                headers = list(message.get("headers", []))
+                headers.extend(SECURITY_HEADERS)
+                message["headers"] = headers
+            await send(message)
+
+        await self.app(scope, receive, send_with_headers)
+
+
+class RequestIdMiddleware:
+    """Attach a unique request ID and log requests (pure ASGI)."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        request = Request(scope)
+        request_id = request.headers.get("x-request-id") or str(uuid.uuid4())
+        scope.setdefault("state", {})
+        scope["state"]["request_id"] = request_id
 
         structlog.contextvars.clear_contextvars()
         structlog.contextvars.bind_contextvars(request_id=request_id)
 
         start = time.monotonic()
+        status_code = 500  # default in case we never see the response start
 
-        response = await call_next(request)
+        async def send_with_request_id(message: Message) -> None:
+            nonlocal status_code
+            if message["type"] == "http.response.start":
+                status_code = message.get("status", 500)
+                headers = list(message.get("headers", []))
+                headers.append((b"x-request-id", request_id.encode()))
+                message["headers"] = headers
+            await send(message)
 
-        duration_ms = round((time.monotonic() - start) * 1000, 1)
-        response.headers["X-Request-Id"] = request_id
-
-        # Log request completion (skip health checks to reduce noise)
-        if request.url.path not in ("/health", "/ready"):
-            logger.info(
-                "request_completed",
-                method=request.method,
-                path=request.url.path,
-                status=response.status_code,
-                duration_ms=duration_ms,
-            )
-
-        structlog.contextvars.clear_contextvars()
-        return response
-
-
-class GlobalExceptionMiddleware(BaseHTTPMiddleware):
-    """Catch all unhandled exceptions and return a structured JSON error."""
-
-    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         try:
-            return await call_next(request)
+            await self.app(scope, receive, send_with_request_id)
+        finally:
+            duration_ms = round((time.monotonic() - start) * 1000, 1)
+            path = scope.get("path", "")
+            if path not in ("/health", "/ready"):
+                logger.info(
+                    "request_completed",
+                    method=scope.get("method", ""),
+                    path=path,
+                    status=status_code,
+                    duration_ms=duration_ms,
+                )
+            structlog.contextvars.clear_contextvars()
+
+
+class GlobalExceptionMiddleware:
+    """Catch unhandled exceptions and return structured JSON (pure ASGI)."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        response_started = False
+
+        async def send_wrapper(message: Message) -> None:
+            nonlocal response_started
+            if message["type"] == "http.response.start":
+                response_started = True
+            await send(message)
+
+        try:
+            await self.app(scope, receive, send_wrapper)
         except Exception as exc:
-            request_id = getattr(request.state, "request_id", "unknown")
+            if response_started:
+                # Can't send error response if headers already sent
+                raise
+
+            request_id = scope.get("state", {}).get("request_id", "unknown")
             logger.error(
                 "unhandled_exception",
                 error=str(exc),
                 traceback=traceback.format_exc(),
-                path=request.url.path,
-                method=request.method,
+                path=scope.get("path", ""),
+                method=scope.get("method", ""),
             )
-            return JSONResponse(
-                status_code=500,
-                content={
-                    "error": "internal_server_error",
-                    "message": "An unexpected error occurred. Please try again.",
-                    "request_id": request_id,
-                },
-                headers={"X-Request-Id": request_id},
-            )
+
+            body = json.dumps({
+                "error": "internal_server_error",
+                "message": "An unexpected error occurred. Please try again.",
+                "request_id": request_id,
+            }).encode()
+
+            await send({
+                "type": "http.response.start",
+                "status": 500,
+                "headers": [
+                    (b"content-type", b"application/json"),
+                    (b"x-request-id", request_id.encode()),
+                ],
+            })
+            await send({
+                "type": "http.response.body",
+                "body": body,
+            })

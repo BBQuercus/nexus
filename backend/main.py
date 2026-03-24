@@ -37,14 +37,13 @@ logger = get_logger("main")
 async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    logger.info("startup", event="database_tables_ensured")
+    logger.info("database_tables_ensured")
     yield
-    logger.info("shutdown", event="graceful_shutdown_started")
-    # Give active streams a moment to finish
+    logger.info("graceful_shutdown_started")
     import asyncio
     await asyncio.sleep(1)
     await engine.dispose()
-    logger.info("shutdown", event="database_engine_disposed")
+    logger.info("database_engine_disposed")
 
 
 app = FastAPI(
