@@ -38,12 +38,22 @@ MODEL_PRICING: dict[str, tuple[float, float]] = {
     "gpt-5.2-use2": (15.0, 60.0),
     "o1-gwc": (15.0, 60.0),
     "Llama-3.3-70B-Instruct": (0.50, 0.70),
+    "azure_ai/model_router": (0.14, 0.0),
+    "azure_ai/gpt-5.3-chat": (15.0, 60.0),
+    "azure_ai/gpt-oss-120b": (0.15, 0.60),
+    "azure_ai/kimi-k2.5": (0.60, 3.00),
+    "azure_ai/deepseek-v3.2": (0.58, 1.68),
+    "azure_ai/grok-4-fast-reasoning": (0.20, 0.50),
 }
 
 # Retryable HTTP status codes
 _RETRYABLE_STATUSES = {429, 500, 502, 503, 504}
 _MAX_RETRIES = 1
 _RETRY_BACKOFF_S = 2.0
+_MODELS_WITHOUT_TOOL_CHOICE = {
+    "azure_ai/model_router",
+    "azure_ai/gpt-5.3-chat",
+}
 
 
 def calculate_cost(model: str, input_tokens: int, output_tokens: int) -> Decimal:
@@ -57,6 +67,10 @@ def calculate_cost(model: str, input_tokens: int, output_tokens: int) -> Decimal
 class LLMUnavailableError(Exception):
     """Raised when the LLM is temporarily unavailable after retries."""
     pass
+
+
+def _supports_tool_choice(model: str) -> bool:
+    return model not in _MODELS_WITHOUT_TOOL_CHOICE
 
 
 async def stream_chat(
@@ -76,7 +90,8 @@ async def stream_chat(
     }
     if tools:
         kwargs["tools"] = tools
-        kwargs["tool_choice"] = "auto"
+        if _supports_tool_choice(model):
+            kwargs["tool_choice"] = "auto"
 
     last_error: Exception | None = None
 

@@ -2,6 +2,7 @@ import json
 import uuid
 from typing import Optional
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from sqlalchemy import delete, func, select, text as sa_text
@@ -17,6 +18,7 @@ from backend.services.agent import run_agent_loop, run_multi_agent_loop
 from backend.services import sandbox as sandbox_service
 from backend.services import llm as llm_service
 from backend.services.messages import extract_message_files
+from backend.config import settings
 
 router = APIRouter(prefix="/api/conversations", tags=["conversations"])
 
@@ -49,6 +51,12 @@ class SendMessageRequest(BaseModel):
     context_conversation_ids: Optional[list[uuid.UUID]] = None  # @mentioned conversations
     agent_persona_id: Optional[uuid.UUID] = None  # Override persona for this message
     knowledge_base_ids: Optional[list[uuid.UUID]] = None  # Attach KBs for RAG
+
+
+class GenerateImageRequest(BaseModel):
+    prompt: str
+    model: str = "gpt-image-1.5-swc"
+    size: str = "1024x1024"
 
 
 class SwitchBranchRequest(BaseModel):
@@ -500,6 +508,107 @@ async def send_message(
             pass
 
     return EventSourceResponse(event_generator())
+
+
+@router.post("/{conversation_id}/images")
+async def generate_image(
+    conversation_id: uuid.UUID,
+    body: GenerateImageRequest,
+    user_id: uuid.UUID = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(Conversation).where(
+            Conversation.id == conversation_id, Conversation.user_id == user_id
+        )
+    )
+    conv = result.scalar_one_or_none()
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    if not body.prompt.strip():
+        raise HTTPException(status_code=400, detail="Prompt is required")
+
+    parent_id = conv.active_leaf_id
+    if parent_id:
+        sibling_count = (await db.execute(
+            select(func.count()).select_from(Message).where(Message.parent_id == parent_id)
+        )).scalar() or 0
+    else:
+        sibling_count = 0
+
+    user_msg = Message(
+        conversation_id=conversation_id,
+        role="user",
+        content=body.prompt.strip(),
+        parent_id=parent_id,
+        branch_index=sibling_count,
+    )
+    db.add(user_msg)
+    await db.flush()
+
+    payload = {
+        "model": body.model,
+        "prompt": body.prompt.strip(),
+        "size": body.size,
+    }
+    headers = {
+        "Authorization": f"Bearer {settings.LITE_LLM_API_KEY}",
+        "Content-Type": "application/json",
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            response = await client.post(
+                f"{settings.LITE_LLM_URL.rstrip('/')}/v1/images/generations",
+                json=payload,
+                headers=headers,
+            )
+            response.raise_for_status()
+            image_data = response.json()
+    except httpx.HTTPStatusError as e:
+        detail = e.response.text or e.response.reason_phrase or "LiteLLM image request failed"
+        raise HTTPException(status_code=e.response.status_code, detail=f"Image generation failed: {detail}") from e
+    except httpx.TimeoutException as e:
+        raise HTTPException(status_code=504, detail=f"Image generation timed out: {type(e).__name__}") from e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Image generation error: {type(e).__name__}: {e!r}") from e
+
+    try:
+        first = image_data["data"][0]
+        if "b64_json" in first:
+            image_url = f"data:image/png;base64,{first['b64_json']}"
+        else:
+            image_url = first["url"]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Invalid image response: {e}") from e
+
+    assistant_msg = Message(
+        conversation_id=conversation_id,
+        role="assistant",
+        content=f"Generated image for: {body.prompt.strip()}",
+        images=[{"filename": "generated-image.png", "url": image_url}],
+        parent_id=user_msg.id,
+        branch_index=0,
+    )
+    db.add(assistant_msg)
+    await db.flush()
+
+    db.add(Artifact(
+        conversation_id=conversation_id,
+        message_id=assistant_msg.id,
+        type="image",
+        label="generated-image.png",
+        content=image_url,
+        metadata_={"model": body.model, "prompt": body.prompt.strip(), "size": body.size},
+    ))
+
+    conv.active_leaf_id = assistant_msg.id
+    await db.commit()
+    return {
+        "user_message": _serialize_message(user_msg),
+        "assistant_message": _serialize_message(assistant_msg),
+        "active_leaf_id": str(assistant_msg.id),
+    }
 
 
 @router.post("/{conversation_id}/messages/{message_id}/fork")

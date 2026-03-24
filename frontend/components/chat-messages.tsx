@@ -12,7 +12,7 @@ import { MessageSkeleton } from './skeleton';
 export default function ChatMessages() {
   const activeConversationId = useStore((s) => s.activeConversationId);
   const messages = useStore((s) => s.messages);
-  const setMessages = useStore((s) => s.setMessages);
+  const setConversationMessages = useStore((s) => s.setConversationMessages);
   const setSandboxId = useStore((s) => s.setSandboxId);
   const setSandboxStatus = useStore((s) => s.setSandboxStatus);
   const setArtifacts = useStore((s) => s.setArtifacts);
@@ -60,12 +60,17 @@ export default function ChatMessages() {
   useEffect(() => {
     if (!activeConversationId || isStreamingRef.current) return;
 
+    let cancelled = false;
+
     async function load() {
       setLoading(true);
       try {
-        const conv = await api.getConversation(activeConversationId!);
+        const conversationId = activeConversationId as string;
+        const conv = await api.getConversation(conversationId);
+        if (cancelled) return;
         const rawMessages = (conv.messages as Array<Record<string, unknown>>) || [];
-        setMessages(mapRawMessages(rawMessages, activeConversationId!));
+        setConversationMessages(conversationId, mapRawMessages(rawMessages, conversationId));
+        if (useStore.getState().activeConversationId !== conversationId) return;
         setActiveLeafId((conv.active_leaf_id as string) || null);
         setSandboxId((conv.sandbox_id as string) || null);
         setSandboxStatus(conv.sandbox_id ? 'running' : 'none');
@@ -84,24 +89,29 @@ export default function ChatMessages() {
         }
 
         try {
-          const artifacts = await api.getArtifacts(activeConversationId!);
+          const artifacts = await api.getArtifacts(conversationId);
+          if (cancelled || useStore.getState().activeConversationId !== conversationId) return;
           setArtifacts(artifacts);
         } catch {}
 
         // Load tree structure
         try {
-          const tree = await api.getConversationTree(activeConversationId!);
+          const tree = await api.getConversationTree(conversationId);
+          if (cancelled || useStore.getState().activeConversationId !== conversationId) return;
           setConversationTree(tree);
         } catch {}
       } catch (e) {
         console.error('Failed to load conversation:', e);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
 
     load();
-  }, [activeConversationId, setMessages, setSandboxId, setSandboxStatus, setArtifacts, setActiveLeafId, setConversationTree]);
+    return () => {
+      cancelled = true;
+    };
+  }, [activeConversationId, setConversationMessages, setSandboxId, setSandboxStatus, setArtifacts, setActiveLeafId, setConversationTree]);
 
   return (
     <div className="relative flex-1 min-h-0">

@@ -24,6 +24,38 @@ function MetaLogo({ size = 16, className = '' }: { size?: number; className?: st
   );
 }
 
+function MicrosoftLogo({ size = 16, className = '' }: { size?: number; className?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className}>
+      <path d="M3 3h8v8H3zm10 0h8v8h-8zM3 13h8v8H3zm10 0h8v8h-8z" />
+    </svg>
+  );
+}
+
+function XAILogo({ size = 16, className = '' }: { size?: number; className?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className}>
+      <path d="M4 5h3.4l4.7 6.13L16.6 5H20l-6.15 8L20.2 19H16.8l-4.98-6.47L6.97 19H3.6l6.4-6.88z" />
+    </svg>
+  );
+}
+
+function MoonshotLogo({ size = 16, className = '' }: { size?: number; className?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className}>
+      <path d="M14.6 2.5a8.9 8.9 0 1 0 6.9 14.5A9.8 9.8 0 1 1 14.6 2.5z" />
+    </svg>
+  );
+}
+
+function DeepSeekLogo({ size = 16, className = '' }: { size?: number; className?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className}>
+      <path d="M4 6.5C4 4.57 5.57 3 7.5 3h3.75a6.75 6.75 0 1 1 0 13.5H8.5V21H4zm4.5 5.5h2.75a2.75 2.75 0 1 0 0-5.5H8.5z" />
+    </svg>
+  );
+}
+
 export function ProviderLogo({ provider, size = 16, className = '' }: { provider: ModelProvider; size?: number; className?: string }) {
   switch (provider) {
     case 'anthropic':
@@ -32,5 +64,13 @@ export function ProviderLogo({ provider, size = 16, className = '' }: { provider
       return <OpenAILogo size={size} className={className} />;
     case 'meta':
       return <MetaLogo size={size} className={className} />;
+    case 'microsoft':
+      return <MicrosoftLogo size={size} className={className} />;
+    case 'xai':
+      return <XAILogo size={size} className={className} />;
+    case 'moonshot':
+      return <MoonshotLogo size={size} className={className} />;
+    case 'deepseek':
+      return <DeepSeekLogo size={size} className={className} />;
   }
 }

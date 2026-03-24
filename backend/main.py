@@ -3,7 +3,7 @@ import os
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Optional
 
 import jwt
 from fastapi import Depends, FastAPI, WebSocket, WebSocketDisconnect
@@ -23,6 +23,7 @@ from backend.routers.analytics import router as analytics_router
 from backend.routers.chat import artifact_router, router as chat_router
 from backend.routers.feedback import router as feedback_router
 from backend.routers.knowledge import router as knowledge_router, doc_router as knowledge_doc_router, retrieval_router as knowledge_retrieval_router
+from backend.routers.media import router as media_router
 from backend.routers.sandboxes import router as sandboxes_router
 from backend.routers.tts import router as tts_router
 from backend.routers.users import router as users_router
@@ -146,6 +147,7 @@ app.include_router(admin_router)
 app.include_router(knowledge_router)
 app.include_router(knowledge_doc_router)
 app.include_router(knowledge_retrieval_router)
+app.include_router(media_router)
 
 
 # ── Health Check (deep) ──
@@ -162,17 +164,130 @@ async def _check_db() -> dict:
         return {"status": "error", "error": str(e)}
 
 
+def _configured_llm_models() -> list[str]:
+    """Return configured chat model IDs from environment."""
+    models = {
+        value.strip()
+        for key, value in os.environ.items()
+        if key.startswith("LITELLM_MODEL_") and value and value.strip()
+    }
+    return sorted(models)
+
+
+def _extract_proxy_models(payload: Any) -> list[str]:
+    """Extract model IDs from LiteLLM/OpenAI-compatible /v1/models payloads."""
+    if not isinstance(payload, dict):
+        return []
+
+    data = payload.get("data")
+    if not isinstance(data, list):
+        return []
+
+    models: set[str] = set()
+    for item in data:
+        if not isinstance(item, dict):
+            continue
+        model_id = item.get("id")
+        if isinstance(model_id, str) and model_id.strip():
+            models.add(model_id.strip())
+    return sorted(models)
+
+
 async def _check_llm() -> dict:
     """Check LiteLLM proxy reachability."""
+    import asyncio
+    import httpx
+
+    base_url = settings.LITE_LLM_URL.rstrip("/")
+    health_url = f"{base_url}/health"
+    models_url = f"{base_url}/v1/models"
+    configured_models = _configured_llm_models()
+    headers = {"Authorization": f"Bearer {settings.LITE_LLM_API_KEY}"}
+
     try:
-        import httpx
         async with httpx.AsyncClient(timeout=8.0) as client:
-            resp = await client.get(f"{settings.LITE_LLM_URL}/health")
-            if resp.status_code < 500:
-                return {"status": "ok"}
-            return {"status": "degraded", "error": f"HTTP {resp.status_code}"}
+            health_result, models_result = await asyncio.gather(
+                client.get(health_url, headers=headers),
+                client.get(models_url, headers=headers),
+                return_exceptions=True,
+            )
+
+        available_models: list[str] = []
+        models_error: str | None = None
+        if isinstance(models_result, httpx.Response):
+            try:
+                available_models = _extract_proxy_models(models_result.json())
+            except ValueError:
+                available_models = []
+        elif isinstance(models_result, Exception):
+            models_error = str(models_result)
+
+        affected_models = configured_models
+        if available_models and configured_models:
+            missing_models = sorted(set(configured_models) - set(available_models))
+            if missing_models:
+                affected_models = missing_models
+
+        if isinstance(health_result, Exception):
+            health_error = str(health_result) or health_result.__class__.__name__
+
+            # The proxy health endpoint is often much slower than /v1/models.
+            # If models are reachable, treat this as available and surface the
+            # health timeout only as diagnostic metadata.
+            if available_models:
+                result = {
+                    "status": "ok" if not affected_models else "degraded",
+                    "health_url": health_url,
+                    "warning": health_error,
+                }
+                if affected_models:
+                    result["affected_models"] = affected_models
+                result["available_models"] = available_models
+                return result
+
+            result = {
+                "status": "error",
+                "error": health_error,
+                "health_url": health_url,
+            }
+            if affected_models:
+                result["affected_models"] = affected_models
+            if available_models:
+                result["available_models"] = available_models
+            if models_error:
+                result["models_error"] = models_error
+            return result
+
+        if 200 <= health_result.status_code < 300:
+            result = {
+                "status": "ok" if not affected_models else "degraded",
+                "health_url": health_url,
+            }
+            if affected_models:
+                result["affected_models"] = affected_models
+            if available_models:
+                result["available_models"] = available_models
+            return result
+
+        result = {
+            "status": "degraded",
+            "error": f"HTTP {health_result.status_code}",
+            "health_url": health_url,
+        }
+        if affected_models:
+            result["affected_models"] = affected_models
+        if available_models:
+            result["available_models"] = available_models
+        return result
     except Exception as e:
-        return {"status": "error", "error": str(e)}
+        result = {
+            "status": "error",
+            "error": str(e),
+            "health_url": health_url,
+        }
+        if configured_models:
+            result["affected_models"] = configured_models
+        return result
 
 
 async def _check_daytona() -> dict:

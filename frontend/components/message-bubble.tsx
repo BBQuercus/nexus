@@ -8,7 +8,7 @@ import { renderMarkdown } from '@/lib/markdown';
 import { useStore } from '@/lib/store';
 import * as api from '@/lib/api';
 import { mapRawMessages } from '@/lib/useStreaming';
-import { Copy, GitBranch, RefreshCw, ChevronRight, ChevronDown, ChevronLeft, Terminal, Play, Check, Download, Clock, Coins, Cpu, ArrowRight, X, Link, FileEdit, Pencil, ChevronUp, ThumbsUp, ThumbsDown, FileSpreadsheet, FileText, Presentation, File as FileIcon, MessageSquare } from 'lucide-react';
+import { Copy, GitBranch, RefreshCw, ChevronRight, ChevronDown, ChevronLeft, Terminal, Play, Check, Download, Clock, Coins, Cpu, ArrowRight, X, Link, FileEdit, Pencil, ChevronUp, ThumbsUp, ThumbsDown, FileSpreadsheet, FileText, Presentation, File as FileIcon, MessageSquare, Volume2 } from 'lucide-react';
 import { ProviderLogo } from './provider-logos';
 
 function CostBadge({ data }: { data: CostData }) {
@@ -535,6 +535,14 @@ export default function MessageBubble({ message }: { message: Message }) {
   const [copied, setCopied] = useState(false);
   const [showBranchInput, setShowBranchInput] = useState(false);
   const [showRetryMenu, setShowRetryMenu] = useState(false);
+  const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (audioUrl) URL.revokeObjectURL(audioUrl);
+    };
+  }, [audioUrl]);
 
   const renderedHtml = useMemo(() => {
     if (message.role === 'user') return null;
@@ -601,6 +609,24 @@ export default function MessageBubble({ message }: { message: Message }) {
     window.dispatchEvent(new CustomEvent('nexus:regenerate', {
       detail: { conversationId: activeConversationId, messageId: message.id },
     }));
+  };
+
+  const handleGenerateAudio = async () => {
+    if (!message.content || isGeneratingAudio) return;
+    setIsGeneratingAudio(true);
+    try {
+      if (audioUrl) {
+        URL.revokeObjectURL(audioUrl);
+        setAudioUrl(null);
+      }
+      const blob = await api.synthesizeAudio({ text: message.content });
+      const url = URL.createObjectURL(blob);
+      setAudioUrl(url);
+    } catch (e) {
+      console.error('Audio generation failed', e);
+    } finally {
+      setIsGeneratingAudio(false);
+    }
   };
 
   if (message.role === 'user') {
@@ -686,6 +712,16 @@ export default function MessageBubble({ message }: { message: Message }) {
           <CitationBar citations={message.citations} />
         )}
         {message.cost && <CostBadge data={message.cost} />}
+        {audioUrl && (
+          <div className="mt-3">
+            <audio controls src={audioUrl} className="max-w-full" />
+            <div className="mt-1">
+              <a href={audioUrl} download="assistant-response.wav" className="text-[10px] text-text-tertiary hover:text-text-secondary">
+                Download audio
+              </a>
+            </div>
+          </div>
+        )}
         <div className="relative flex items-center gap-3 mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
           <button onClick={handleCopy} className="flex items-center gap-1 text-[10px] text-text-tertiary hover:text-text-secondary cursor-pointer">
             {copied ? <Check size={10} className="text-accent" /> : <Copy size={10} />} {copied ? 'Copied' : 'Copy'}
@@ -693,6 +729,11 @@ export default function MessageBubble({ message }: { message: Message }) {
           <button onClick={handleRegenerate} className="flex items-center gap-1 text-[10px] text-text-tertiary hover:text-text-secondary cursor-pointer">
             <RefreshCw size={10} /> Regenerate
           </button>
+          {message.content && (
+            <button onClick={() => void handleGenerateAudio()} className="flex items-center gap-1 text-[10px] text-text-tertiary hover:text-text-secondary cursor-pointer">
+              <Volume2 size={10} /> {isGeneratingAudio ? 'Audio...' : 'Audio'}
+            </button>
+          )}
           <div className="relative">
             <button
               onClick={() => setShowRetryMenu(!showRetryMenu)}

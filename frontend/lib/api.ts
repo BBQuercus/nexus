@@ -253,6 +253,16 @@ export async function regenerateMessage(conversationId: string, messageId: strin
   return response;
 }
 
+export async function generateConversationImage(
+  conversationId: string,
+  params: { prompt: string; model?: string; size?: string },
+): Promise<{ user_message: Record<string, unknown>; assistant_message: Record<string, unknown>; active_leaf_id: string }> {
+  return apiFetch(`/api/conversations/${conversationId}/images`, {
+    method: 'POST',
+    body: JSON.stringify(params),
+  });
+}
+
 // ── Branching ──
 
 export async function getConversationTree(conversationId: string): Promise<ConversationTree> {
@@ -445,7 +455,13 @@ export interface HealthCheck {
   status: 'ok' | 'degraded';
   checks: {
     db: { status: string; error?: string };
-    llm: { status: string; error?: string };
+    llm: {
+      status: string;
+      error?: string;
+      health_url?: string;
+      affected_models?: string[];
+      available_models?: string[];
+    };
     daytona: { status: string; error?: string };
   };
   latency_ms: number;
@@ -458,6 +474,51 @@ export async function getHealth(): Promise<HealthCheck> {
     : '';
   const resp = await fetch(`${base}/health`);
   return resp.json();
+}
+
+export async function transcribeAudio(file: File, model = 'azure/whisper-1'): Promise<{ text: string; model: string }> {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('model', model);
+  return apiFetch('/api/media/transcribe', {
+    method: 'POST',
+    body: formData,
+  });
+}
+
+export async function synthesizeAudio(
+  params: { text: string; model?: string; voice?: string; format?: string },
+): Promise<Blob> {
+  const token = getToken();
+  const headers: Record<string, string> = {};
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  if (!token) {
+    const csrfToken = getCsrfToken();
+    if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
+  }
+  const response = await fetch('/api/media/speak', {
+    method: 'POST',
+    headers: {
+      ...headers,
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+    body: JSON.stringify(params),
+  });
+  if (!response.ok) {
+    let errorBody: unknown;
+    try {
+      errorBody = await response.json();
+    } catch {
+      errorBody = await response.text().catch(() => null);
+    }
+    throw new ApiError(
+      response.status,
+      (errorBody as { detail?: string })?.detail || response.statusText,
+      errorBody,
+    );
+  }
+  return response.blob();
 }
 
 // ── Feedback ──
