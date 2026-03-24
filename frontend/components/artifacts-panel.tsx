@@ -11,7 +11,7 @@ import {
   FileSpreadsheet, Presentation,
 } from 'lucide-react';
 
-type FilterType = 'all' | 'code' | 'charts' | 'tables' | 'documents';
+type FilterType = 'all' | 'code' | 'charts' | 'tables' | 'documents' | 'forms';
 
 const FILTER_OPTIONS: { key: FilterType; label: string }[] = [
   { key: 'all', label: 'All' },
@@ -19,6 +19,7 @@ const FILTER_OPTIONS: { key: FilterType; label: string }[] = [
   { key: 'charts', label: 'Charts' },
   { key: 'tables', label: 'Tables' },
   { key: 'documents', label: 'Documents' },
+  { key: 'forms', label: 'Forms' },
 ];
 
 function filterMatches(artifact: Artifact, filter: FilterType): boolean {
@@ -27,6 +28,7 @@ function filterMatches(artifact: Artifact, filter: FilterType): boolean {
   if (filter === 'charts') return artifact.type === 'chart' || artifact.type === 'image' || artifact.type === 'diagram';
   if (filter === 'tables') return artifact.type === 'table';
   if (filter === 'documents') return artifact.type === 'document';
+  if (filter === 'forms') return artifact.type === 'form';
   return true;
 }
 

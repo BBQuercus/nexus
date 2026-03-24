@@ -806,3 +806,70 @@ export async function searchAll(
   const params = new URLSearchParams({ q: query, scope, limit: String(limit) });
   return apiFetch<SearchResult>(`/api/search?${params.toString()}`);
 }
+
+// ── Memory API ──
+
+import type { Memory } from './types';
+
+function memoryFromSnake(raw: Record<string, unknown>): Memory {
+  return {
+    id: raw.id as string,
+    scope: raw.scope as Memory['scope'],
+    category: raw.category as Memory['category'],
+    content: raw.content as string,
+    project_id: raw.project_id as string | undefined,
+    source_conversation_id: raw.source_conversation_id as string | undefined,
+    source_message_id: raw.source_message_id as string | undefined,
+    relevance_count: raw.relevance_count as number,
+    active: raw.active as boolean,
+    created_at: raw.created_at as string,
+    updated_at: raw.updated_at as string,
+  };
+}
+
+export async function createMemory(params: {
+  content: string;
+  scope?: string;
+  category?: string;
+  project_id?: string;
+}): Promise<Memory> {
+  const raw = await apiFetch<Record<string, unknown>>('/api/memory', {
+    method: 'POST',
+    body: JSON.stringify(params),
+  });
+  return memoryFromSnake(raw);
+}
+
+export async function listMemories(params?: {
+  scope?: string;
+  category?: string;
+  project_id?: string;
+  active?: boolean;
+}): Promise<Memory[]> {
+  const qs = new URLSearchParams();
+  if (params?.scope) qs.set('scope', params.scope);
+  if (params?.category) qs.set('category', params.category);
+  if (params?.project_id) qs.set('project_id', params.project_id);
+  if (params?.active !== undefined) qs.set('active', String(params.active));
+  const q = qs.toString();
+  const raw = await apiFetch<Record<string, unknown>[]>(`/api/memory${q ? `?${q}` : ''}`);
+  return raw.map(memoryFromSnake);
+}
+
+export async function updateMemory(id: string, params: {
+  content?: string;
+  scope?: string;
+  category?: string;
+  active?: boolean;
+  project_id?: string;
+}): Promise<Memory> {
+  const raw = await apiFetch<Record<string, unknown>>(`/api/memory/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(params),
+  });
+  return memoryFromSnake(raw);
+}
+
+export async function deleteMemory(id: string): Promise<void> {
+  return apiFetch<void>(`/api/memory/${id}`, { method: 'DELETE' });
+}

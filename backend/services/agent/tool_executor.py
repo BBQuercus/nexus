@@ -195,6 +195,18 @@ async def execute_tool_call(
             tool_output = json.dumps(result, indent=2)
             yield sse_event("tool_output", {"tool": func_name, "output": tool_output, "tool_call_id": tool_call_id})
 
+        elif func_name == "create_ui":
+            tool_output = _handle_create_ui(args, tool_call_id, ctx)
+            yield sse_event("ui_form", {
+                "title": args.get("title", "Form"),
+                "description": args.get("description", ""),
+                "fields": args.get("fields", []),
+                "submit_label": args.get("submit_label", "Submit"),
+                "allow_multiple": args.get("allow_multiple", False),
+                "tool_call_id": tool_call_id,
+            })
+            yield sse_event("tool_output", {"tool": func_name, "output": tool_output, "tool_call_id": tool_call_id})
+
         elif func_name == "knowledge_search":
             async for event in _knowledge_search(func_name, args, tool_call_id, ctx):
                 if event.get("__set_output__"):
@@ -376,6 +388,40 @@ async def _run_sql(
             })
 
     yield {"__set_output__": True, "output": tool_output, "exit_code": tool_exit_code}
+
+
+def _handle_create_ui(args: dict, tool_call_id: str, ctx: ToolExecutionContext) -> str:
+    """Handle create_ui tool — validate form spec and save artifact."""
+    title = args.get("title", "Form")
+    fields = args.get("fields", [])
+
+    # Basic validation
+    if not isinstance(fields, list) or len(fields) == 0:
+        return "Error: create_ui requires a non-empty 'fields' array"
+
+    for i, field in enumerate(fields):
+        if not isinstance(field, dict):
+            return f"Error: field at index {i} is not an object"
+        for key in ("id", "type", "label"):
+            if key not in field:
+                return f"Error: field at index {i} missing required key '{key}'"
+
+    form_spec = {
+        "title": title,
+        "description": args.get("description", ""),
+        "fields": fields,
+        "submit_label": args.get("submit_label", "Submit"),
+        "allow_multiple": args.get("allow_multiple", False),
+    }
+
+    ctx.runtime_artifacts.append({
+        "type": "form",
+        "label": title,
+        "content": json.dumps(form_spec),
+        "metadata": {"tool_call_id": tool_call_id},
+    })
+
+    return json.dumps({"status": "form_created", "title": title, "field_count": len(fields)})
 
 
 async def _knowledge_search(

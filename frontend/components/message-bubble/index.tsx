@@ -9,6 +9,7 @@ import { SiblingNav } from './branch-indicator';
 import { ExecBlock, ReasoningTrace, CostBadge } from './tool-call-display';
 import { ImageGallery, FileGallery } from './image-gallery';
 import { ChartDisplay } from './chart-display';
+import FormRenderer from '../form-renderer';
 import { MessageContent } from './message-content';
 import { CitationSection } from './citation-list';
 import {
@@ -105,10 +106,17 @@ export default function MessageBubble({ message }: { message: Message }) {
       <div className="group max-w-[95%] sm:max-w-[85%]">
         <SiblingNav message={message} />
         {message.reasoning && <ReasoningTrace content={message.reasoning} tokenCount={message.reasoningTokens} />}
-        {message.toolCalls?.filter((tool) => tool.name !== 'create_chart').map((tool) => <ExecBlock key={tool.id} tool={tool} />)}
+        {message.toolCalls?.filter((tool) => tool.name !== 'create_chart' && tool.name !== 'create_ui').map((tool) => <ExecBlock key={tool.id} tool={tool} />)}
         <ImageGallery images={message.images} />
         <FileGallery files={message.files} sandboxId={sandboxId} />
         <ChartDisplay charts={message.charts} />
+        {message.forms?.map((form, i) => (
+          <FormRenderer key={i} spec={form} onSubmit={(data) => {
+            // Send form response as a user message
+            const formattedResponse = `Form response for "${form.title}":\n\`\`\`json\n${JSON.stringify(data, null, 2)}\n\`\`\``;
+            window.dispatchEvent(new CustomEvent('nexus:send-message', { detail: { text: formattedResponse } }));
+          }} />
+        ))}
         <MessageContent content={message.content} />
         <CitationSection citations={message.citations} />
         {message.cost && <CostBadge data={message.cost} />}
