@@ -133,6 +133,12 @@ async def run_agent_loop(
     # (when leaf_message_id is provided, the user message is already in the DB path)
     if not leaf_message_id:
         llm_messages.append({"role": "user", "content": user_message})
+    elif user_message and llm_messages:
+        # If user_message contains injected context (from @mentions),
+        # replace the last user message content with the enriched version
+        last_user = llm_messages[-1]
+        if last_user.get("role") == "user" and last_user.get("content") != user_message:
+            last_user["content"] = user_message
 
     # Get tools
     tools_enabled = None
