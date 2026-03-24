@@ -1,1024 +1,1506 @@
-# Nexus — AI Agent Workspace with Sandboxed Code Execution
+# Nexus — Master Plan
 
-## Overview
-
-A production-grade AI agent workspace where users chat with LLMs that can **write and execute code in isolated Daytona sandboxes** in real time. The AI doesn't just talk — it _builds, runs, analyzes, and visualizes things_. Users see live terminal output, inline charts and diagrams, browse generated files, preview running web apps, upload their own data, and fork/snapshot sandbox state at any point.
-
-Heavy focus on **data analysis workflows**: drop a CSV, ask a question, get back rendered charts, formatted tables, and insights — all executed in a real sandbox, not hallucinated. The AI can use pandas, matplotlib, seaborn, plotly, and any PyPI package.
-
-Multi-user, persistent conversations, WorkOS authentication, Postgres-backed. Designed to showcase Daytona's sandbox infrastructure as the backbone of agentic AI workflows.
-
-**What makes this 100x better than a standard enterprise chat UI:**
-- AI executes code in real sandboxes, not just generates it
-- **Inline visualizations** — matplotlib/plotly charts render directly in the chat as PNG/SVG
-- **Mermaid diagrams** — architecture diagrams, flowcharts, sequence diagrams render live in markdown
-- **Rich data tables** — CSV/dataframe output renders as sortable, formatted tables, not monospace text
-- Live app preview — AI builds a web app, you see it running in an embedded iframe
-- **Sandbox templates** — pre-configured environments (Python data science, Node, React) for instant startup
-- Sandbox snapshots + forking — branch any conversation with full environment state
-- File upload — drag CSVs, images, data files into chat, they land in the sandbox filesystem
-- Conversation branching — edit any message and fork a new timeline
-- **Per-message cost tracking** — transparent token + cost badges on every response
-- Custom agent personas — build and share reusable AI configurations
-- Command palette (Cmd+K) — power-user keyboard-driven UX
+**Last updated:** 2026-03-24
+**Goal:** Build the de-facto gold standard AI chat application.
+**Sources:** Codebase audit, competitive analysis (ChatGPT, Claude.ai, Cursor, TypingMind, OpenWebUI, LibreChat), CompanyGPT teardown, colleague review, and tool implementation specs.
 
 ---
 
-## Architecture
+## Table of Contents
 
-```
-nexus/
-├── .env                          # All secrets and config
-├── docker-compose.yml            # Postgres + pgAdmin (dev)
-├── run.sh                        # Starts everything (db, backend, frontend)
-├── pyproject.toml                # Python deps (managed with uv)
-├── backend/
-│   ├── main.py                   # FastAPI app — CORS, lifespan, router mounts
-│   ├── config.py                 # Settings via pydantic-settings (.env loading)
-│   ├── db.py                     # SQLAlchemy async engine + session factory
-│   ├── models.py                 # ORM models (all tables)
-│   ├── auth.py                   # WorkOS AuthKit integration, session middleware
-│   ├── routers/
-│   │   ├── chat.py               # Chat + streaming endpoints
-│   │   ├── sandboxes.py          # Sandbox CRUD, snapshot, fork, preview
-│   │   ├── conversations.py      # Conversation history CRUD, branching
-│   │   ├── files.py              # File browser + upload to sandbox
-│   │   ├── agents.py             # Custom agent persona CRUD
-│   │   └── users.py              # User profile, usage stats
-│   ├── services/
-│   │   ├── llm.py                # LiteLLM proxy wrapper, tool-use orchestration
-│   │   ├── sandbox.py            # Daytona SDK wrapper — create, exec, snapshot, preview
-│   │   ├── agent.py              # Agent loop: plan → code → execute → observe → iterate
-│   │   ├── extraction.py         # Artifact extraction (ideas, code snippets, diagrams)
-│   │   ├── search.py             # Web search tool (SerpAPI wrapper)
-│   │   └── media.py              # Sandbox image/file retrieval for inline rendering
-│   └── prompts/
-│       ├── system.py             # Base system prompts per agent mode
-│       └── tools.py              # Tool definitions for function-calling models
-├── frontend/
-│   ├── package.json
-│   ├── tsconfig.json
-│   ├── vite.config.ts
-│   ├── index.html
-│   └── src/
-│       ├── main.ts               # Entry point, router init
-│       ├── styles/
-│       │   ├── tokens.css        # Design tokens (CSS custom properties)
-│       │   ├── base.css          # Reset, typography, global styles
-│       │   └── components.css    # Component-specific styles
-│       ├── auth.ts               # WorkOS AuthKit redirect flow, session management
-│       ├── router.ts             # Simple hash-based SPA router
-│       ├── views/
-│       │   ├── login.ts          # Login page
-│       │   ├── workspace.ts      # Main workspace (chat + sandbox + artifacts)
-│       │   └── agents.ts         # Agent persona browser + editor
-│       ├── components/
-│       │   ├── chat.ts           # Chat panel — messages, streaming, input
-│       │   ├── terminal.ts       # Live terminal output from sandbox execution
-│       │   ├── file-tree.ts      # Sandbox file browser (tree view)
-│       │   ├── file-viewer.ts    # File content viewer with syntax highlighting
-│       │   ├── diff-viewer.ts    # Side-by-side diff view for file changes
-│       │   ├── preview.ts        # Live app preview iframe
-│       │   ├── image-embed.ts    # Inline PNG/SVG chart rendering from sandbox
-│       │   ├── mermaid.ts        # Mermaid diagram renderer (lazy-loaded)
-│       │   ├── data-table.ts     # Rich table renderer for CSV/dataframe output
-│       │   ├── artifacts.ts      # Extracted artifacts panel
-│       │   ├── sandbox-bar.ts    # Sandbox status bar — resource usage, controls
-│       │   ├── model-picker.ts   # Model selector dropdown
-│       │   ├── command-palette.ts # Cmd+K command palette
-│       │   ├── upload.ts         # File upload / drag-and-drop zone
-│       │   ├── reasoning.ts      # Collapsible reasoning/thinking display
-│       │   ├── feedback.ts       # Message feedback (thumbs up/down)
-│       │   └── markdown.ts       # Markdown rendering (marked + shiki)
-│       ├── services/
-│       │   ├── api.ts            # Typed API client (fetch wrapper)
-│       │   ├── sse.ts            # SSE stream consumer
-│       │   ├── ws.ts             # WebSocket client for terminal streams
-│       │   └── shortcuts.ts      # Keyboard shortcut registry
-│       └── state.ts              # Global state store, reactive updates
-└── migrations/
-    └── ...                       # Alembic migrations
+- [Current State](#current-state)
+- [Competitive Landscape](#competitive-landscape)
+- [Track A: Operational Reliability](#track-a-operational-reliability)
+- [Track B: New Tools & Capabilities](#track-b-new-tools--capabilities)
+- [Track C: Product Differentiation](#track-c-product-differentiation)
+- [Track D: Enterprise & Collaboration](#track-d-enterprise--collaboration)
+- [Testing & Quality Strategy](#testing--quality-strategy)
+- [Open Questions & Design Decisions](#open-questions--design-decisions)
+- [Initiative Sequence](#initiative-sequence)
+- [Success Metrics](#success-metrics)
+
+---
+
+## Current State
+
+### Scorecard
+
+| Area | Details | Score |
+|------|---------|-------|
+| Architecture | Next.js 15 + FastAPI + PostgreSQL, fully async, clean separation | 9/10 |
+| Type Safety | Strict TypeScript, Pydantic everywhere, SQLAlchemy Mapped types | 9/10 |
+| Security | SSRF protection, CSRF tokens, CSP headers, auth redaction, sandbox ACL | 8/10 |
+| Streaming | Token-by-token SSE, artifact streaming, tool execution progress | 8/10 |
+| Feature Depth | RAG, sandboxes, agents, artifacts, branching, multi-model compare, TTS | 8/10 |
+| Error Handling | Global middleware, request IDs, structlog, frontend error reporting | 8/10 |
+| UI Polish | Dark theme, animations, command palette, keyboard shortcuts, responsive | 7/10 |
+| Code Quality | Consistent patterns, async everywhere, good DB schema | 8/10 |
+| Testing | 6 backend test files (security, tools, artifacts), 0 frontend | 3/10 |
+| CI/CD | None | 0/10 |
+| Observability | Structured logging only, no tracing or metrics | 3/10 |
+| Caching | None (in-memory rate limiter only) | 2/10 |
+
+**Overall: 7.5/10** — Production-ready for small teams, but missing the infrastructure and polish that separates good from legendary.
+
+### CompanyGPT Comparison
+
+CompanyGPT scores roughly **4/10**. Included here as a reference for what not to do and what ideas to steal.
+
+**Critical failures:**
+- Zero test coverage — no pytest, vitest, or any testing framework installed
+- 97% unpinned dependencies — `requirements.txt` with no lockfile
+- Azure Speech API key baked into frontend JS bundle
+- Prompt injection in RAG — documents injected into system prompt without sanitization
+- Wildcard CORS (`allow_methods=["*"]`), no CSP headers
+- N+1 query hell — 51 DB queries for 50 messages
+- DB polling anti-pattern — Google Search confirmation polls every second for 60 seconds
+- Monolithic components — `Main.tsx` (974 lines, 25+ state variables), `ChatInterface.tsx` (1013 lines)
+- Health endpoint returns static "UP" without checking dependencies
+- 6 mixed icon libraries creating visual chaos
+- Synchronous DB calls inside async functions blocking the event loop
+
+**Worth stealing:**
+- Visual agent builder (drag-and-drop node editor) — interesting UX concept, execute it better
+- Clean backend architecture pattern (models → repos → services → controllers)
+- Comprehensive file processing (8+ formats including audio transcription)
+- Custom exception hierarchy (21 types) — more granular than ours
+
+### Immediate Technical Debt
+
+Items that won't be noticed by users but will bite as we scale:
+
+| Issue | Location | Risk | Fix |
+|-------|----------|------|-----|
+| In-memory rate limiter | `backend/middleware/` | Resets on deploy, not multi-instance safe | Redis-backed limiter |
+| No Python linting in CI | project root | Code quality drift | Add ruff to CI |
+| 1378-line chat-input.tsx | `frontend/components/` | Impossible to maintain/test | Split into focused components |
+| 766-line agent.py | `backend/services/` | Complex branching, hard to debug | Extract sub-modules |
+| 820-line message-bubble.tsx | `frontend/components/` | Hard to test, change is risky | Split into focused components |
+| 443-line sidebar.tsx | `frontend/components/` | Growing complexity | Extract sub-components |
+| No frontend tests | `frontend/` | UI regressions unnoticed | Vitest + RTL |
+| No CI/CD | `.github/workflows/` | Manual deploys, no safety net | GitHub Actions |
+| Manual migrations in main.py | `backend/main.py` | Fragile, won't scale | Consolidate into Alembic |
+| No connection pool tuning | `backend/database.py` | Connection exhaustion under load | Configure pool_size, max_overflow |
+| Lazy Shiki in browser | `frontend/lib/` | Heavy main-thread computation | Move to Web Worker |
+
+---
+
+## Competitive Landscape
+
+### What They Do That We Don't
+
+**ChatGPT (OpenAI)**
+- Canvas mode (collaborative document editing with AI)
+- Memory across conversations (persistent user context)
+- Custom GPTs marketplace
+- Voice mode with emotion detection
+- Deep research (multi-step autonomous research)
+- Scheduled tasks ("remind me", "every Monday")
+
+**Claude.ai (Anthropic)**
+- Artifacts (we have this — ours is competitive)
+- Projects with persistent instructions and files
+- Extended thinking (visible reasoning chains)
+- MCP integrations (standardized tool protocol)
+- Styles (adjustable response personality)
+
+**Cursor**
+- Codebase-wide context (index entire repos)
+- Multi-file editing in one operation
+- Terminal integration with AI
+- Git-aware suggestions
+- Apply-to-codebase for generated code
+
+**TypingMind**
+- Plugin system (custom JavaScript tools)
+- Prompt library with variables
+- Multiple chat profiles
+- Local-first (runs without server)
+- Character/persona marketplace
+
+**Open WebUI**
+- Extensive model management (Ollama integration)
+- RAG with web search
+- Pipelines (custom middleware)
+- Community model/prompt sharing
+- Multi-user with granular permissions
+
+### What Nobody Does Well Yet (Our Opportunity)
+
+- **True multi-agent workflows** — orchestrating multiple agents on complex tasks, not just one-at-a-time chat
+- **AI-native project management** — conversations that become tasks, decisions that become documentation
+- **Institutional memory** — AI that learns from organizational patterns over time
+- **Audit & compliance** — enterprise-grade logging that satisfies SOC2/HIPAA without sacrificing UX
+- **Developer-extensible everything** — API-first design where every feature is also an API endpoint
+
+---
+
+## Track A: Operational Reliability
+
+Reliability work starts immediately and runs in parallel with feature work. The first shipping priority is making the system trustworthy.
+
+---
+
+### A1. Quality Gates & CI/CD
+
+#### Why
+
+The codebase has useful backend tests, but no dependable release gate. A world-class product needs a clear answer to "what proves this build is safe to ship?"
+
+#### CI/CD Pipeline
+
+Currently nothing. Target: full GitHub Actions with staging + production.
+
+- [ ] **PR checks** — lint (ruff + eslint), type check (mypy + tsc), test (pytest + vitest), build
+- [ ] **Staging deploy** — auto-deploy on PR merge to `develop`
+- [ ] **Production deploy** — manual approval gate, deploy on merge to `main`
+- [ ] **Database migrations** — auto-run Alembic in CI with rollback plan
+- [ ] **Dependency scanning** — Dependabot or Renovate for automated updates
+- [ ] **Security scanning** — Snyk or Trivy for vulnerabilities in deps and Docker images
+- [ ] **Performance budgets** — fail CI if bundle size exceeds threshold
+- [ ] **Preview deployments** — unique URL per PR for visual review
+
+#### Release Engineering
+
+- [ ] Standardize environments: local, preview/staging, production with clearly defined config parity
+- [ ] Add release versioning and changelog discipline — tag backend and frontend builds, carry release IDs in logs and errors
+- [ ] Add rollback readiness — application rollback, migration safety check, feature-flag disablement
+- [ ] Introduce feature flags for risky capabilities — multi-agent branching, sandbox execution, new retrieval modes, experimental UI panels
+
+#### Release-Blocking Scenarios
+
+Before merge:
+- backend unit/integration tests pass
+- frontend component tests pass
+- end-to-end smoke tests pass
+- lint/type checks pass
+
+Before production deploy:
+- all of the above
+- migration validation
+- sandbox integration smoke test
+- LLM proxy connectivity smoke test
+
+#### Definition of Done
+
+- `make test` or equivalent runs all critical checks
+- CI blocks merges on failures
+- A production incident does not require ad hoc SSH heroics
+- The team can deploy, verify, and roll back safely
+
+---
+
+### A2. Refactor Architectural Hotspots
+
+#### Why
+
+Too much critical behavior is concentrated in a few large modules. That makes change expensive and regressions likely.
+
+#### Backend
+
+1. **Break up `backend/services/agent.py` (766 lines)**
+   - Extract: conversation history builder, tool call executor, retrieval orchestration, artifact collector, streaming event mapper, usage accounting
+   - Keep one thin top-level runtime coordinator
+
+2. **Create explicit tool contracts**
+   - Standardize tool input validation, output schema, logging, and error classification
+   - Every tool gets: typed input, typed result, timeout behavior, retry policy, redaction rules
+
+3. **Separate runtime boot from schema management**
+   - Remove schema mutation logic from app startup
+   - Use Alembic migrations only for schema changes
+   - Make startup fail clearly if schema is incompatible
+
+4. **Introduce a service boundary for sandbox execution**
+   - Separate: sandbox lifecycle, command execution, filesystem access, artifact discovery, terminal streaming
+   - Makes testing easier and allows swapping providers later
+
+#### Frontend
+
+1. **Split the global Zustand store into focused slices**
+   - session/auth, conversation data, composer/input, streaming/execution, workspace chrome/layout, artifacts/preview
+
+2. **Break up large components**
+   - `chat-input.tsx` (1378 lines) → InputField, FileUploader, ModelPicker, AgentPicker, KBPicker, VoiceInput
+   - `message-bubble.tsx` (820 lines) → MessageContent, ToolCallDisplay, CitationList, MessageActions, BranchIndicator
+   - `sidebar.tsx` (443 lines) → ConversationList, ConversationItem, SidebarActions, PinnedItems
+
+3. **Reduce logic concentration in `workspace.tsx`**
+   - Extract: keyboard shortcut manager, drag-and-drop manager, focus mode manager, shell layout controller
+
+4. **Formalize API state handling**
+   - Standardize request states, optimistic updates, retries, and error surfaces
+   - Prevent each component from reinventing its own loading/error lifecycle
+
+5. **Error boundary improvements**
+   - Per-panel error boundaries (chat, sidebar, right panel) so one crash doesn't kill the whole app
+
+#### Definition of Done
+
+- No single file remains the only place that understands the full system
+- Critical flows can be tested through small modules as well as end-to-end
+- Onboarding a new engineer no longer requires reading giant "god files" first
+
+---
+
+### A3. Observability
+
+#### Why
+
+For agent systems, plain API logs are not enough. You need to understand what the model did, what tools it touched, why a run failed, and how often users experience degraded output.
+
+#### Run-Level Tracing
+
+Every agent run gets a trace/span tree with:
+- conversation ID, user ID, model, mode/persona
+- tool call sequence with timing
+- retrieval invocations (hit/miss, relevance scores)
+- sandbox lifecycle events
+- token usage and cost
+
+#### Structured Event Taxonomy
+
+Standard event names for:
+- stream started/completed/aborted
+- tool call started/succeeded/failed
+- sandbox create/start/stop/delete
+- retrieval hit/miss
+- artifact emitted
+- user-visible error categories
+
+#### User-Facing Quality Metrics
+
+- Time to first token
+- Time to final answer
+- Tool success rate
+- Sandbox creation success rate
+- Retrieval usage and usefulness
+- Run abort rate
+- Frontend crash rate
+- Session refresh failures
+
+#### Infrastructure
+
+- [ ] **Distributed tracing** — OpenTelemetry across frontend → API → LLM → sandbox
+- [ ] **Application metrics** — Prometheus/Grafana for latency, error rates, token usage
+- [ ] **Error tracking** — Sentry for both frontend and backend
+- [ ] **Log aggregation** — structured logs shipped to central store (Loki, Datadog)
+- [ ] **Alerting** — PagerDuty/Slack for error spikes, degraded LLM proxy health, sandbox failures, long-tail latency, repeated streaming disconnects, database issues
+- [ ] **Synthetic monitoring** — scheduled health checks from external locations
+- [ ] **Real User Monitoring (RUM)** — Core Web Vitals tracking
+- [ ] **Cost monitoring** — LLM API spend in real-time with budget alerts
+- [ ] **Frontend error reporting with release tagging** — capture release version, route, conversation ID, browser details, UI state context
+
+#### Definition of Done
+
+- Any major failure can be traced from user action to backend/tool/sandbox event
+- The team can answer "what broke?" and "how often?" quickly
+
+---
+
+### A4. Runtime Boundary Hardening
+
+#### Why
+
+AI products fail at integration edges: model proxies, browsers, websockets, SSE, file uploads, background jobs, third-party services.
+
+#### Timeout & Retry Policies
+
+Define per dependency class:
+- LLM proxy — current: 1 retry with backoff on 429/500/503/504. Formalize and make configurable.
+- Web search — timeout + fallback messaging
+- External APIs (call_api tool) — user-configurable timeout, default 15s
+- Sandbox provider (Daytona) — creation timeout, execution timeout (120s), reconnect on WebSocket drop
+- Storage — retry on transient failures
+- Database — connection pool with health checking
+
+#### Circuit Breakers
+
+- If retrieval is down → answer without it, surface degraded state to user
+- If sandbox is down → disable execution affordances instead of partial broken behavior
+- If LLM proxy returns repeated 5xx → backoff, notify user, suggest model switch
+
+#### Streaming Hardening
+
+- [ ] Resume/reconnect strategy where possible
+- [ ] Explicit cancellation propagation (user cancels → backend cancels LLM call → cleans up)
+- [ ] Orphaned stream cleanup (detect and terminate stuck streams)
+- [ ] Stronger client-side handling for partial event streams
+
+#### Background Cleanup Jobs
+
+- [ ] Stale sandbox cleanup (sandboxes idle >X hours)
+- [ ] Orphaned artifact cleanup
+- [ ] Expired upload cleanup
+- [ ] Telemetry compaction/retention
+
+#### Defensive Limits
+
+- [ ] Max tool iterations per agent run
+- [ ] Max artifact size
+- [ ] Max upload size (enforce before reading into memory — CompanyGPT checks after, causing OOM risk)
+- [ ] Max generated chart/table payload
+- [ ] Rate limits by user and endpoint class (Redis-backed, not in-memory)
+
+#### Definition of Done
+
+- External dependency failures degrade gracefully instead of causing confusing UI states
+- Long-running sessions do not accumulate leaked resources
+
+---
+
+### A5. Caching & Performance
+
+Currently no caching layer. Target: multi-layer caching, distributed rate limiting.
+
+- [ ] **Redis** — distributed rate limiting, session cache, frequently-accessed data (agent personas, knowledge base metadata, user settings)
+- [ ] **Embedding cache** — cache embeddings for frequently-searched documents
+- [ ] **CDN** — static assets (JS, CSS, images) served from edge
+- [ ] **Database query optimization** — query analysis, missing indexes, connection pool tuning (pool_size, max_overflow)
+- [ ] **LLM response caching** — cache identical prompts with TTL for cost savings
+- [ ] **Frontend bundle optimization** — code splitting per route, tree shaking, lazy imports
+- [ ] **Virtual scrolling** — chat history and sidebar must handle 10,000+ items without lag (react-window or similar)
+- [ ] **Web Workers** — offload markdown parsing, syntax highlighting, search indexing off the main thread
+- [ ] **Optimistic UI** — messages appear instantly, sync in background
+- [ ] **Skeleton loading** — content-aware loading states (not spinners)
+- [ ] **Prefetching** — preload likely-needed data (next conversation, recent artifacts)
+
+---
+
+### A6. Security & Compliance
+
+#### Why
+
+A sandboxed AI workspace handles code, files, external calls, and generated artifacts. That attracts scrutiny.
+
+#### Threat Model
+
+Perform a pass on:
+- Auth/session handling
+- File uploads (enforce size before reading into memory)
+- Sandbox escape paths (filesystem, network, process boundaries)
+- SSRF through API/web tools (already have IP blocklist — validate completeness)
+- Prompt injection via uploaded/retrieved content (CompanyGPT has this vulnerability — ensure we don't)
+- Artifact serving and path traversal
+
+#### Auditability
+
+- [ ] Record who did what, when, with which tools and outputs
+- [ ] Admin-visible audit trails for sensitive actions
+- [ ] Immutable audit log (append-only, not editable)
+
+#### Dependency & Secret Hygiene
+
+- [ ] Dependency scanning in CI (Snyk/Trivy)
+- [ ] Secret scanning (prevent commits with API keys — git-secrets or similar)
+- [ ] Pin or constrain critical runtime dependencies
+
+#### Redaction Policy
+
+Explicit rules for:
+- Secrets and auth headers (already redacting in SSE payloads — formalize)
+- Uploaded private data (log metadata, not content)
+- Retrieved enterprise content (don't persist in logs)
+- User PII in telemetry
+
+#### Sandbox Isolation Validation
+
+- [ ] Document filesystem boundaries, network boundaries, process limits, cleanup guarantees
+- [ ] Test sandbox escape scenarios
+- [ ] Verify cleanup actually removes all sandbox data
+
+#### Definition of Done
+
+- Security posture is documented, tested, and not based on assumptions hidden in vendor docs
+
+---
+
+### A7. Code Quality Infrastructure
+
+- [ ] **Python linting** — `ruff check` and `ruff format` in pre-commit and CI
+- [ ] **Pre-commit hooks** — lint-staged + husky for frontend, pre-commit for Python
+- [ ] **API documentation** — expose FastAPI's auto-generated OpenAPI docs
+- [ ] **Architecture decision records (ADRs)** — document why major decisions were made
+- [ ] **Deterministic fixtures for agent runs** — record representative tool-heavy interactions, snapshot expected event sequences and artifacts, use to catch regressions in streaming/tool orchestration/message shaping
+
+---
+
+## Track B: New Tools & Capabilities
+
+### B1. `call_api` — HTTP Requests Without Sandbox
+
+Already implemented. Specification for reference:
+
+**Backend:** `backend/services/web.py`
+- httpx async client, configurable timeout (default 15s)
+- Methods: GET, POST, PUT, DELETE, PATCH
+- Params: `url`, `method`, `headers`, `body`, `auth_type` (none/bearer/basic), `auth_value`
+- SSRF protection: block private IPs (10.x, 172.16-31.x, 192.168.x, 127.x, 169.254.x, ::1)
+- Response: status_code, response_headers, body (truncated 8000 chars), duration_ms
+- Parse JSON automatically, redact auth values from logs/SSE/persisted output
+
+**Tool definition:**
+```json
+{
+  "name": "call_api",
+  "description": "Make an HTTP request to an external API.",
+  "parameters": {
+    "url": "string (required)",
+    "method": "enum [GET, POST, PUT, DELETE, PATCH], default GET",
+    "headers": "object (optional)",
+    "body": "string (optional)",
+    "auth_type": "enum [none, bearer, basic], default none",
+    "auth_value": "string (optional)"
+  }
+}
 ```
 
 ---
 
-## Environment Variables (`.env` in project root)
+### B2. `web_browse` — Fetch & Extract Readable Content
 
+Already implemented. Specification for reference:
+
+**Backend:** `backend/services/web.py`
+- trafilatura for content extraction
+- Follow redirects, browser-like UA, timeout 10s
+- Truncate to ~4000 chars to fit LLM context
+- Fallback: basic HTML tag stripping if trafilatura fails
+- Reuses SSRF protection from call_api
+
+**Tool definition:**
+```json
+{
+  "name": "web_browse",
+  "description": "Fetch and read the content of a webpage.",
+  "parameters": {
+    "url": "string (required)",
+    "extract_links": "boolean (optional, default false)"
+  }
+}
 ```
-# LLM
-LITE_LLM_API_KEY=                 # Bearer token for LiteLLM proxy
-LITE_LLM_URL=                     # Base URL of LiteLLM proxy
 
-# Daytona
-DAYTONA_API_KEY=                  # Daytona API key (from dashboard)
-DAYTONA_API_URL=                  # Daytona API base URL
-
-# WorkOS
-WORKOS_API_KEY=                   # WorkOS API key
-WORKOS_CLIENT_ID=                 # WorkOS client ID
-WORKOS_REDIRECT_URI=http://localhost:5173/auth/callback
-
-# Database
-DATABASE_URL=postgresql+asyncpg://nexus:nexus@localhost:5432/nexus
-
-# Web Search (optional — enables search tool)
-SERPAPI_API_KEY=                   # SerpAPI key (serpapi.com)
-
-# Azure TTS (optional)
-AZURE_SPEECH_KEY=
-AZURE_SPEECH_REGION=switzerlandnorth
-```
+Returns: url, final_url, status_code, title, author, date, main_text, word_count, links (if requested)
 
 ---
 
-## Docker Compose (Postgres)
+### B3. `create_chart` — Interactive Vega-Lite Charts
 
-```yaml
-services:
-  postgres:
-    image: postgres:17
-    environment:
-      POSTGRES_USER: nexus
-      POSTGRES_PASSWORD: nexus
-      POSTGRES_DB: nexus
-    ports:
-      - "5432:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
+Already implemented. Specification for reference:
 
-  pgadmin:
-    image: dpage/pgadmin4
-    environment:
-      PGADMIN_DEFAULT_EMAIL: admin@nexus.local
-      PGADMIN_DEFAULT_PASSWORD: admin
-    ports:
-      - "5050:80"
-    depends_on:
-      - postgres
-
-volumes:
-  pgdata:
+**Frontend:** vega-embed (npm), lazy-loaded
+**Backend:**
+```json
+{
+  "name": "create_chart",
+  "description": "Create an interactive chart via Vega-Lite specification.",
+  "parameters": {
+    "spec": "object (required) — complete Vega-Lite JSON spec with data",
+    "title": "string (optional)"
+  }
+}
 ```
+
+- Validate spec has required Vega-Lite fields ($schema, mark or layer)
+- Yield SSE event `chart_output`, save as artifact type `chart`
+- Frontend applies dark theme, provides Download PNG/SVG/fullscreen
+- v1: spec-defined interactivity works as authored, zoom/pan not auto-added
 
 ---
 
-## Database Schema
+### B4. `run_sql` — DuckDB Queries on Data Files
 
-### `users`
-| Column | Type | Notes |
-|--------|------|-------|
-| `id` | UUID | PK, default `gen_random_uuid()` |
-| `workos_id` | VARCHAR | Unique — WorkOS user ID |
-| `email` | VARCHAR | From WorkOS profile |
-| `name` | VARCHAR | Display name |
-| `avatar_url` | VARCHAR | Profile picture URL |
-| `created_at` | TIMESTAMPTZ | |
-| `last_seen_at` | TIMESTAMPTZ | Updated on each request |
+Already implemented. Specification for reference:
 
-### `conversations`
-| Column | Type | Notes |
-|--------|------|-------|
-| `id` | UUID | PK |
-| `user_id` | UUID | FK → users |
-| `title` | VARCHAR | Auto-generated from first message, editable |
-| `model` | VARCHAR | Last-used model ID |
-| `agent_mode` | VARCHAR | `chat`, `code`, `architect` |
-| `agent_persona_id` | UUID | FK → agent_personas (nullable — uses default if null) |
-| `sandbox_id` | VARCHAR | Daytona sandbox ID (nullable — not all convos need one) |
-| `sandbox_template` | VARCHAR | Template used: `python-data-science`, `python-general`, `nodejs`, `react-vite`, `blank` |
-| `forked_from_message_id` | UUID | FK → messages (nullable — set when conversation is a fork) |
-| `created_at` | TIMESTAMPTZ | |
-| `updated_at` | TIMESTAMPTZ | |
+**Sandbox dependency:** duckdb (pip)
+```json
+{
+  "name": "run_sql",
+  "description": "Run SQL on data files using DuckDB. Files auto-register as tables.",
+  "parameters": {
+    "sql": "string (required)",
+    "output_format": "enum [table, csv, json], default table"
+  }
+}
+```
 
-### `messages`
-| Column | Type | Notes |
-|--------|------|-------|
-| `id` | UUID | PK |
-| `conversation_id` | UUID | FK → conversations |
-| `role` | VARCHAR | `user`, `assistant`, `system`, `tool` |
-| `content` | TEXT | Message text |
-| `reasoning` | TEXT | Model thinking/reasoning trace (nullable — only for reasoning models) |
-| `tool_calls` | JSONB | Tool call metadata (nullable) |
-| `tool_result` | JSONB | Tool execution result (nullable) |
-| `attachments` | JSONB | Uploaded file metadata: `[{name, sandbox_path, mime_type, size}]` |
-| `feedback` | VARCHAR | `positive`, `negative`, or null |
-| `token_count` | INTEGER | Approximate token usage |
-| `cost_usd` | NUMERIC(10,6) | Estimated cost in USD (nullable) |
-| `created_at` | TIMESTAMPTZ | |
-
-### `artifacts`
-| Column | Type | Notes |
-|--------|------|-------|
-| `id` | UUID | PK |
-| `conversation_id` | UUID | FK → conversations |
-| `message_id` | UUID | FK → messages (source message) |
-| `type` | VARCHAR | `idea`, `code_snippet`, `file`, `diagram`, `command`, `preview_url` |
-| `label` | VARCHAR | Short description |
-| `content` | TEXT | Full content or file path |
-| `metadata` | JSONB | Type-specific data (language, filename, port, etc.) |
-| `pinned` | BOOLEAN | User-pinned artifacts persist across conversation clear |
-| `created_at` | TIMESTAMPTZ | |
-
-### `agent_personas`
-| Column | Type | Notes |
-|--------|------|-------|
-| `id` | UUID | PK |
-| `user_id` | UUID | FK → users (creator) |
-| `name` | VARCHAR | Display name (e.g., "Python Expert", "Code Reviewer") |
-| `description` | TEXT | What this agent does |
-| `system_prompt` | TEXT | Custom system prompt prepended to all messages |
-| `default_model` | VARCHAR | Preferred model ID |
-| `default_mode` | VARCHAR | `chat`, `code`, or `architect` |
-| `icon` | VARCHAR | Emoji or icon identifier |
-| `tools_enabled` | JSONB | Which tools this agent can use: `["execute_code", "web_search", ...]` |
-| `is_public` | BOOLEAN | Visible to all users |
-| `usage_count` | INTEGER | How many conversations have used this persona |
-| `created_at` | TIMESTAMPTZ | |
-| `updated_at` | TIMESTAMPTZ | |
-
-### `usage_logs`
-| Column | Type | Notes |
-|--------|------|-------|
-| `id` | UUID | PK |
-| `user_id` | UUID | FK → users |
-| `conversation_id` | UUID | FK → conversations |
-| `model` | VARCHAR | Model ID used |
-| `input_tokens` | INTEGER | |
-| `output_tokens` | INTEGER | |
-| `cost_usd` | NUMERIC(10,6) | Estimated cost |
-| `sandbox_seconds` | INTEGER | Sandbox compute time (nullable) |
-| `created_at` | TIMESTAMPTZ | |
+- Generated Python script: import duckdb, discover CSV/Excel/Parquet, run query, format output
+- Sanitize filenames into valid SQL table names
+- Print schema info on failure (available tables + columns)
+- Streamed table handling and/or persisted table artifacts
 
 ---
 
-## Authentication (WorkOS AuthKit)
+### B5. `create_ui` — Interactive Forms & Micro-Apps
 
-### Flow
-1. User hits the app → frontend checks for session cookie.
-2. No session → redirect to WorkOS AuthKit hosted login page.
-3. WorkOS handles login (email/password, Google OAuth, SSO, passkeys).
-4. Callback → `GET /auth/callback?code=...` → backend exchanges code for WorkOS user profile.
-5. Backend upserts user in Postgres, sets a signed HTTP-only session cookie (JWT).
-6. All subsequent API requests include the cookie. Backend middleware validates JWT, attaches `current_user` to request.
+**Status: Design phase. Not yet implemented.**
 
-### Backend Auth Middleware
-- Decorator/dependency: `get_current_user(request)` — extracts and validates JWT from cookie.
-- Returns 401 if missing/expired. Frontend catches 401 and redirects to login.
-- JWT payload: `{ sub: user_id, email, exp }`. Signed with a server-side secret.
-- Token lifetime: 7 days. Frontend silently refreshes by re-authenticating with WorkOS if nearing expiry.
+This is the most architecturally significant new tool. It turns Nexus from a text-and-artifact tool into a platform where the AI can create interactive experiences for the user.
 
-### Endpoints
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/auth/login` | Redirects to WorkOS AuthKit |
-| `GET` | `/auth/callback` | Handles OAuth callback, sets session cookie |
-| `POST` | `/auth/logout` | Clears session cookie |
-| `GET` | `/auth/me` | Returns current user profile |
+#### Core Concept
 
----
+The AI generates a UI component (form, dashboard, calculator, questionnaire) that renders inline in the chat. The user interacts with it, and submissions flow back to the AI as structured data for further processing.
 
-## Backend
+#### Open Design Questions
 
-### Stack
+These need resolution before implementation:
 
-- **Python 3.12+** with **FastAPI**, managed by **uv**
-- **SQLAlchemy 2.0** (async) + **Alembic** for migrations
-- **asyncpg** — async Postgres driver
-- **Daytona SDK** (`daytona-sdk`) — sandbox creation and management
-- **LiteLLM** or **openai** SDK — LLM calls via proxy
-- **WorkOS Python SDK** (`workos`) — authentication
-- **PyJWT** — session token signing
-- **SerpAPI** (`serpapi`) — web search via Google/Bing (optional)
-- `python-dotenv` + `pydantic-settings` for config
-- `CORSMiddleware` allowing Vite dev origin
+1. **Rendering approach: JSON schema vs HTML/React vs sandboxed iframe?**
 
-### Agent Modes
+   | Approach | Pros | Cons |
+   |----------|------|------|
+   | JSON schema → predefined components | Safe, predictable, easy to theme | Limited expressiveness, every new widget needs code |
+   | AI-generated React/HTML rendered inline | Maximum flexibility, AI can build anything | XSS risk, CSP violations, hard to sandbox |
+   | Sandboxed iframe (like sandbox preview) | Full isolation, any HTML/JS works | Heavyweight, communication via postMessage, styling mismatch |
+   | Hybrid: JSON for forms, iframe for custom | Best of both for common vs advanced cases | Two systems to maintain |
 
-The AI operates in one of three modes, selectable per conversation:
+   **Recommendation:** Start with JSON schema for forms and questionnaires (covers 80% of use cases safely), add sandboxed iframe for custom dashboards/apps later. The JSON approach lets us ship fast with full theme integration and zero security risk. The iframe path can reuse the existing sandbox preview infrastructure.
 
-| Mode | Behavior |
-|------|----------|
-| **Chat** | Pure conversational AI. No sandbox, no code execution. Fast, cheap. Tools: web search only. |
-| **Code** | AI writes code and executes it in a Daytona sandbox. Shows terminal output, generated files, and results inline. The AI can iterate — if code fails, it reads the error and tries again. Full tool access. |
-| **Architect** | AI plans multi-step implementations. Generates a numbered step-by-step plan, then executes each step in the sandbox with user approval gates between steps. Produces a full project as output. Shows a progress tracker in the UI. |
+2. **Response flow: how do form submissions reach the AI?**
 
-### Agent Loop (Code & Architect modes)
+   Options:
+   - **Inject as user message:** Form data becomes a synthetic user message that triggers a new agent run. Simple, works with existing architecture. Downside: clutters conversation with form data.
+   - **Tool result callback:** Form data is returned as the result of the `create_ui` tool call, as if the tool "waited" for user input. More elegant but requires holding a tool call open indefinitely (or resuming a paused run).
+   - **Dedicated form submission endpoint:** Backend receives form data, creates a structured message, triggers agent. Most flexible, cleanest separation.
 
-```
-User message (+ optional file attachments)
-    ↓
-Upload attachments to sandbox filesystem (if any)
-    ↓
-LLM call (with tool definitions + conversation history)
-    ↓
-┌─ Tool dispatch loop (may iterate multiple times) ───┐
-│                                                      │
-│  execute_code  → Daytona SDK → stream output via WS  │
-│  write_file    → Daytona SDK → confirm to LLM        │
-│  read_file     → Daytona SDK → return contents        │
-│  list_files    → Daytona SDK → return tree            │
-│  web_search    → SerpAPI → return results              │
-│  preview_app   → Daytona port forward → return URL    │
-│                                                      │
-│  Each tool result is fed back to LLM.                │
-│  LLM decides: respond to user, or call another tool. │
-└──────────────────────────────────────────────────────┘
-    ↓
-Final LLM response → streamed to user via SSE
-    ↓
-Persist message + tool calls to Postgres
-    ↓
-Extract artifacts (background, async)
-    ↓
-Log usage (tokens, cost, sandbox time)
-```
+   **Recommendation:** Start with "inject as user message" for v1 — it's simple and doesn't require new infrastructure. Format the submission as structured data (JSON) in a system-tagged message so the AI can distinguish it from free-text input. Add the dedicated endpoint in v2 when we need multi-step forms or background processing.
 
-### Tool Definitions (for function-calling models)
+3. **Scope: forms only, or also interactive dashboards/calculators?**
+
+   Forms (text inputs, selects, checkboxes, date pickers, file uploads) are the safe starting scope. But the real power comes from:
+   - Live dashboards that update from data queries
+   - Calculators with reactive formulas
+   - Multi-step wizards with conditional logic
+   - Approval/review interfaces
+
+   **Recommendation:** v1 = forms and questionnaires only. v2 = add reactive components (computed fields, conditional visibility). v3 = full interactive apps via sandboxed iframe.
+
+4. **Security model**
+
+   JSON-schema forms are inherently safe — we control the renderer, there's no arbitrary code execution. For the iframe path later:
+   - Render in a sandboxed iframe with `sandbox="allow-scripts"` (no allow-same-origin)
+   - Communication via postMessage with origin validation
+   - No access to parent page cookies, storage, or DOM
+   - CSP on the iframe content to block external script loading
+
+5. **Component library for JSON schema forms**
+
+   Minimum viable set:
+   - Text input (single line, multiline)
+   - Number input (with min/max/step)
+   - Select / dropdown (single, multi)
+   - Checkbox / toggle
+   - Radio group
+   - Date / datetime picker
+   - File upload
+   - Slider / range
+   - Rating (stars)
+   - Rich text (markdown editor)
+   - Table input (editable rows)
+   - Conditional sections (show/hide based on other field values)
+
+#### Proposed Tool Definition (v1)
 
 ```json
-[
-  {
-    "name": "execute_code",
-    "description": "Execute code in the sandbox. Supports Python, TypeScript, JavaScript, and shell commands.",
-    "parameters": {
-      "language": "python | typescript | javascript | shell",
-      "code": "string — the code to execute"
-    }
-  },
-  {
-    "name": "write_file",
-    "description": "Write or overwrite a file in the sandbox filesystem.",
-    "parameters": {
-      "path": "string — absolute path in sandbox",
-      "content": "string — file content"
-    }
-  },
-  {
-    "name": "read_file",
-    "description": "Read a file from the sandbox filesystem.",
-    "parameters": {
-      "path": "string — absolute path in sandbox"
-    }
-  },
-  {
-    "name": "list_files",
-    "description": "List files and directories at a given path in the sandbox.",
-    "parameters": {
-      "path": "string — directory path (default: /home/daytona)"
-    }
-  },
-  {
-    "name": "web_search",
-    "description": "Search the web for current information. Returns top results with snippets.",
-    "parameters": {
-      "query": "string — search query"
-    }
-  },
-  {
-    "name": "preview_app",
-    "description": "Start a preview of a web application running in the sandbox. Returns a URL the user can open.",
-    "parameters": {
-      "port": "number — the port the app is listening on inside the sandbox",
-      "label": "string — display label (e.g., 'React App', 'FastAPI Docs')"
-    }
+{
+  "name": "create_ui",
+  "description": "Create an interactive form or questionnaire. The user fills it out and the response is sent back to you as structured data.",
+  "parameters": {
+    "title": "string (required) — form title",
+    "description": "string (optional) — instructions for the user",
+    "fields": [
+      {
+        "id": "string — unique field identifier",
+        "type": "enum [text, textarea, number, select, multiselect, checkbox, radio, date, datetime, file, slider, rating, table]",
+        "label": "string",
+        "placeholder": "string (optional)",
+        "required": "boolean (default false)",
+        "default": "any (optional)",
+        "options": "array (for select/radio/multiselect)",
+        "validation": {
+          "min": "number (optional)",
+          "max": "number (optional)",
+          "pattern": "string (optional, regex)",
+          "message": "string (optional, custom error message)"
+        },
+        "condition": {
+          "field": "string — id of controlling field",
+          "equals": "any — value that makes this field visible"
+        }
+      }
+    ],
+    "submit_label": "string (optional, default 'Submit')",
+    "allow_multiple": "boolean (optional, default false) — allow resubmission"
   }
-]
+}
 ```
 
-### Sandbox Management (Daytona)
+#### Implementation Order
 
-- **Lazy creation:** Sandbox is created on first tool call, not on conversation start.
-- **Lifecycle:** Sandbox stays alive for the duration of the conversation. Auto-stops after 15 minutes of inactivity (Daytona default). Can be manually stopped/started.
-- **Snapshots:** Users can snapshot a sandbox at any point. Snapshots are stored by Daytona and can be forked into new conversations — full filesystem + environment state preserved.
-- **Resource defaults:** 2 vCPU, 2GB RAM, 5GB disk per sandbox.
-- **Labels:** Each sandbox is labeled with `user_id` and `conversation_id` for tracking.
-- **Port forwarding / Preview:** Daytona exposes sandbox ports. When the AI starts a web server inside the sandbox, it calls `preview_app` with the port — Nexus generates a proxied URL the user can view in the embedded preview panel or open in a new tab.
-- **Output directory convention:** The AI is instructed to save generated images/charts to `/home/daytona/output/`. After each `execute_code` call, the backend checks this directory for new files (PNG, SVG, HTML) and streams them back as inline embeds.
+1. Backend: tool definition, validation, SSE event type `ui_form`
+2. Frontend: `FormRenderer.tsx` component that maps JSON schema to themed form components
+3. Frontend: form submission handler — format as structured user message
+4. Backend: recognize form submission messages, pass structured data to agent
+5. Artifact persistence — save form definition and responses as artifacts
 
-#### Sandbox Templates
+#### What This Unlocks
 
-Pre-configured sandbox environments that skip dependency installation. Templates are Daytona sandbox configs with pre-installed packages.
-
-| Template | Pre-installed | Use case |
-|----------|--------------|----------|
-| **Python Data Science** | `pandas`, `numpy`, `matplotlib`, `seaborn`, `plotly`, `scikit-learn`, `scipy`, `openpyxl` | Data analysis, visualization, ML |
-| **Python General** | `requests`, `beautifulsoup4`, `fastapi`, `sqlalchemy`, `pydantic` | Web scraping, APIs, scripting |
-| **Node.js** | `express`, `typescript`, `tsx`, `axios`, `zod` | Backend JS/TS development |
-| **React + Vite** | `react`, `react-dom`, `vite`, `typescript`, `tailwindcss` | Frontend prototyping |
-| **Blank** | Minimal (Python 3.12 + Node 20) | Custom setups |
-
-- Template selected automatically based on the agent persona or first message intent (e.g., "analyze this CSV" → Python Data Science).
-- Can also be selected manually from the sandbox status pill menu or command palette.
-- Templates dramatically reduce first-response latency since `pip install pandas matplotlib` takes 10+ seconds cold.
-
-#### Sandbox Endpoints
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/api/sandboxes` | Create a new sandbox (or attach existing) |
-| `GET` | `/api/sandboxes/:id` | Get sandbox status + resource usage |
-| `POST` | `/api/sandboxes/:id/execute` | Execute code (returns streaming output) |
-| `GET` | `/api/sandboxes/:id/files` | List files at path |
-| `GET` | `/api/sandboxes/:id/files/content` | Read file content |
-| `PUT` | `/api/sandboxes/:id/files/content` | Write file content |
-| `POST` | `/api/sandboxes/:id/upload` | Upload file(s) from user to sandbox filesystem |
-| `GET` | `/api/sandboxes/:id/download` | Download file or directory as ZIP |
-| `POST` | `/api/sandboxes/:id/snapshot` | Create a snapshot |
-| `POST` | `/api/sandboxes/:id/fork` | Fork from snapshot into new sandbox |
-| `GET` | `/api/sandboxes/:id/output` | List new files in /home/daytona/output/ since last check |
-| `GET` | `/api/sandboxes/:id/output/:filename` | Serve a generated file (PNG/SVG/HTML) for inline embed |
-| `GET` | `/api/sandboxes/:id/preview/:port` | Proxy to running app inside sandbox |
-| `POST` | `/api/sandboxes/:id/stop` | Stop sandbox |
-| `POST` | `/api/sandboxes/:id/start` | Start stopped sandbox |
-| `DELETE` | `/api/sandboxes/:id` | Delete sandbox |
-
-### Chat Endpoints
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/api/conversations` | Create conversation |
-| `GET` | `/api/conversations` | List user's conversations (paginated, searchable) |
-| `GET` | `/api/conversations/:id` | Get conversation with messages |
-| `PATCH` | `/api/conversations/:id` | Update title, model, mode, persona |
-| `DELETE` | `/api/conversations/:id` | Delete conversation + cleanup sandbox |
-| `POST` | `/api/conversations/:id/messages` | Send message → SSE stream response |
-| `POST` | `/api/conversations/:id/messages/:mid/fork` | Fork conversation from this message into a new conversation |
-| `POST` | `/api/conversations/:id/messages/:mid/edit` | Edit a user message and regenerate from that point (creates fork) |
-| `POST` | `/api/conversations/:id/messages/:mid/feedback` | Submit thumbs up/down on a message |
-| `POST` | `/api/conversations/:id/messages/:mid/regenerate` | Regenerate an assistant response |
-| `GET` | `/api/conversations/:id/artifacts` | List artifacts for conversation |
-| `DELETE` | `/api/artifacts/:id` | Delete artifact |
-| `PATCH` | `/api/artifacts/:id` | Toggle pin, edit label |
-
-### Agent Persona Endpoints
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/api/agents` | Create a custom agent persona |
-| `GET` | `/api/agents` | List user's personas + public personas |
-| `GET` | `/api/agents/:id` | Get persona details |
-| `PATCH` | `/api/agents/:id` | Update persona |
-| `DELETE` | `/api/agents/:id` | Delete persona (only creator) |
-| `GET` | `/api/agents/public` | Browse public agent personas |
-| `POST` | `/api/agents/:id/duplicate` | Clone a public persona into user's own |
-
-### User Endpoints
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/api/users/me` | Current user profile |
-| `GET` | `/api/users/me/usage` | Usage stats: tokens, cost, sandbox hours (current period) |
-| `GET` | `/api/users/me/usage/history` | Usage over time (for charts) |
-
-### TTS Endpoint (optional)
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/api/tts` | Azure TTS — returns MP3 audio stream |
+- **Data collection**: AI creates a survey, user fills it out, AI analyzes results
+- **Onboarding flows**: AI guides user through setup via multi-step forms
+- **Decision frameworks**: AI creates a weighted scoring form, user rates options, AI recommends
+- **Report builders**: AI creates a parameterized form, user fills in inputs, AI generates custom report
+- **Approval workflows**: AI prepares a summary + approve/reject form, user decides
 
 ---
 
-## Frontend
+### B6. Future Tool Ideas (Not Yet Designed)
 
-### Stack
+Captured here for tracking. Each needs its own design phase.
 
-- **Vite** with **vanilla TypeScript** (no framework)
-- **marked** — markdown rendering
-- **shiki** — syntax highlighting (better theme support than highlight.js)
-- **mermaid** — diagram rendering (lazy-loaded, only initialized when a mermaid block is detected)
-- **xterm.js** — terminal emulator for sandbox output
-- **KaTeX** — math equation rendering in markdown
-- No UI framework dependencies
-
-### Layout
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  ┌─ Top Bar ──────────────────────────────────────────────────────────────┐ │
-│  │  NEXUS.  [model ▾] [Chat|Code|Arch] [persona ▾]  ◉ sandbox   [⌘K] 👤 │ │
-│  └────────────────────────────────────────────────────────────────────────┘ │
-│  ┌─ Sidebar ──┬─ Main Panel ──────────────────┬─ Right Panel ────────────┐ │
-│  │            │                                │                          │ │
-│  │ [🔍 Search]│    Chat Messages               │  ┌─ Tabs ─────────────┐ │ │
-│  │            │                                │  │ Terminal│Files│     │ │ │
-│  │ ─────────  │    [user message]              │  │ Preview│Artifacts   │ │ │
-│  │            │    [file attachment chips]      │  ├─────────────────────┤ │ │
-│  │ Agents ▾   │                                │  │                     │ │ │
-│  │  🐍 Python │    [assistant response         │  │  xterm.js terminal  │ │ │
-│  │  📝 Review │     with inline execution      │  │  or file tree       │ │ │
-│  │  🏗️ Archit │     blocks and diffs]          │  │  or live preview    │ │ │
-│  │            │                                │  │  or artifacts       │ │ │
-│  │ ─────────  │    [reasoning trace ▸]         │  │                     │ │ │
-│  │            │                                │  │                     │ │ │
-│  │ Today      │    [tool execution with        │  │                     │ │ │
-│  │  Conv 1    │     live terminal embed]       │  │                     │ │ │
-│  │  Conv 2 🔀 │                                │  │                     │ │ │
-│  │            │    [assistant response          │  │                     │ │ │
-│  │ Yesterday  │     with preview embed]        │  │                     │ │ │
-│  │  Conv 3    │                                │  │                     │ │ │
-│  │            │  ┌──────────────────────────┐  │  │                     │ │ │
-│  │ This week  │  │ 📎 Drop files or type... │  │  │                     │ │ │
-│  │  Conv 4    │  │              🎤  Send →  │  │  │                     │ │ │
-│  │            │  └──────────────────────────┘  │  └─────────────────────┘ │ │
-│  │ [+ New]    │                                │                          │ │
-│  └────────────┴────────────────────────────────┴──────────────────────────┘ │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
-
-### Design System
-
-Inspired by Daytona's developer-focused aesthetic — clean, technical, precise. Dark-first with a signature green accent.
-
-| Token | Value | Usage |
-|-------|-------|-------|
-| `--bg` | `#0A0A0A` | Page background — near-black |
-| `--surface-0` | `#111111` | Primary surface (sidebar, panels) |
-| `--surface-1` | `#1A1A1A` | Elevated surface (cards, inputs) |
-| `--surface-2` | `#222222` | Hover states, active selections |
-| `--border` | `#2A2A2A` | Default borders |
-| `--border-subtle` | `#1E1E1E` | Subtle dividers |
-| `--border-focus` | `#3A3A3A` | Focus ring / active border |
-| `--text` | `#ECECEC` | Primary text |
-| `--text-secondary` | `#888888` | Secondary text, labels |
-| `--text-tertiary` | `#555555` | Disabled text, timestamps |
-| `--accent` | `#00E599` | Primary accent — Daytona green |
-| `--accent-dim` | `#00E59920` | Accent at 12% opacity — backgrounds, glows |
-| `--accent-hover` | `#00FFB2` | Accent hover state |
-| `--error` | `#FF5555` | Error states, destructive actions |
-| `--warning` | `#FFAA33` | Warnings |
-| `--info` | `#5599FF` | Informational |
-| **Font — UI** | `Inter` | All interface text |
-| **Font — Code** | `IBM Plex Mono` | Terminal, code blocks, file paths, technical labels |
-
-**Design Rules:**
-- No gradients on surfaces. Flat, sharp, layered.
-- Depth via surface elevation only (`surface-0` → `surface-1` → `surface-2`).
-- `1px solid var(--border)` everywhere. No shadows except very subtle ones on modals.
-- Monospace font for anything "technical" — file paths, model IDs, sandbox labels, code.
-- Accent green used sparingly: active states, status indicators, primary CTAs. Not for decoration.
-- When something is running/alive, it glows green. When stopped/dead, it grays out.
-- Generous padding (16–24px). Tight line-height in code (1.4), relaxed in prose (1.6).
-- Scrollbars: thin, styled. `scrollbar-width: thin; scrollbar-color: var(--border) transparent`.
-
-### Components
-
-#### Top Bar
-- **Brand:** `NEXUS` in IBM Plex Mono, 600 weight, 13px, `letter-spacing: 0.15em`. The trailing period is `--accent` green and pulses softly when the AI is processing.
-- **Model Picker:** Dropdown showing current model. Options:
-  | Label | Model ID |
-  |-------|----------|
-  | Claude Sonnet | `azure_ai/claude-sonnet-4-5-swc` |
-  | GPT-4o | `azure/gpt-4o` |
-  | Llama 4 Maverick | `azure_ai/Llama-4-Maverick-17B-128E-Instruct-FP8` |
-- **Agent Mode Toggle:** Segmented control — `Chat` | `Code` | `Architect`. Active segment: accent green text + subtle green underline. Switching mid-conversation is allowed.
-- **Persona Picker:** Dropdown showing current agent persona. "Default" + user's custom personas + starred public ones. Shows persona icon + name.
-- **Sandbox Status:** Shows when a sandbox is active. Pill with green dot = running, gray = stopped, hidden = no sandbox. Shows resource usage on hover (CPU, RAM, uptime). Click to open sandbox actions menu (stop, snapshot, fork, download as ZIP, delete).
-- **Command Palette Trigger:** `⌘K` button that opens the command palette.
-- **User Avatar:** Small circle, top-right. Click → dropdown with email, usage summary, "Sign out".
-
-#### Command Palette (⌘K)
-- Modal overlay with search input, auto-focused.
-- Fuzzy-matches against actions:
-  - **Conversations:** "New conversation", "Search conversations...", recent conversations by name.
-  - **Agent modes:** "Switch to Code mode", "Switch to Chat mode", "Switch to Architect mode".
-  - **Models:** "Switch to Claude Sonnet", "Switch to GPT-4o", etc.
-  - **Personas:** "Use Python Expert", "Use Code Reviewer", etc.
-  - **Sandbox:** "Stop sandbox", "Snapshot sandbox", "Fork sandbox", "Download project".
-  - **Navigation:** "Open agents", "View usage stats".
-- Results grouped by category with keyboard navigation (↑↓ to select, Enter to execute, Esc to close).
-- Monospace font for shortcut hints on the right side of each result.
-- `surface-1` background, `border` border, slight `box-shadow` for elevation.
-
-#### Conversation Sidebar
-- **Two sections, collapsible:**
-  1. **Agent Personas** — shows favorited/recent personas as small icon+name pills. Click to start a new conversation with that persona.
-  2. **Conversations** — search + date-grouped history.
-- Search input at the top with `IBM Plex Mono` placeholder text. Searches conversation titles and message content (server-side).
-- Conversations grouped by date: **Today**, **Yesterday**, **This week**, **Older**.
-- Each item shows: title (truncated), model icon, agent mode badge, relative timestamp. Forked conversations show a 🔀 icon.
-- Active conversation: `surface-2` background, `--accent` left border (2px).
-- Hover: `surface-1` background.
-- Context menu (right-click or `...` button): Rename, Delete, Duplicate, Fork from here.
-- **"+ New conversation"** button at bottom with accent green icon.
-
-#### Chat Messages
-- **User messages:** Right-aligned. `surface-1` background, `border` border, rounded corners (8px). Max-width 75%.
-  - **File attachment chips** below message text: small pills with filename + icon. Click to open in file viewer.
-  - **Edit button** (pencil icon) on hover — clicking opens inline editor. On submit, forks the conversation from that point (old messages preserved, new branch created).
-  - **Fork button** (branch icon) on hover — forks the conversation from this message into a new conversation with the same sandbox snapshot.
-- **Assistant messages:** Left-aligned. No background, no border. Full width. Slightly larger text (15px vs 14px).
-  - **Reasoning trace:** If the model returned reasoning/thinking, show a collapsible "Reasoning" section above the response. Collapsed by default. Header: "Reasoning" + token count badge. Content: dimmed monospace text.
-  - **Feedback buttons:** Thumbs up / thumbs down on hover, bottom-right of message. Filled state when selected. Data persisted to DB.
-  - **Regenerate button:** Circular arrow icon on hover. Re-sends the same context to the LLM and replaces this response (old response discarded).
-  - **Copy button:** Copy full message as markdown.
-- Rendered as markdown via `marked` + `shiki` for code blocks (theme: custom dark theme with green accents) + `KaTeX` for math + `mermaid` for diagrams.
-- **Inline code execution blocks:** When the AI uses a tool, the chat shows a collapsible execution block:
-  ```
-  ┌─ Executing Python ──────────────────── ▸ ─┐
-  │  import pandas as pd                      │
-  │  df = pd.read_csv("data.csv")             │
-  │  print(df.describe())                     │
-  │                                           │
-  │  ─── Output ───────────────────────────── │
-  │                count   mean   std          │
-  │  price        1000    42.5   12.3         │
-  │  quantity     1000    7.2    3.1          │
-  │                                           │
-  │  ✓ Exited with code 0           0.8s      │
-  └───────────────────────────────────────────┘
-  ```
-  - Header shows language + expand/collapse toggle + execution time.
-  - Code section: syntax highlighted.
-  - Output section: monospace, green text for stdout, red for stderr.
-  - Footer: exit code badge (green checkmark for 0, red × otherwise) + duration.
-  - While running: pulsing green border on the left + live-updating output.
-  - Collapsed by default after execution completes (user can expand).
-- **Inline diff blocks:** When the AI modifies an existing file, show a compact diff view:
-  ```
-  ┌─ Modified: src/app.py ────────────── ▸ ─┐
-  │  - old_line                             │
-  │  + new_line                             │
-  │  3 additions, 1 deletion                │
-  └─────────────────────────────────────────┘
-  ```
-- **Inline preview embeds:** When the AI calls `preview_app`, show an inline preview card:
-  ```
-  ┌─ Live Preview: React App ─── ↗ ────────┐
-  │  ┌──────────────────────────────────┐   │
-  │  │                                  │   │
-  │  │   [iframe of running app]        │   │
-  │  │                                  │   │
-  │  └──────────────────────────────────┘   │
-  │  localhost:3000 via sandbox              │
-  └─────────────────────────────────────────┘
-  ```
-  - Embedded iframe (sandboxed, 400px tall).
-  - "↗" button opens in new tab (full-size).
-  - Shows the proxied URL below the frame.
-- **Web search results:** When the AI uses `web_search`, show a compact results block:
-  ```
-  ┌─ Web Search: "fastapi websocket tutorial" ─┐
-  │  → FastAPI WebSocket docs (fastapi.tiangolo.com)  │
-  │  → Real-time apps with FastAPI (testdriven.io)    │
-  │  → 3 more results                                 │
-  └────────────────────────────────────────────────────┘
-  ```
-
-- **Inline chart/image embeds:** When the AI generates a chart via matplotlib/plotly/etc., the image appears directly in the chat:
-  ```
-  ┌─ Chart: Revenue by Quarter ──── 💾 ───┐
-  │                                        │
-  │   [rendered PNG/SVG image]             │
-  │                                        │
-  │   800 × 500 · matplotlib · 42 KB      │
-  └────────────────────────────────────────┘
-  ```
-  - Image served from `/api/sandboxes/:id/output/:filename` and displayed inline.
-  - Click to open full-size in a lightbox overlay.
-  - 💾 button to download the image file.
-  - Metadata footer: dimensions, library used, file size.
-  - **How it works:** After each `execute_code` call, backend scans `/home/daytona/output/` for new PNG/SVG/HTML files. New files are streamed to the frontend as `image_output` SSE events during the response. System prompts instruct the AI to `plt.savefig("/home/daytona/output/chart.png")` (or equivalent).
-
-- **Mermaid diagrams:** When the AI writes a `mermaid` fenced code block in its markdown response, it renders as an interactive SVG diagram instead of a code block:
-  ```
-  ┌─ Diagram ──────────────────────────────┐
-  │                                        │
-  │   [rendered mermaid SVG]               │
-  │   flowchart, sequence, ER, class, etc. │
-  │                                        │
-  │   📋 Copy source    💾 Download SVG    │
-  └────────────────────────────────────────┘
-  ```
-  - Rendered client-side via the `mermaid` library (lazy-loaded on first use).
-  - Dark theme matching the design system (`--bg` background, `--accent` for highlights, `--text` for labels).
-  - Supported diagram types: flowchart, sequence, class, ER, gantt, pie, state, git graph.
-  - Fallback: if rendering fails, show the raw mermaid source as a code block.
-  - Copy source button: copies the mermaid source text.
-  - Download SVG button: exports the rendered diagram as an SVG file.
-
-- **Rich data tables:** When the AI prints a dataframe (pandas `.to_string()`, `.to_markdown()`, or CSV output), the frontend detects tabular patterns and renders them as styled, interactive tables instead of monospace text:
-  ```
-  ┌─ Data: df.describe() ─── 📋 ─── 💾 ───┐
-  │                                         │
-  │  Column   │ count │  mean  │  std       │
-  │  ─────────┼───────┼────────┼──────────  │
-  │  price    │ 1000  │ 42.50  │ 12.30     │
-  │  quantity │ 1000  │  7.20  │  3.10     │
-  │  revenue  │ 1000  │ 306.00 │ 89.50     │
-  │                                         │
-  │  3 columns × 1000 rows (showing 10)     │
-  └─────────────────────────────────────────┘
-  ```
-  - `surface-1` background, `border` row separators.
-  - Column headers: `IBM Plex Mono`, bold, sticky top.
-  - Numeric columns right-aligned, text left-aligned.
-  - **Sortable columns:** click header to sort ascending/descending. Small ▲/▼ indicator.
-  - **Truncation:** large tables show first 20 rows with "Show all N rows" expand button.
-  - 📋 button: copy table as TSV (pasteable into Excel/Sheets).
-  - 💾 button: download as CSV file.
-  - **Detection heuristic:** Backend post-processes tool output. If output contains pipe-delimited or whitespace-aligned columns (3+ rows, 2+ columns), it's marked as `table` type in the SSE event. Frontend renders accordingly. Fallback: monospace text.
-
-- **Cost badge:** Every assistant message shows a small, unobtrusive cost indicator:
-  ```
-  ↳ 1,247 tokens · $0.0038 · claude-sonnet · 2.1s
-  ```
-  - Positioned bottom-left of the message, `--text-tertiary` color, `IBM Plex Mono`, 11px.
-  - Shows: token count (input + output combined), estimated cost in USD, model used, response time.
-  - Hover for breakdown: input tokens, output tokens, cost per token tier.
-  - Cost calculated from per-model pricing table maintained in backend config.
-
-- **TTS:** Small speaker icon after each assistant message. Pulses with green glow while playing.
-
-#### Architect Mode — Step Tracker
-- When in Architect mode, the AI generates a numbered plan before executing.
-- A **step tracker** appears above the chat input:
-  ```
-  ┌─ Plan: Build REST API ──────────────────────────────────┐
-  │  ✓ 1. Project setup     ✓ 2. Models     ▸ 3. Routes    │
-  │  ○ 4. Tests             ○ 5. Deploy config              │
-  │                                        [Approve next →] │
-  └─────────────────────────────────────────────────────────┘
-  ```
-- Steps: ✓ = completed, ▸ = current (pulsing green), ○ = pending.
-- "Approve next" button to let the AI proceed to the next step.
-- User can click any pending step to skip ahead or re-order.
-
-#### Terminal Panel (Right Panel — Tab 1)
-- Full **xterm.js** terminal emulator.
-- Streams live stdout/stderr from sandbox executions via WebSocket.
-- Green-on-dark theme matching the design system.
-- Scrollback buffer: 5000 lines.
-- Shows a connection status indicator (green dot = connected, gray = disconnected).
-- **Clear** button in tab header.
-
-#### File Browser (Right Panel — Tab 2)
-- Tree view of the sandbox filesystem.
-- File-type icons (folder, Python, JS/TS, JSON, markdown, image, etc. — simple SVG icons, not emoji).
-- Click a file → opens in the **File Viewer** (replaces tree with back button).
-- File viewer: full syntax highlighting via `shiki`, read-only display, line numbers.
-- **Download** button on individual files. **Download all** (ZIP) button in tree header.
-- Files that were recently modified by the AI are highlighted with a subtle green indicator for 30 seconds.
-- **Upload** button in tree header — opens file picker to upload files from local machine to sandbox.
-
-#### Live Preview Panel (Right Panel — Tab 3)
-- Shows when the AI has called `preview_app`.
-- Full iframe rendering the running web application from the sandbox.
-- **URL bar** at the top (read-only, shows the proxied URL).
-- **Refresh** button to reload the iframe.
-- **Open in new tab** button.
-- **Responsive toggles:** desktop (full-width) / tablet (768px) / mobile (375px) — resize the iframe to test responsiveness.
-- When no preview is active: empty state with "No app running. The AI will start a preview when it runs a web server."
-
-#### Artifacts Panel (Right Panel — Tab 4)
-- After each assistant message, backend extracts artifacts (ideas, code snippets, notable outputs, preview URLs).
-- Each artifact is a card:
-  - `surface-1` background.
-  - 3px left border in accent green.
-  - Type badge (idea, code, file, command, preview) in `IBM Plex Mono`, tiny, uppercase.
-  - Label text.
-  - Pin icon (pinned artifacts survive conversation clear).
-  - "×" dismiss button.
-- **"Copy all"** button — copies all artifact labels as markdown list.
-- **"Export"** button — downloads artifacts as JSON.
-- Cards animate in: `scale(0.97→1)` + `opacity: 0→1`, 200ms ease-out, staggered 50ms.
-
-#### Empty State (new conversation)
-- Center of chat area.
-- `NEXUS` wordmark large (48px, IBM Plex Mono, 300 weight, `--text-tertiary`).
-- Tagline: "Your AI. Your sandbox. Your rules." — Inter, 18px, `--text-secondary`.
-- **Template pills** in a row: `🐍 Data Science` | `⚡ Node.js` | `⚛️ React` | `📦 Blank` — clicking one pre-selects the sandbox template for the next conversation.
-- If user has custom personas, show them as a second row of icon pills: "Start with: 🐍 Python Expert | 📝 Code Reviewer | 🏗️ Architect"
-- Below that, three starter chips in a row (data-analysis-forward):
-  - "Analyze this CSV and visualize trends"
-  - "Build me a REST API in Python"
-  - "Explain this codebase architecture with diagrams"
-- Chips: `surface-1` background, `border` border, rounded (20px). On hover: `surface-2` + accent border.
-- Below chips: small text — "Code mode runs in an isolated Daytona sandbox" with a green dot.
-- **Clicking a chip sends the message immediately** and auto-selects **Code** agent mode.
-
-#### Input Area
-- Textarea spanning the chat column width.
-- `surface-1` background, `border` border → `border-focus` on focus (150ms transition).
-- Placeholder: `"Message Nexus..."` in `--text-tertiary`.
-- **Enter** sends, **Shift+Enter** newline.
-- **File upload:** Drag files onto the textarea (or the entire chat area) → drop zone overlay appears ("Drop files to upload to sandbox"). Files are shown as removable chips above the textarea before sending. On send, files are uploaded to the sandbox and referenced in the message.
-- Supported upload types: any text file, PDF, CSV, images (PNG/JPG/SVG), archives (ZIP/tar.gz). Max 20MB per file, max 10 files.
-- Right side icons: paperclip (file picker), microphone (if supported), send arrow (accent green when text/files present, tertiary when empty).
-- Above textarea when in Code/Architect mode: small pill showing sandbox state ("Sandbox running — 2 vCPU, 2GB RAM" or "No sandbox — will create on first code execution").
-
-#### Voice Input
-- Same as original: Web Speech API, Chromium only, hide if unsupported.
-- Recording state: mic icon pulses with accent green glow ring.
-
-#### Agent Persona Editor (separate view: `/agents`)
-- **List view:** grid of persona cards. Each card shows icon, name, description (truncated), usage count, public/private badge.
-- **Editor view** (slide-over panel or dedicated page):
-  - Icon picker (emoji grid).
-  - Name input.
-  - Description textarea.
-  - **System prompt editor** — large monospace textarea with syntax-like styling. Placeholder shows an example prompt.
-  - Default model dropdown.
-  - Default mode selector (Chat / Code / Architect).
-  - Tool toggles: checkboxes for each available tool (execute_code, write_file, read_file, list_files, web_search, preview_app).
-  - Public toggle: share this persona with all users.
-  - **"Try it"** button — opens a new conversation with this persona immediately.
-  - **Save / Delete** buttons.
-- **Public persona browser:** separate tab showing community-shared personas. "Use" button clones into user's collection.
-
-#### Login Page
-- Centered card on dark background.
-- `NEXUS.` brand top-center, large.
-- "Sign in to continue" subtext.
-- Single "Continue with WorkOS" button (accent green, full-width).
-- Optionally shows available auth methods (Google, email, SSO) depending on WorkOS config.
-- Minimal, no distractions.
-
-#### Usage Stats (dropdown from avatar or dedicated page)
-- Summary card: total conversations, total messages, total tokens, total cost, total sandbox hours (current billing period).
-- **Usage chart:** line/bar chart showing daily usage over the last 30 days (tokens + cost). Built with simple inline SVG — no chart library dependency.
-- **Model breakdown:** table showing usage per model.
-- **Top conversations** by cost.
-
-### Keyboard Shortcuts
-
-| Shortcut | Action |
-|----------|--------|
-| `⌘K` / `Ctrl+K` | Open command palette |
-| `⌘N` / `Ctrl+N` | New conversation |
-| `⌘⇧F` / `Ctrl+Shift+F` | Search conversations |
-| `⌘1` / `Ctrl+1` | Switch to Chat mode |
-| `⌘2` / `Ctrl+2` | Switch to Code mode |
-| `⌘3` / `Ctrl+3` | Switch to Architect mode |
-| `Esc` | Close command palette / cancel current action |
-| `⌘Enter` | Send message (alternative to Enter) |
-| `⌘⇧S` / `Ctrl+Shift+S` | Snapshot sandbox |
-
-### Animations
-
-| Element | Animation | Duration |
-|---------|-----------|----------|
-| New messages | `translateY(6px)` + `opacity: 0→1` | 200ms ease-out |
-| `NEXUS.` period | Green pulse while AI processing | continuous, 2s cycle |
-| Execution blocks (running) | Left border green pulse | continuous |
-| Artifact cards | `scale(0.97→1)` + `opacity: 0→1` staggered | 200ms per card |
-| Input border focus | `border` → `border-focus` | 150ms |
-| Sandbox status dot | Soft pulse when running | continuous, 3s cycle |
-| Terminal cursor | Standard block cursor blink | 600ms |
-| Panel tab switch | Crossfade | 150ms |
-| Sidebar conversation switch | Instant (no transition — snappy) | 0ms |
-| Starter chip hover | Border color → accent | 150ms |
-| Command palette open | `scale(0.98→1)` + `opacity: 0→1` | 150ms ease-out |
-| Command palette close | `opacity: 1→0` | 100ms |
-| File drop zone | Overlay fade in + dashed border pulse | 200ms |
-| Preview iframe load | Skeleton shimmer → content fade-in | 300ms |
-| Step tracker progress | Step icon transition ○ → ▸ → ✓ | 300ms |
-| Reasoning trace expand | Height auto-animate + fade | 200ms |
-| Diff highlight | Green/red line background fade-in | 150ms |
-| Inline chart load | Skeleton shimmer (surface-2) → image fade-in | 300ms |
-| Mermaid render | Skeleton → SVG fade-in | 250ms |
-| Data table rows | Staggered `opacity: 0→1` per row | 30ms per row, max 300ms |
-| Table sort | Column reorder with `translateY` | 150ms |
-| Cost badge | Fade in after message completes | 300ms, 200ms delay |
-| Lightbox open | Backdrop fade + image `scale(0.9→1)` | 200ms |
-
-All CSS-only where possible. No spring physics, no bounce. Engineer-grade: fast, crisp, intentional.
+- [ ] **`connect_database`** — Connect to external PostgreSQL/MySQL/SQLite, run read-only queries, visualize results. Security: read-only connections only, credential storage in encrypted vault, query timeout, result size limits.
+- [ ] **`generate_image`** — DALL-E / Flux / Stable Diffusion integration. Inline preview, variation generation, upscaling. Need to decide: API-direct or sandbox-based?
+- [ ] **`create_presentation`** — Generate slide decks from conversation content. Output: PPTX file or HTML slides. Complex — defer until artifact system is mature.
+- [ ] **`git_operations`** — Clone repos into sandbox, make changes, create PRs. Would make Nexus competitive with Cursor for certain workflows. Needs careful sandboxing.
+- [ ] **`schedule_task`** — Run an agent on a cron schedule. Requires: background job infrastructure (currently none), persistent task state, notification on completion/failure.
 
 ---
 
-## SSE Stream Format (Chat Response)
+## Track C: Product Differentiation
 
-`POST /api/conversations/:id/messages` returns an SSE stream. Each event is `data: {json}\n\n`.
+### C1. Make the Agent's Work Legible
 
-| Event type | Payload | Frontend behavior |
-|------------|---------|-------------------|
-| `token` | `{ content: "word" }` | Append to streaming message |
-| `reasoning` | `{ content: "thinking..." }` | Append to reasoning trace (collapsed) |
-| `tool_start` | `{ tool: "execute_code", params: {...} }` | Show execution block header, start pulsing |
-| `tool_output` | `{ tool: "execute_code", stdout/stderr: "..." }` | Stream into execution block output |
-| `tool_end` | `{ tool: "execute_code", exit_code: 0, duration_ms: 800 }` | Close execution block, show exit badge |
-| `image_output` | `{ filename: "chart.png", url: "/api/sandboxes/.../output/chart.png", width, height, size_bytes }` | Render inline image embed |
-| `table_output` | `{ headers: [...], rows: [[...], ...], total_rows: 1000, source: "df.describe()" }` | Render rich data table |
-| `preview` | `{ url: "...", port: 3000, label: "React App" }` | Show inline preview embed, open Preview tab |
-| `search_results` | `{ query: "...", results: [{title, url, snippet}] }` | Show search results block |
-| `done` | `{ token_count: { input, output }, cost_usd, model, duration_ms }` | Finalize message, show cost badge |
-| `error` | `{ message: "..." }` | Show error indicator |
+#### Why
 
-The `table_output` event is emitted when the backend detects structured tabular data in tool output. Detection runs server-side to keep the frontend simple — backend parses pandas `.to_string()`, `.to_markdown()`, pipe-delimited, and CSV-like patterns.
+Most AI tools still feel magical in the bad sense: users cannot tell what happened. Nexus wins by making execution transparent without overwhelming.
 
-The `image_output` event is emitted when new files appear in `/home/daytona/output/` after an `execute_code` call. Backend checks the directory diff before and after execution.
+#### Execution Timeline
 
----
+- [ ] Show: reasoning summary, retrieval steps, tool calls (with timing), sandbox commands, generated files, final outputs
+- [ ] Collapsible by default, expandable for power users
+- [ ] Each step shows duration and tokens consumed
 
-## WebSocket: Terminal Streaming
+#### Provenance UI
 
-`ws://localhost:8000/ws/sandbox/{sandbox_id}/terminal`
+- [ ] Distinguish clearly between: model answer, cited source, retrieved context, computed artifact, sandbox-generated file
+- [ ] Visual indicators (icons, colors, labels) for each source type
+- [ ] Hovering a citation shows the source passage inline
 
-- Authenticated via session cookie (validated on connect).
-- Streams sandbox execution output in real-time.
-- Message format:
-  ```json
-  { "type": "stdout" | "stderr" | "exit", "data": "...", "exit_code": 0 }
-  ```
-- Frontend pipes `stdout`/`stderr` into xterm.js terminal.
-- On `exit`: show exit code badge (green for 0, red otherwise).
+#### Reversible Actions
+
+- [ ] Rerun from any step in the execution timeline
+- [ ] Branch from a tool result (what if we used a different approach?)
+- [ ] Fork from any message (not just the last one)
+- [ ] Compare two runs side by side with diff highlighting
+
+#### Post-Run Summaries
+
+- [ ] "What I did" — steps taken
+- [ ] "What I changed" — files modified, artifacts created
+- [ ] "What to review" — things that need human verification
+- [ ] "What I'm uncertain about" — low-confidence results, weak retrieval, failed tools
 
 ---
 
-## `run.sh`
+### C2. Artifacts as a Core Product Surface
 
-```bash
-#!/bin/bash
-# Starts Postgres (Docker), runs migrations, starts backend + frontend.
+#### Why
+
+The artifact model is one of Nexus's strongest advantages. Most AI chat apps treat outputs as text blobs.
+
+#### Unified Artifact Center
+
+- [ ] Central view for all artifacts: charts, tables, code files, reports, generated media, downloadable bundles
+- [ ] Search and filter artifacts across conversations
+- [ ] Pin/favorite artifacts for quick access
+
+#### Artifact Lineage
+
+- [ ] Show which prompt, tool call, dataset, or file produced each artifact
+- [ ] Link artifacts to their source conversation and message
+
+#### Live Artifact Updates
+
+- [ ] When the agent iterates, the artifact updates in place with version history
+- [ ] Diff view between artifact versions
+- [ ] Rollback to previous version
+
+#### Richer Viewers
+
+- [ ] Notebook-like data view (for DataFrames/tables)
+- [ ] File diff view (for code artifacts)
+- [ ] Chart editing (tweak Vega-Lite spec, see results live)
+- [ ] Side-by-side before/after comparison
+
+#### Export Workflows
+
+- [ ] Shareable report (public link with optional expiry)
+- [ ] Downloadable project bundle (all artifacts + conversation)
+- [ ] Reusable notebook/script (export code artifacts as .py/.js)
+- [ ] Export conversation as Markdown/PDF
+
+---
+
+### C3. Conversation Intelligence
+
+- [ ] **Full-text search** across all conversations, messages, and artifacts with instant results
+- [ ] **Smart folders / tags** — auto-categorize by topic, project, or custom tags
+- [ ] **Pinned messages** within conversations — bookmark the important parts
+- [ ] **Conversation templates** — start from a template (code review, data analysis, writing, brainstorm)
+- [ ] **Session continuity** — "Continue where I left off" with context summary when returning to old conversations
+- [ ] **Cross-conversation context** — reference or link between conversations
+
+---
+
+### C4. Message-Level Power
+
+- [ ] **Copy as markdown/code/plain text** — one-click with format selection
+- [ ] **Share a single message** — generate a shareable link to one message or artifact
+- [ ] **Message annotations** — add notes to AI responses (corrections, context, tags)
+- [ ] **Inline editing** — edit any previous message and regenerate from that point
+- [ ] **Diff view** — when regenerating, show what changed between versions
+- [ ] **Message threading** — reply to a specific message within the conversation (nested threads)
+
+---
+
+### C5. Multi-Modal First Class
+
+- [ ] **Vision input** — paste/drag screenshots, photos, diagrams → auto-route to vision-capable models
+- [ ] **Image generation** — integrated (DALL-E, Flux) with inline preview and variation generation
+- [ ] **Voice mode** — full conversation mode (not just TTS), with continuous listening
+- [ ] **Video/screen capture** — record screen, send frames to vision model
+- [ ] **Handwriting/sketch input** — draw diagrams on tablet, AI interprets
+- [ ] **File intelligence** — drop any file type and get smart analysis (not just RAG ingestion)
+
+---
+
+### C6. Multi-Path Exploration
+
+#### Why
+
+Branching and comparison can be a genuine product advantage if executed cleanly. The tree panel exists but the UX needs to make it a signature feature, not a hidden capability.
+
+#### Run Branching
+
+- [ ] Branch from: a prompt, a tool call, a retrieval strategy, a chosen model
+- [ ] Inline "try with different approach" button on any message
+- [ ] Branch indicator showing how many alternatives exist
+
+#### Compare Mode
+
+- [ ] Compare two model outputs side by side with diff highlighting
+- [ ] Compare two tool strategies (different parameters, different tools)
+- [ ] Compare two artifact versions
+
+#### Best-of-N Workflows
+
+- [ ] Generate multiple approaches in parallel
+- [ ] Score them on defined criteria (cost, quality, speed)
+- [ ] Let user adopt one or merge ideas
+
+#### Explainable Differences
+
+- [ ] Summarize how branch A differs from branch B in conclusions, files, artifacts, and sources
+
+---
+
+### C7. Deepen the Workspace
+
+#### Why
+
+The strongest strategic direction is not "better chat." It is "AI-native workspace for real work."
+
+- [ ] **Reusable projects/workspaces** — persistent context, files, tools, and preferred models
+- [ ] **Task-oriented layouts** — coding mode, research mode, data analysis mode, document mode
+- [ ] **Session memory controls** — what context is attached, what is pinned, project memory vs conversation memory
+- [ ] **Persistent AI memory** — remembers user preferences, past decisions, project context across conversations
+- [ ] **Memory management UI** — view, edit, delete what the AI remembers
+- [ ] **Durable task objects** — a run can be promoted into a task with status, outputs, and follow-up actions
+- [ ] **Context window visualization** — show how much context is used, what's included, what's been truncated
+
+---
+
+### C8. Best-in-Class Coding & Data Work
+
+#### Why
+
+Sandboxed execution plus artifacts is a major advantage if the app becomes excellent at coding and analysis workflows.
+
+#### Code Execution Ergonomics
+
+- [ ] Visible file tree diffs (what changed in the sandbox)
+- [ ] Command history with rerun
+- [ ] Save/restore checkpoints
+- [ ] Multi-language sandboxes with package installation (Python, JS, TS, Go, Rust, SQL)
+- [ ] Persistent environments (keep sandbox state between messages)
+
+#### Data Workflows
+
+- [ ] Dataset schema preview (auto-detect columns, types, sample values on upload)
+- [ ] Automatic data profiling (distributions, nulls, outliers)
+- [ ] Chart suggestions based on data shape
+- [ ] Table transforms (sort, filter, group — interactive)
+- [ ] Notebook-style replay of analysis steps
+
+#### Language-Specific Workflows
+
+- [ ] Python project scaffold
+- [ ] Web app scaffold (React, Vue, etc.)
+- [ ] SQL exploration mode (connect to DB, explore schema, run queries)
+- [ ] Test generation and fix loop
+
+#### Inspect Before Apply
+
+- [ ] Show proposed changes with risk classification
+- [ ] List tests to run
+- [ ] Provide revert controls
+- [ ] "Apply" button that writes changes to sandbox
+
+---
+
+### C9. Model Management
+
+- [ ] **Model comparison 2.0** — side-by-side with diff highlighting, auto-scoring, cost comparison
+- [ ] **Model routing** — auto-select best model based on task type (code → Claude, creative → GPT, fast → Haiku)
+- [ ] **Model favorites & defaults** — per-agent, per-conversation, per-task-type
+- [ ] **Custom model endpoints** — add your own OpenAI-compatible endpoints (Ollama, vLLM, local models)
+- [ ] **Model performance dashboard** — track latency, quality ratings, cost per model over time
+- [ ] **Prompt caching awareness** — show when prompt cache hits, estimated savings
+
+---
+
+### C10. UX Excellence
+
+#### Onboarding & Empty States
+
+- [ ] Communicate what Nexus is in one sentence on first run
+- [ ] Make the first successful action extremely obvious
+- [ ] Empty states that are instructional, not decorative — tailored by workflow type
+
+#### System State Visibility
+
+- [ ] Sandbox running/stopped/degraded indicator
+- [ ] Retrieval available/unavailable
+- [ ] Model/provider status (healthy, degraded, down)
+- [ ] Long-running task progress
+
+#### Confidence & Uncertainty Signaling
+
+- [ ] Not generic disclaimers — clear markers for inferred results, weak retrieval, failed tools, partial outputs
+- [ ] Visual distinction between high-confidence answers and best-guesses
+
+#### Design System
+
+- [ ] **Consistent component library** — extract all UI primitives into a shared system
+- [ ] **Theme system** — dark/light/auto + custom themes with full color token support
+- [ ] **Typography scale** — proper type hierarchy
+- [ ] **Motion system** — consistent animation curves, durations, patterns
+- [ ] **Density modes** — compact/comfortable/spacious
+- [ ] **Responsive excellence** — designed for mobile, not just tolerant of it
+
+#### Power User Features
+
+- [ ] **Vim keybindings mode** — j/k navigation, / for search, : for commands
+- [ ] **Custom keyboard shortcuts** — rebindable for all actions
+- [ ] **Split view** — two conversations side by side
+- [ ] **Floating windows** — pop out artifacts/terminal into separate windows
+- [ ] **Quick switcher** — Cmd+K that searches conversations, agents, commands, settings in one place
+- [ ] **Command bar** — slash commands with autocomplete and inline documentation
+- [ ] **Zen mode** — full-screen, distraction-free writing with AI
+
+#### Accessibility
+
+- [ ] **WCAG 2.1 AA compliance** — screen reader support, keyboard navigation, focus management
+- [ ] **High contrast mode**
+- [ ] **Reduced motion** — respect `prefers-reduced-motion`
+- [ ] **Screen reader announcements** — live regions for streaming messages, tool execution status
+- [ ] **Focus trapping** — proper focus management in modals, command palette, dropdowns
+- [ ] **Skip navigation** — skip to main content link
+
+---
+
+## Track D: Enterprise & Collaboration
+
+### D1. Access Control & Teams
+
+- [ ] **RBAC** — roles beyond admin flag: viewer, editor, admin, org-admin
+- [ ] **SSO / SCIM** — WorkOS covers SSO, add SCIM for auto-provisioning
+- [ ] **Model access policies** — restrict which models/tools specific roles can use
+- [ ] **IP allowlisting** — restrict access by network
+- [ ] **Session management** — view active sessions, force logout, timeout policies
+
+### D2. Collaboration
+
+- [ ] **Shared workspaces** — team spaces with shared conversations, agents, knowledge bases
+- [ ] **Real-time collaboration** — multiple users in the same conversation simultaneously
+- [ ] **Mentions** — @user to bring someone into a conversation
+- [ ] **Comments on artifacts** — annotate generated code/documents with feedback
+- [ ] **Approval workflows** — "AI generated this — does it look right?" with approve/reject
+- [ ] **Activity feed** — see what your team is working on with AI
+
+### D3. Compliance & Audit
+
+- [ ] **Audit logging** — immutable log of who accessed/modified what, when, from where
+- [ ] **Data residency** — control where data is stored (EU, US, etc.)
+- [ ] **DLP (Data Loss Prevention)** — detect and block sensitive data in prompts (PII, credentials, proprietary code)
+- [ ] **Compliance dashboard** — SOC2, HIPAA, GDPR readiness tracking
+- [ ] **Data export** — full export for compliance requests (JSON, CSV)
+- [ ] **Retention policies** — auto-delete conversations/artifacts after configurable period
+
+### D4. Analytics
+
+#### User-Facing
+
+- [ ] **Usage dashboard** — messages sent, tokens used, cost breakdown by model/day/week
+- [ ] **Productivity metrics** — code generated, documents created, time saved
+- [ ] **Model comparison stats** — which models used most, satisfaction by model
+- [ ] **Export everything** — full data export (JSON, CSV, Markdown) for conversations, artifacts, knowledge bases
+
+#### Admin-Facing
+
+- [ ] **Team usage overview** — who's using what, cost allocation by team/user
+- [ ] **Model cost optimization** — suggestions for cheaper models that maintain quality
+- [ ] **Feature adoption** — which features used, which ignored
+- [ ] **Error rates** — per-model, per-tool failure rates with drill-down
+
+---
+
+## Testing & Quality Strategy
+
+### Current State
+
+```
+Backend:   6 test files (security, tools, artifacts)
+Frontend:  0 tests
+E2E:       0 tests
+Smoke:     0 tests
+Load:      0 tests
+Coverage:  ~15% backend, 0% frontend
 ```
 
-1. `docker compose up -d postgres` — start Postgres
-2. Wait for Postgres to be ready (`pg_isready` loop)
-3. `cd backend && uv sync` — install Python deps
-4. `uv run alembic upgrade head` — run migrations
-5. `cd frontend && npm install` — install JS deps
-6. Start FastAPI with `uvicorn` on port 8000 (background, with `--reload`)
-7. Start Vite dev server on port 5173 (foreground)
-8. Trap to kill backend + stop Docker on exit
+### Target State
+
+```
+Backend:   >80% coverage
+Frontend:  >60% coverage (component tests for all major UI)
+E2E:       Critical path coverage
+Smoke:     Pre-deploy validation suite
+Load:      Baseline benchmarks + regression detection
+```
 
 ---
 
-## Key Behaviors
+### Backend Unit Tests
 
-### Conversation Lifecycle
-1. User creates a new conversation (or clicks starter chip or persona).
-2. Frontend sends message to `POST /api/conversations/:id/messages` (with optional file attachments).
-3. If files attached: backend uploads them to sandbox filesystem first, includes paths in context.
-4. Backend streams SSE response. If the LLM emits tool calls, backend executes them against the Daytona sandbox and feeds results back to the LLM in a loop.
-5. Each tool execution also streams to the WebSocket for live terminal display.
-6. Final response, tool calls, and artifacts are persisted to Postgres.
-7. Conversation appears in sidebar with auto-generated title.
+**Framework:** pytest + pytest-asyncio + coverage
 
-### Conversation Forking
-- **Edit + fork:** User edits a past message → backend creates a new conversation, copies messages up to (but not including) the edited one, inserts the new message, and regenerates the response. Old conversation is untouched.
-- **Manual fork:** User clicks fork icon on any message → backend creates a new conversation from that point with a snapshot of the current sandbox state.
-- Fork indicator: forked conversations show a 🔀 icon in the sidebar and a "Forked from [original title]" note at the top of the chat.
-
-### Sandbox Lifecycle
-1. Created lazily on first tool call in Code/Architect mode.
-2. Sandbox ID stored on the conversation record.
-3. Active while user is chatting. Auto-stops after 15 min idle (Daytona-managed).
-4. User can manually stop/start from the sandbox status pill.
-5. Snapshots are point-in-time captures — can be forked into new conversations.
-6. On conversation delete: sandbox is also deleted (with confirmation).
-7. **Download:** Users can download the entire sandbox project as a ZIP at any time.
-
-### File Upload Flow
-1. User drags files onto input area (or clicks paperclip icon).
-2. Files appear as removable chips above the textarea.
-3. On message send: files are uploaded to sandbox via `POST /api/sandboxes/:id/upload`.
-4. File paths in sandbox are included in the user message context sent to the LLM.
-5. LLM can then read/process these files using its tools.
-6. File metadata (name, path, type, size) stored in the message's `attachments` JSONB field.
-
-### Live App Preview Flow
-1. AI writes code for a web application (e.g., React, Flask, Express).
-2. AI calls `execute_code` to install dependencies and start the dev server.
-3. AI calls `preview_app(port=3000, label="React App")`.
-4. Backend registers the port with Daytona's port forwarding. Returns a proxied URL.
-5. Frontend opens the Preview tab and loads the URL in a sandboxed iframe.
-6. User sees the running app. Can interact with it, resize viewport, open in new tab.
-7. Preview URL is also saved as an artifact.
-
-### System Prompt Conventions
-
-All system prompts (base + persona) include these output conventions so the sandbox image/table pipeline works:
-
-```
-When generating charts or visualizations:
-- Always save figures to /home/daytona/output/ (e.g., plt.savefig("/home/daytona/output/chart.png", dpi=150, bbox_inches="tight"))
-- Prefer PNG for raster charts, SVG for diagrams. Use transparent=False with dark background (#0A0A0A) or white background depending on context.
-- For plotly, use fig.write_image("/home/daytona/output/chart.png") or fig.write_html("/home/daytona/output/chart.html").
-- Use seaborn's darkgrid or dark theme for matplotlib to match the UI aesthetic.
-
-When presenting tabular data:
-- Use print(df.to_markdown(index=False)) for clean table output that the UI will render as a rich table.
-- For large dataframes, show .head(20) and mention total row count.
-
-When explaining architecture or flows:
-- Use mermaid code blocks in your response for diagrams. The UI renders these as interactive SVGs.
-- Example: ```mermaid\nflowchart LR\n  A --> B\n```
-```
-
-### Auto-Title Generation
-- After the first assistant response, backend makes a cheap LLM call (`azure/gpt-4o`) to generate a 4–6 word title from the first user message + response.
-- Title is editable by the user.
+- [ ] Add pytest, pytest-asyncio, and coverage tooling to pyproject.toml dev dependencies
+- [ ] Ensure `uv run pytest` works from a fresh environment without guessing packages
+- [ ] Test all services: agent loop, tool execution, RAG retrieval, sandbox lifecycle, auth, usage accounting
+- [ ] Test all tools: call_api, web_browse, create_chart, run_sql, web_search, code execution
+- [ ] Test all utilities: SSRF validation, redaction, rate limiting, token counting
+- [ ] Test database models: CRUD operations, cascade deletes, constraint violations
+- [ ] Test middleware: auth, CSRF, rate limiting, error handling, request ID propagation
 
 ---
 
-## Out of Scope (for now)
+### Backend Integration Tests
 
-- Mobile / responsive design (desktop-first, 1200px+ minimum)
-- Real-time collaboration / multi-user in same conversation
-- Custom Docker images for sandboxes (uses template system instead)
-- Billing / payment integration (usage tracking exists, but no payment gate)
-- Self-hosted Daytona (uses Daytona cloud)
-- Visual workflow builder for agent personas (prompt-only for now)
-- RAG / document indexing (files are per-sandbox, not a persistent knowledge base)
-- AI image generation (DALL-E / Stable Diffusion — could add as a tool later)
-- Shareable conversation links (public read-only viewer)
-- Side-by-side model comparison mode
+- [ ] Test API endpoints with a real test database (not mocks — CompanyGPT's lesson)
+- [ ] Test auth flow end-to-end: login → JWT → refresh → protected endpoint
+- [ ] Test SSE streaming: send message → receive token stream → verify message saved
+- [ ] Test RAG pipeline: ingest document → create chunks → search → verify relevance
+- [ ] Test sandbox lifecycle: create → execute code → read output → cleanup
+- [ ] Migration validation: verify Alembic migrations apply cleanly to empty DB and from previous version
+
+---
+
+### Frontend Component Tests
+
+**Framework:** Vitest + React Testing Library
+
+- [ ] Message rendering (markdown, code blocks, KaTeX, citations, tool calls)
+- [ ] Streaming state transitions (loading → streaming → complete → error)
+- [ ] Artifact panels (chart rendering, table display, code view)
+- [ ] Conversation tree behaviors (branching, navigation, selection)
+- [ ] Auth/session flows (login, token refresh, logout, expired session)
+- [ ] Command palette (open, search, execute, keyboard navigation)
+- [ ] Chat input (text entry, file upload, model picker, slash commands)
+- [ ] Sidebar (conversation list, pinning, search, delete)
+- [ ] Form renderer (when create_ui ships — validate all field types, validation, submission)
+
+---
+
+### End-to-End Tests
+
+**Framework:** Playwright
+
+Critical user journeys:
+
+- [ ] **Happy path:** Login → New conversation → Send prompt → Stream response → Verify message saved
+- [ ] **Artifact flow:** Send prompt that triggers chart → Chart renders → Download PNG → Chart persisted
+- [ ] **RAG flow:** Upload document → Create knowledge base → Chat with citations → Verify citations link to source
+- [ ] **Sandbox flow:** Create sandbox → Execute Python code → View output in terminal → Read generated file
+- [ ] **Agent flow:** Create agent persona → Start conversation with agent → Verify system prompt applies → Edit agent
+- [ ] **Branching flow:** Send prompt → Regenerate → View tree panel → Navigate between branches
+- [ ] **Multi-model compare:** Send prompt in compare mode → Verify parallel responses → Compare panel works
+- [ ] **Error recovery:** Simulate LLM failure mid-stream → Verify graceful error message → Retry works
+
+---
+
+### Smoke Tests
+
+Pre-deploy validation that runs in <60 seconds and catches catastrophic failures.
+
+**Backend smoke suite:**
+- [ ] Health endpoint responds 200 with all dependency checks passing
+- [ ] Auth endpoints respond (login, token refresh)
+- [ ] Chat endpoint accepts a message and returns SSE stream headers
+- [ ] Database is reachable and schema version matches expected
+- [ ] LLM proxy is reachable and responds to a simple completion
+- [ ] Sandbox provider is reachable (Daytona health check)
+- [ ] RAG search returns results (if knowledge bases exist)
+- [ ] WebSocket endpoint accepts connections (terminal streaming)
+
+**Frontend smoke suite:**
+- [ ] App loads without console errors
+- [ ] Login page renders
+- [ ] After auth, main workspace renders with sidebar and chat
+- [ ] Sending a message shows streaming response
+- [ ] At least one artifact type renders correctly
+
+**Post-deploy smoke (runs after every production deploy):**
+- [ ] All backend smoke checks pass against production URL
+- [ ] Frontend loads from production CDN
+- [ ] A real message can be sent and streamed (against a cheap/fast model)
+- [ ] Metrics endpoint is reporting data
+
+---
+
+### Load Tests
+
+**Framework:** k6 (JavaScript-based, good for streaming) or Locust (Python-based, good for complex scenarios)
+
+**Why k6 over Locust for us:** k6 handles SSE/WebSocket natively and our team already uses JavaScript. Locust is better if we want to share load test authoring with the Python backend team. Either works — pick one and commit.
+
+#### Scenarios
+
+1. **Concurrent chat streams**
+   - Simulate N users each sending a message and consuming an SSE stream simultaneously
+   - Measure: time to first token, stream throughput, error rate, server memory/CPU
+   - Baseline: 50 concurrent streams without degradation
+   - Target: 200+ concurrent streams
+
+2. **Rapid message sends**
+   - Single user sends 100 messages in quick succession
+   - Verify: rate limiter kicks in correctly, no messages lost, no duplicate responses
+
+3. **RAG under load**
+   - N users simultaneously querying the same knowledge base
+   - Measure: retrieval latency P50/P95/P99, relevance scores, database connection usage
+   - Verify: pgvector doesn't become a bottleneck
+
+4. **Sandbox concurrency**
+   - N users creating sandboxes and executing code simultaneously
+   - Measure: sandbox creation time, execution time, cleanup reliability
+   - Verify: Daytona doesn't run out of resources, orphaned sandboxes don't accumulate
+
+5. **WebSocket terminal load**
+   - N users with open terminal sessions sending commands
+   - Measure: command latency, connection stability, memory usage per connection
+
+6. **Mixed workload**
+   - Realistic traffic pattern: 60% chat, 20% RAG, 10% sandbox, 10% idle/browsing
+   - Run for 30+ minutes to detect memory leaks, connection pool exhaustion, gradual degradation
+
+7. **Spike test**
+   - Ramp from 10 to 200 users in 30 seconds
+   - Verify: system recovers gracefully, no cascading failures, rate limiting protects the backend
+
+#### Load Test Infrastructure
+
+- [ ] Run load tests in CI on a schedule (nightly or weekly) — not on every PR (too slow/expensive)
+- [ ] Store results as benchmarks — fail if P95 latency regresses by >20%
+- [ ] Generate reports with graphs (k6 cloud or Grafana integration)
+- [ ] Test against staging environment (never production)
+
+---
+
+### Visual Regression Tests
+
+**Framework:** Playwright screenshots + Percy or Chromatic
+
+- [ ] Capture screenshots of key views: empty state, active conversation, artifact panel, command palette, sidebar, admin dashboard
+- [ ] Compare against baseline on every PR
+- [ ] Alert on unexpected visual changes
+
+---
+
+### Contract Tests
+
+- [ ] Validate frontend API calls against backend OpenAPI schema
+- [ ] Catch breaking changes before they reach users
+- [ ] Auto-generate TypeScript types from OpenAPI spec (openapi-typescript)
+
+---
+
+### Fuzzing
+
+- [ ] Fuzz tool inputs (call_api URLs, SQL queries, Vega-Lite specs, form schemas)
+- [ ] Fuzz RAG queries (malformed queries, injection attempts, oversized inputs)
+- [ ] Fuzz auth endpoints (malformed JWTs, expired tokens, CSRF bypass attempts)
+- [ ] Fuzz file uploads (oversized files, malformed PDFs, zip bombs, path traversal filenames)
+
+---
+
+## Open Questions & Design Decisions
+
+Items that need discussion or research before committing to an approach.
+
+### 1. Redis vs Alternatives for Caching
+
+**Context:** We need distributed caching for rate limiting, sessions, and query results. Redis is the obvious choice but adds infrastructure complexity.
+
+**Options:**
+- **Redis** — battle-tested, Railway has managed Redis, good Python/Node clients. Adds a dependency.
+- **PostgreSQL advisory locks + materialized views** — no new infrastructure, but limited compared to Redis for rate limiting and session cache.
+- **Valkey** — Redis fork, API-compatible, fully open source. Drop-in replacement if Redis licensing concerns arise.
+- **In-memory with sync** — keep in-memory but sync state across instances via database. Fragile.
+
+**Recommendation:** Redis via Railway. The operational overhead is minimal and it unlocks rate limiting, session cache, and pub/sub for real-time features later.
+
+### 2. OpenTelemetry Collector vs Direct Export
+
+**Context:** Should we run an OTel Collector sidecar or export traces/metrics directly to backends (Grafana Cloud, Datadog)?
+
+**Considerations:**
+- Collector adds deployment complexity but decouples instrumentation from backend choice
+- Direct export is simpler for a small team but locks us into a specific vendor
+- Railway supports sidecars but they're not free
+
+**Recommendation:** Start with direct export to Grafana Cloud (free tier is generous). Add Collector when we need to fan out to multiple backends or do sampling/transformation.
+
+### 3. Background Job Infrastructure
+
+**Context:** Several features need background processing: scheduled tasks, cleanup jobs, long-running RAG ingestion, webhook processing.
+
+**Options:**
+- **Celery + Redis** — industry standard, complex setup, heavy
+- **ARQ (async Redis queue)** — lightweight, async-native, fits our FastAPI stack
+- **PostgreSQL-based (pgqueuer, procrastinate)** — no new infrastructure, good enough for moderate load
+- **Custom with asyncio** — simple but not durable (jobs lost on restart)
+
+**Recommendation:** Start with ARQ (async, Redis-backed, minimal). It fits our async-everything philosophy and Redis will already be deployed for caching. Migrate to Celery only if we need complex workflow orchestration.
+
+### 4. Plugin/MCP Architecture
+
+**Context:** Users need to add their own tools without modifying backend code. MCP (Model Context Protocol) is emerging as a standard.
+
+**Questions:**
+- Do we build our own plugin system or adopt MCP?
+- How do we handle plugin security (sandboxing, permissions, secrets)?
+- Where do plugins run (in our backend, in user's infrastructure, in a sandbox)?
+
+**Recommendation:** Implement MCP client support first (connect to existing MCP servers). Then add our own plugin registry where users can define tools via UI (URL + auth + schema — essentially a generalized version of call_api). Full custom code plugins are a later concern.
+
+### 5. Real-Time Collaboration Architecture
+
+**Context:** Multi-user conversations need conflict resolution and real-time sync.
+
+**Options:**
+- **CRDTs (Yjs/Automerge)** — true real-time collaboration, complex, heavy
+- **Operational Transforms** — proven (Google Docs), complex to implement
+- **Last-write-wins with presence** — simple, good enough if collaboration is sequential (one person types at a time)
+- **Turn-based** — users take turns, no conflict resolution needed
+
+**Recommendation:** Start with turn-based + presence indicators (show who's viewing the conversation). Add last-write-wins for artifact editing. Full CRDT-based collaboration is a v2 concern and likely overkill for an AI chat tool where conversations are inherently sequential.
+
+### 6. Data Residency & Multi-Region
+
+**Context:** Enterprise customers will ask "where is my data stored?"
+
+**Considerations:**
+- Currently single-region on Railway
+- Multi-region adds massive complexity (database replication, CDN, routing)
+- Some customers will require EU-only or US-only
+
+**Recommendation:** Defer multi-region until there's actual enterprise demand. Document current data residency clearly. When needed, deploy separate instances per region rather than building complex multi-region routing.
+
+### 7. Offline / PWA Strategy
+
+**Context:** Should Nexus work offline? PWA would allow installation as a desktop app.
+
+**Considerations:**
+- AI chat inherently requires network (LLM APIs are remote)
+- But conversation history, artifacts, and settings could be cached locally
+- PWA gives "app-like" experience without Electron
+- Service Worker adds complexity and cache invalidation headaches
+
+**Recommendation:** Add PWA manifest and basic Service Worker for app installation and static asset caching. Don't attempt offline message queueing — it's complex and the value is low when the core feature requires network. Focus on making the app installable and fast-loading.
+
+### 8. Markdown Rendering Performance
+
+**Context:** Shiki + KaTeX + marked all run in the browser. For long conversations with lots of code/math, this gets slow.
+
+**Options:**
+- **Web Worker** — offload all rendering to a worker, send HTML back to main thread
+- **Server-side rendering** — pre-render markdown on the backend during streaming
+- **Incremental rendering** — only render visible messages, lazy-render as user scrolls (pairs with virtual scrolling)
+- **Caching** — cache rendered HTML per message (invalidate on theme change)
+
+**Recommendation:** Combine Web Worker + incremental rendering. Move Shiki to a worker (it's the heaviest part). Only render messages in the viewport. Cache rendered HTML in memory. This is a meaningful performance win that should ship with virtual scrolling.
+
+### 9. Agent Run Cost Controls
+
+**Context:** An agent with tools can rack up significant costs if it loops (many tool calls, each triggering LLM calls).
+
+**Questions:**
+- What's the max cost per run? Per user per day?
+- Should users see cost in real-time during a run?
+- Should there be a "stop spending" button?
+
+**Recommendation:** Add real-time cost display during agent runs (we already track token usage). Add configurable per-run and per-user-per-day cost limits. Show a warning at 80% of limit, hard-stop at 100%. Admin can configure limits per role.
+
+---
+
+## Initiative Sequence
+
+The plan below is ordered by dependency, not by calendar. Each initiative should produce a stable layer that unlocks the next one. Within each initiative, the listed workstreams can be owned by different agents in parallel as long as they respect the stated dependencies.
+
+### Initiative 1: Reliability Baseline
+
+**Goal:** Establish a trustworthy shipping and operating foundation before adding major product surface area.
+
+**Depends on:** None
+
+**Parallel workstreams:**
+- **Release engineering agent** — CI/CD pipeline, preview/staging/production environment parity, release versioning, rollback readiness, feature flags
+- **Backend quality agent** — pytest setup, backend smoke suite, migration validation, Ruff, pre-commit, deterministic fixtures for agent runs
+- **Frontend quality agent** — Vitest setup, frontend smoke suite, basic component test harness, build verification
+- **Operations agent** — Sentry, tracing baseline, application metrics, log aggregation, alerting, release tagging
+- **Runtime hardening agent** — timeout/retry policies, cancellation propagation, orphaned stream cleanup, defensive limits, cleanup jobs
+- **Platform infra agent** — Redis for rate limiting/session cache, connection pool tuning, dependency scanning, secret scanning
+
+**Definition of done:**
+- A failing build cannot merge unnoticed
+- A deploy can be verified and rolled back without ad hoc debugging
+- The team can trace a major failure from user action to backend event
+
+**Unlocks:** Initiatives 2, 3, and any customer-facing work that would otherwise be risky to ship
+
+### Initiative 2: Remove Architectural Bottlenecks
+
+**Goal:** Eliminate the current files and state containers that make new work expensive and regression-prone.
+
+**Depends on:** Initiative 1
+
+**Parallel workstreams:**
+- **Backend refactor agent** — break up `backend/services/agent.py`, extract tool execution, retrieval orchestration, streaming mapping, usage accounting
+- **Sandbox boundary agent** — create explicit sandbox service boundary for lifecycle, execution, filesystem, artifact discovery, terminal streaming
+- **Frontend state agent** — split the global Zustand store into focused slices and formalize API state handling
+- **Frontend component agent** — break up `chat-input.tsx`, `message-bubble.tsx`, `sidebar.tsx`, and reduce logic in `workspace.tsx`
+- **UI resilience agent** — per-panel error boundaries and consistent error surfaces
+
+**Definition of done:**
+- No critical flow depends on a single "god file"
+- Core runtime behavior is testable through small modules
+- New features can be added without first untangling unrelated code
+
+**Unlocks:** Initiatives 3-7
+
+### Initiative 3: Standardize Platform Primitives
+
+**Goal:** Define the shared contracts that all later product and extension work will rely on.
+
+**Depends on:** Initiatives 1-2
+
+**Parallel workstreams:**
+- **Tool contract agent** — typed tool input/output contracts, timeout behavior, retry policy, logging, redaction, error classification
+- **Event model agent** — structured event taxonomy for streaming, tools, retrieval, sandbox lifecycle, artifacts, user-visible errors
+- **Artifact model agent** — artifact identity, lineage, versioning, persistence rules, source linking
+- **Audit model agent** — append-only audit event schema for sensitive actions and admin-visible audit trails
+- **Frontend request-state agent** — consistent request lifecycle model, optimistic update patterns, retry semantics, degraded-state UX
+
+**Definition of done:**
+- Tools, artifacts, runtime events, and audit events have stable schemas
+- Frontend and backend share a clear contract for long-running executions
+- Later features do not need bespoke event or artifact formats
+
+**Unlocks:** Initiatives 4-9, especially legibility, memory, `create_ui`, MCP, and enterprise controls
+
+### Initiative 4: Make Execution Legible
+
+**Goal:** Turn the existing agent runtime into an understandable product surface before adding significantly more power.
+
+**Depends on:** Initiative 3
+
+**Parallel workstreams:**
+- **Timeline agent** — execution timeline UI, reasoning summary, retrieval steps, tool calls, sandbox commands, durations, token usage
+- **Provenance agent** — distinguish model answers, cited sources, retrieved context, artifacts, sandbox-generated files
+- **Artifact center agent** — unified artifact center, search/filter, pinning, source conversation/message linking
+- **Run comparison agent** — compare mode for runs, artifact versions, and alternate tool/model strategies
+- **Uncertainty UX agent** — confidence markers, degraded-state indicators, post-run summaries, "what to review" and "what I'm uncertain about"
+
+**Definition of done:**
+- A user can inspect what the system did without reading logs
+- Artifacts and outputs can be traced back to prompts, tools, and sources
+- Branches and reruns are understandable, not hidden implementation detail
+
+**Unlocks:** Initiatives 5-7 and stronger enterprise audit/compliance stories
+
+### Initiative 5: Establish Durable Workspace Structure
+
+**Goal:** Move from isolated chats to persistent working context that later memory and collaboration features can build on.
+
+**Depends on:** Initiatives 3-4
+
+**Parallel workstreams:**
+- **Workspace agent** — reusable projects/workspaces, grouping conversations, knowledge bases, agents, preferred models
+- **Organization agent** — full-text search, smart folders/tags, pinned messages/items, session continuity
+- **Context controls agent** — context window visualization, pinned context, session memory controls, project vs conversation boundaries
+- **Power UX agent** — quick switcher, command bar, keyboard-first navigation, split view where it fits the workspace model
+
+**Definition of done:**
+- Users can organize work into stable containers instead of loose conversations
+- Search and navigation work across conversations and artifacts
+- Context boundaries are explicit enough to support memory and access control later
+
+**Unlocks:** Initiatives 6, 8, and 9
+
+### Initiative 6: Add Trusted Memory and Knowledge Flows
+
+**Goal:** Improve system intelligence only after the workspace, provenance, and control model are in place.
+
+**Depends on:** Initiatives 4-5
+
+**Parallel workstreams:**
+- **Memory agent** — persistent AI memory, memory storage rules, retrieval/use policy, per-scope controls
+- **Memory UX agent** — memory management UI, inspect/edit/delete flows, visibility into what is remembered and why
+- **Knowledge UX agent** — citation UX overhaul, highlighted source passages, better retrieval usefulness signals
+- **Structured data agent** — structured-data RAG, DuckDB-backed CSV/Excel analysis, schema preview, profiling, chart suggestions
+
+**Definition of done:**
+- Memory is visible, editable, scoped, and auditable
+- Retrieval-backed answers expose evidence clearly
+- Data workflows are useful without becoming opaque or magical
+
+**Unlocks:** Initiatives 7-9
+
+### Initiative 7: Add Interactive and Applied Workflows
+
+**Goal:** Build richer interfaces and execution ergonomics on top of stable event, artifact, and workspace primitives.
+
+**Depends on:** Initiatives 3-6
+
+**Parallel workstreams:**
+- **`create_ui` agent** — JSON-schema form tool, renderer, submission flow, artifact persistence, structured response handling
+- **Artifact viewer agent** — richer viewers, diffs, version rollback, chart editing, notebook-style data views
+- **Coding workflow agent** — file tree diffs, command history, save/restore checkpoints, inspect-before-apply, revert controls
+- **Data workflow agent** — table transforms, notebook-style replay, report-builder flows, approval/review interfaces
+- **Input modalities agent** — vision input, file intelligence, and selected high-value multimodal affordances that reuse existing primitives
+
+**Definition of done:**
+- The AI can produce interactive workflows without bespoke implementations each time
+- Applied coding/data tasks feel first-class rather than bolted on
+- Interactive outputs still preserve provenance, auditability, and reversibility
+
+**Unlocks:** Initiative 8 and higher-end product differentiation
+
+### Initiative 8: Open the Platform
+
+**Goal:** Expose stable extension points only after internal runtime and tool abstractions have settled.
+
+**Depends on:** Initiatives 1-7
+
+**Parallel workstreams:**
+- **Jobs agent** — background job infrastructure, durable task state, cleanup/scheduled execution support, webhook processing
+- **MCP agent** — MCP client support, connection management, permissions model, operator visibility
+- **Plugin registry agent** — user-defined tools via UI, auth/schema management, safe execution boundaries
+- **Integration agent** — first-party integrations (for example GitHub, Slack) built on the same extension model
+- **Automation agent** — scheduled tasks, external triggers, notifications, admin controls
+
+**Definition of done:**
+- New tools and automations can be added without changing core backend code each time
+- Extension mechanisms inherit the same contracts, auditability, and security posture as built-in tools
+
+**Unlocks:** Initiative 9 and future ecosystem/product platform work
+
+### Initiative 9: Team, Enterprise, and Governance Layer
+
+**Goal:** Make the product safe and manageable for shared organizational use.
+
+**Depends on:** Initiatives 3-8
+
+**Parallel workstreams:**
+- **Access control agent** — RBAC, model/tool access policies, session management, IP allowlisting
+- **Shared workspace agent** — team workspaces, shared conversations, artifact comments, approvals, activity feed
+- **Compliance agent** — immutable audit logging, retention policies, data export, DLP, residency posture/documentation
+- **Admin analytics agent** — team usage overview, cost allocation, feature adoption, error-rate drill-down, compliance dashboard
+
+**Definition of done:**
+- Multiple users can safely share context and outputs
+- Admins can answer who did what, with what data, and at what cost
+- Enterprise controls build on existing workspace and audit primitives instead of bypassing them
+
+**Unlocks:** Initiative 10 and enterprise go-to-market readiness
+
+### Initiative 10: Frontier Differentiators
+
+**Goal:** Pursue expensive, high-upside differentiators only after the foundation and platform are stable.
+
+**Depends on:** Initiatives 4-9
+
+**Parallel workstreams:**
+- **Multi-agent agent** — multi-agent orchestration, best-of-N workflows, merge/adopt flows, explainable differences
+- **Agent builder agent** — visual agent builder and higher-level workflow authoring
+- **Realtime collaboration agent** — deeper collaboration primitives beyond shared workspaces when justified
+- **Voice/multimodal agent** — full voice conversation mode, screen/video capture, sketch input
+- **Polish agent** — accessibility audit/remediation, visual regression suite, fuzzing, advanced performance optimization
+
+**Definition of done:**
+- Differentiators feel like multipliers on a strong core, not unstable demos
+- Advanced capabilities still preserve reliability, legibility, and governance
+
+**Cross-Initiative Rules**
+
+- Do not open extension points before tool/event/audit contracts are stable
+- Do not ship persistent memory before users can inspect, scope, and delete it
+- Do not add shared/team features before workspace boundaries and audit events are defined
+- Do not prioritize frontier interaction modes over legibility of existing execution
+- Each initiative should end with a documented release checklist, telemetry coverage, and regression protection appropriate to the surface area it adds
+
+---
+
+## Success Metrics
+
+Track these to know when we've arrived:
+
+| Metric | Current (est.) | 90-Day Target | World-Class Target |
+|--------|---------------|---------------|-------------------|
+| Time to first token | ~1-3s | <800ms | <500ms (with caching) |
+| P95 page load | Unknown | <2s | <1.5s |
+| Test coverage (backend) | ~15% | >50% | >80% |
+| Test coverage (frontend) | 0% | >30% | >60% |
+| Lighthouse performance | Unknown | >80 | >90 |
+| Lighthouse accessibility | Unknown | >85 | >95 |
+| MTTR | Unknown (no monitoring) | <1hr | <15min |
+| Deploy frequency | Manual | Weekly | Multiple per day |
+| Error rate | Unknown | <1% | <0.1% |
+| Concurrent streams | ~50 (est.) | 200 | 1000+ |
+| Smoke test time | N/A | <60s | <30s |
+| E2E suite time | N/A | <5min | <3min |
+
+---
+
+## Guiding Principle
+
+Nexus should not try to win by becoming a bigger generic AI app.
+
+It should win by becoming the most trustworthy and legible environment for doing real work with AI:
+
+- Better operational reliability than AI prototypes
+- Better workflow depth than generic chat apps
+- Better execution transparency than black-box agents
+- Better artifacts than text-only assistants
+- Better extensibility than walled-garden products
+
+That is the path from "pretty decent tool" to "gold standard."

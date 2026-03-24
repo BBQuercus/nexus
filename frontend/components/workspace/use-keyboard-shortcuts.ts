@@ -21,6 +21,11 @@ export function useKeyboardShortcuts({
 
     if (meta && e.shiftKey && e.key === 'f') {
       e.preventDefault();
+      useStore.getState().setSearchPanelOpen(!useStore.getState().searchPanelOpen);
+      return;
+    }
+    if (meta && e.shiftKey && e.key === '.') {
+      e.preventDefault();
       onToggleFocusMode();
       return;
     }
@@ -32,6 +37,10 @@ export function useKeyboardShortcuts({
     if (e.key === 'Escape') {
       if (focusModeRef.current) {
         onToggleFocusMode();
+        return;
+      }
+      if (useStore.getState().searchPanelOpen) {
+        useStore.getState().setSearchPanelOpen(false);
         return;
       }
       if (useStore.getState().commandPaletteOpen) {

@@ -9,6 +9,7 @@
 - SSRF protection: block private IPs (10.x, 172.16-31.x, 192.168.x, 127.x, 169.254.x, ::1)
 - Response: status_code, response_headers (content-type, content-length), body (truncated 8000 chars), duration_ms
 - Parse JSON responses automatically, return formatted
+- Redact auth values from logs, SSE payloads, and persisted tool output
 
 **Tool definition:** `backend/prompts/tools.py`
 ```json
@@ -26,7 +27,7 @@
 }
 ```
 
-**Agent handler:** in `agent.py`, call `web.call_api(...)`, yield tool_output with response.
+**Agent handler:** in `backend/services/agent.py`, call `web.call_api(...)`, yield `tool_output` with response.
 
 ---
 
@@ -39,6 +40,7 @@
 - Extract with trafilatura: returns clean text, title, author, date
 - Truncate to ~4000 chars (configurable) to fit LLM context
 - Fallback: if trafilatura fails, basic HTML tag stripping via regex
+- Reuse the same outbound URL validation and SSRF protection as `call_api`
 
 **Tool definition:**
 ```json
@@ -52,7 +54,7 @@
 }
 ```
 
-**Returns:** title, author, date, main_text (truncated), url, word_count, links (if requested)
+**Returns:** `url`, `final_url`, `status_code`, `title`, `author`, `date`, `main_text` (truncated), `word_count`, `links` (if requested)
 
 ---
 
@@ -64,7 +66,7 @@
 ```json
 {
   "name": "create_chart",
-  "description": "Create an interactive chart. Provide a Vega-Lite specification. The chart will be rendered interactively in the user's browser with tooltips, zoom, and pan. Prefer this over matplotlib for any chart that benefits from interactivity.",
+  "description": "Create an interactive chart. Provide a Vega-Lite specification. The chart will be rendered in the user's browser. Prefer this over matplotlib for charts that benefit from interactivity.",
   "parameters": {
     "spec": "object (required) — complete Vega-Lite JSON specification including data",
     "title": "string (optional) — chart title for the artifact card"
@@ -75,16 +77,18 @@
 **Agent handler:**
 - Validate spec is valid JSON with required Vega-Lite fields ($schema, mark or layer)
 - Yield SSE event `chart_output` with the spec
-- Save as artifact type "interactive_chart"
+- Save as artifact type `chart`
 
 **Frontend:**
 - New component `VegaChart.tsx` — lazy-loads `vega-embed`, renders spec into a container
-- Dark theme: inject `config.background: '#121214'`, axis/text colors to match Nexus theme
+- Dark theme: apply chart theming in the frontend, not the backend
 - Artifact card: renders the chart inline, with "Download PNG", "Download SVG", "View fullscreen" buttons
 - `vega-embed` provides export to PNG/SVG built-in via its action menu
+- v1 guarantees rendering and stored chart artifacts; spec-defined interactivity works as authored, but zoom/pan is not auto-added globally
 
 **SSE event:** `chart_output` with `{spec: {...}, title: "..."}`
 **Streaming state:** Add `charts` array to StreamingState
+**Artifacts:** normalize artifact types end-to-end so backend and frontend both use `chart`
 
 **System prompt addition:**
 ```
@@ -92,7 +96,7 @@
 - Use the create_chart tool for interactive visualizations instead of matplotlib
 - Provide complete Vega-Lite specs with inline data
 - Dark theme will be applied automatically
-- Charts support: tooltips, zoom, pan, selection
+- Charts support interactive behavior defined by the Vega-Lite spec
 - Supported mark types: bar, line, area, point, rect, arc, boxplot, etc.
 ```
 
@@ -117,12 +121,13 @@
 **Agent handler:**
 - Generate a Python script that:
   1. Imports duckdb
-  2. Auto-discovers CSV/Excel/Parquet files in `/home/daytona/` and registers as tables (filename without extension = table name)
+  2. Auto-discovers CSV/Excel/Parquet files in `/home/daytona/` and registers as tables
   3. Runs the SQL query
   4. Formats output as markdown table (default), CSV, or JSON
   5. Prints schema info if query fails (list available tables + columns)
-- Execute via existing `execute_code` sandbox mechanism
-- Parse output, detect tables for artifact extraction
+- Execute via the existing sandbox path in `backend/services/agent.py` using generated Python, rather than exposing raw `execute_code`
+- Sanitize filenames into valid SQL table names and print the file-to-table mapping in errors when helpful
+- Add streamed table handling and/or persisted table artifacts so SQL output is visible in the UI
 
 **System prompt addition:**
 ```
@@ -138,6 +143,8 @@
 
 ## 5. `create_ui` — Interactive forms/questionnaires (DEFERRED)
 
+Ignored for now. Keep this in the plan, but do not implement it in the current pass.
+
 Needs more discussion on:
 - Component library: render from JSON schema or allow HTML/React?
 - Response flow: how do form submissions get back to the AI?
@@ -150,10 +157,11 @@ Will design separately after tools 1-4 ship.
 
 ## Implementation order
 
-1. `call_api` + `web_browse` — same service file, quick to add
-2. `create_chart` — needs frontend Vega-Lite integration
+1. Normalize artifact and streaming support so backend/frontend agree on `chart`, `table`, and related artifact types
+2. `call_api` + `web_browse` — same service file, quick to add
 3. `run_sql` — sandbox-side, straightforward
-4. `create_ui` — designed separately
+4. `create_chart` — needs frontend Vega-Lite integration
+5. `create_ui` — ignored for now; design separately later
 
 ## Dependencies to add
 

@@ -24,7 +24,9 @@ from backend.routers.chat import artifact_router, router as chat_router
 from backend.routers.feedback import router as feedback_router
 from backend.routers.knowledge import router as knowledge_router, doc_router as knowledge_doc_router, retrieval_router as knowledge_retrieval_router
 from backend.routers.media import router as media_router
+from backend.routers.projects import router as projects_router
 from backend.routers.sandboxes import router as sandboxes_router
+from backend.routers.search import router as search_router
 from backend.routers.tts import router as tts_router
 from backend.routers.users import router as users_router
 from backend.services import sandbox as sandbox_service
@@ -173,6 +175,8 @@ app.include_router(knowledge_router)
 app.include_router(knowledge_doc_router)
 app.include_router(knowledge_retrieval_router)
 app.include_router(media_router)
+app.include_router(projects_router)
+app.include_router(search_router)
 
 
 # ── Prometheus Metrics ──

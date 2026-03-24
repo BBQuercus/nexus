@@ -44,6 +44,7 @@ MODEL_PRICING: dict[str, tuple[float, float]] = {
     "azure_ai/kimi-k2.5": (0.60, 3.00),
     "azure_ai/deepseek-v3.2": (0.58, 1.68),
     "azure_ai/grok-4-fast-reasoning": (0.20, 0.50),
+    "azure_ai/gpt-5.4-mini": (0.75, 4.50),
 }
 
 # Retryable HTTP status codes

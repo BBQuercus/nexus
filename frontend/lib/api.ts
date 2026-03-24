@@ -1,4 +1,4 @@
-import type { Conversation, Message, Artifact, AgentPersona, User, FileNode, ConversationTree, KnowledgeBase, KBDocument, Citation } from './types';
+import type { Conversation, Message, Artifact, AgentPersona, User, FileNode, ConversationTree, KnowledgeBase, KBDocument, Citation, Project, SearchResult } from './types';
 import { clearToken, getCsrfToken, getToken } from './auth';
 
 export class ApiError extends Error {
@@ -109,6 +109,7 @@ function mapConversation(c: Record<string, unknown>): Conversation {
     model: (c.model as string) || undefined,
     sandboxId: (c.sandbox_id as string) || (c.sandboxId as string) || undefined,
     personaId: (c.persona_id as string) || (c.personaId as string) || undefined,
+    projectId: (c.project_id as string) || (c.projectId as string) || undefined,
     messageCount: (c.message_count as number) || (c.messageCount as number) || undefined,
   };
 }
@@ -126,10 +127,11 @@ export async function createConversation(params: {
   });
 }
 
-export async function listConversations(search?: string, page?: number): Promise<ConversationsListResponse> {
+export async function listConversations(search?: string, page?: number, projectId?: string): Promise<ConversationsListResponse> {
   const params = new URLSearchParams();
   if (search) params.set('search', search);
   if (page) params.set('page', String(page));
+  if (projectId) params.set('project_id', projectId);
   const qs = params.toString();
   const raw = await apiFetch<{
     conversations: Record<string, unknown>[];
@@ -706,4 +708,101 @@ export async function listConversationDocuments(convId: string): Promise<KBDocum
 
 export async function getRetrievalLog(messageId: string): Promise<Record<string, unknown>> {
   return apiFetch(`/api/messages/${messageId}/retrieval`);
+}
+
+// ── Projects ──
+
+function projectFromSnake(raw: Record<string, unknown>): Project {
+  return {
+    id: (raw.id as string) || '',
+    name: (raw.name as string) || '',
+    description: (raw.description as string) || undefined,
+    icon: (raw.icon as string) || undefined,
+    color: (raw.color as string) || undefined,
+    default_model: (raw.default_model as string) || undefined,
+    default_persona_id: (raw.default_persona_id as string) || undefined,
+    knowledge_base_ids: (raw.knowledge_base_ids as string[]) || [],
+    pinned_conversation_ids: (raw.pinned_conversation_ids as string[]) || [],
+    settings: (raw.settings as Record<string, unknown>) || {},
+    conversation_count: (raw.conversation_count as number) || 0,
+    archived: (raw.archived as boolean) ?? false,
+    created_at: (raw.created_at as string) || '',
+    updated_at: (raw.updated_at as string) || '',
+  };
+}
+
+export async function createProject(params: {
+  name: string;
+  description?: string;
+  icon?: string;
+  color?: string;
+  default_model?: string;
+}): Promise<Project> {
+  const raw = await apiFetch<Record<string, unknown>>('/api/projects', {
+    method: 'POST',
+    body: JSON.stringify(params),
+  });
+  return projectFromSnake(raw);
+}
+
+export async function listProjects(includeArchived = false): Promise<Project[]> {
+  const qs = includeArchived ? '?include_archived=true' : '';
+  const raw = await apiFetch<Record<string, unknown>[]>(`/api/projects${qs}`);
+  return raw.map(projectFromSnake);
+}
+
+export async function getProject(id: string): Promise<Project> {
+  const raw = await apiFetch<Record<string, unknown>>(`/api/projects/${id}`);
+  return projectFromSnake(raw);
+}
+
+export async function updateProject(id: string, params: Partial<Project>): Promise<Project> {
+  const raw = await apiFetch<Record<string, unknown>>(`/api/projects/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(params),
+  });
+  return projectFromSnake(raw);
+}
+
+export async function deleteProject(id: string): Promise<void> {
+  return apiFetch<void>(`/api/projects/${id}`, { method: 'DELETE' });
+}
+
+export async function moveConversationToProject(
+  projectId: string,
+  conversationId: string,
+): Promise<void> {
+  return apiFetch<void>(`/api/projects/${projectId}/conversations`, {
+    method: 'POST',
+    body: JSON.stringify({ conversation_id: conversationId }),
+  });
+}
+
+export async function listProjectConversations(
+  projectId: string,
+  page = 1,
+): Promise<ConversationsListResponse> {
+  const raw = await apiFetch<{
+    conversations: Record<string, unknown>[];
+    total: number;
+    page: number;
+    page_size?: number;
+  }>(`/api/projects/${projectId}/conversations?page=${page}`);
+  return {
+    conversations: (raw.conversations || []).map(mapConversation),
+    total: raw.total,
+    page: raw.page,
+    pageSize: raw.page_size || 50,
+  };
+}
+
+// ── Search ──
+
+export async function searchAll(
+  query: string,
+  scope: 'all' | 'conversations' | 'messages' | 'artifacts' = 'all',
+  limit = 20,
+): Promise<SearchResult> {
+  const params = new URLSearchParams({ q: query, scope, limit: String(limit) });
+  return apiFetch<SearchResult>(`/api/search?${params.toString()}`);
 }

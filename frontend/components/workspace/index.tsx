@@ -12,6 +12,7 @@ import ChatMessages from '../chat-messages';
 import ChatInput from '../chat-input';
 import EmptyState from '../empty-state';
 import CommandPalette from '../command-palette';
+import SearchPanel from '../search-panel';
 import ConfirmDialog from '../confirm-dialog';
 import ToastContainer from '../toast';
 import PanelErrorBoundary from '../panel-error-boundary';
@@ -30,6 +31,8 @@ export default function Workspace() {
   const activeConversationId = useStore((s) => s.activeConversationId);
   const sidebarOpen = useStore((s) => s.sidebarOpen);
   const commandPaletteOpen = useStore((s) => s.commandPaletteOpen);
+  const searchPanelOpen = useStore((s) => s.searchPanelOpen);
+  const setSearchPanelOpen = useStore((s) => s.setSearchPanelOpen);
   const confirmDialog = useStore((s) => s.confirmDialog);
   const resolveConfirm = useStore((s) => s.resolveConfirm);
   const setSidebarOpen = useStore((s) => s.setSidebarOpen);
@@ -181,6 +184,7 @@ export default function Workspace() {
       )}
 
       {commandPaletteOpen && <CommandPalette />}
+      {searchPanelOpen && <SearchPanel />}
       {shortcutsOpen && <KeyboardShortcuts onClose={() => setShortcutsOpen(false)} />}
       <DiffViewer />
       <ToastContainer />

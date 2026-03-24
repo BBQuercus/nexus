@@ -1,4 +1,4 @@
-import type { User, Conversation, Message, Artifact, AgentPersona, ToolCall, ConversationTree, Citation, RetrievalResult, KnowledgeBase, StreamingTable, StreamingChart } from '../types';
+import type { User, Conversation, Message, Artifact, AgentPersona, ToolCall, ConversationTree, Citation, RetrievalResult, KnowledgeBase, StreamingTable, StreamingChart, Project } from '../types';
 
 export interface StreamingImage {
   filename: string;
@@ -71,6 +71,9 @@ export interface AppState {
   confirmDialog: ConfirmState;
   activeKnowledgeBaseIds: string[];
   diffView: { columns: { label: string; content: string }[] } | null;
+  projects: Project[];
+  activeProjectId: string | null;
+  searchPanelOpen: boolean;
 }
 
 export interface AppActions {
@@ -114,6 +117,9 @@ export interface AppActions {
   setActiveKnowledgeBaseIds: (ids: string[]) => void;
   toggleKnowledgeBase: (id: string) => void;
   setDiffView: (diff: AppState['diffView']) => void;
+  setProjects: (projects: Project[]) => void;
+  setActiveProjectId: (id: string | null) => void;
+  setSearchPanelOpen: (open: boolean) => void;
   reset: () => void;
 }
 

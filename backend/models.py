@@ -57,8 +57,46 @@ class User(Base):
     )
 
     conversations: Mapped[list["Conversation"]] = relationship(back_populates="user")
+    projects: Mapped[list["Project"]] = relationship()
     agent_personas: Mapped[list["AgentPersona"]] = relationship(back_populates="user")
     usage_logs: Mapped[list["UsageLog"]] = relationship(back_populates="user")
+
+
+class Project(Base):
+    __tablename__ = "projects"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id")
+    )
+    name: Mapped[str] = mapped_column(String)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    icon: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    color: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    default_model: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    default_persona_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("agent_personas.id"), nullable=True
+    )
+    knowledge_base_ids: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
+    pinned_conversation_ids: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
+    settings: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
+    archived: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=text("false")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    user: Mapped["User"] = relationship()
+    conversations: Mapped[list["Conversation"]] = relationship(back_populates="project")
 
 
 class Conversation(Base):
@@ -72,6 +110,9 @@ class Conversation(Base):
     )
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id")
+    )
+    project_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="SET NULL"), nullable=True, index=True
     )
     title: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     model: Mapped[Optional[str]] = mapped_column(String, nullable=True)
@@ -98,6 +139,7 @@ class Conversation(Base):
     )
 
     user: Mapped["User"] = relationship(back_populates="conversations")
+    project: Mapped[Optional["Project"]] = relationship(back_populates="conversations")
     messages: Mapped[list["Message"]] = relationship(
         back_populates="conversation", cascade="all, delete-orphan",
         foreign_keys="[Message.conversation_id]",
