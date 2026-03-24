@@ -17,8 +17,11 @@ from backend.db import Base, engine, get_db
 from backend.logging_config import get_logger, setup_logging
 from backend.middleware import GlobalExceptionMiddleware, RequestIdMiddleware
 from backend.models import FrontendError
+from backend.routers.admin import router as admin_router
 from backend.routers.agents import router as agents_router
+from backend.routers.analytics import router as analytics_router
 from backend.routers.chat import artifact_router, router as chat_router
+from backend.routers.feedback import router as feedback_router
 from backend.routers.sandboxes import router as sandboxes_router
 from backend.routers.tts import router as tts_router
 from backend.routers.users import router as users_router
@@ -76,6 +79,9 @@ app.include_router(sandboxes_router)
 app.include_router(agents_router)
 app.include_router(users_router)
 app.include_router(tts_router)
+app.include_router(feedback_router)
+app.include_router(analytics_router)
+app.include_router(admin_router)
 
 
 # ── Health Check (deep) ──
