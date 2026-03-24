@@ -3,6 +3,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { AlertTriangle, WifiOff } from 'lucide-react';
 import { getHealth, type HealthCheck } from '@/lib/api';
+import { MODELS } from '@/lib/types';
+
+const MODEL_LABELS = new Map(MODELS.map((model) => [model.id, model.name]));
 
 export default function HealthBanner() {
   const [health, setHealth] = useState<HealthCheck | null>(null);
@@ -58,12 +61,30 @@ export default function HealthBanner() {
     .filter(([, v]) => v.status !== 'ok' && v.status !== 'unconfigured')
     .map(([k]) => k === 'db' ? 'Database' : k === 'llm' ? 'AI models' : 'Sandbox');
 
+  const affectedModelNames = (health.checks.llm.affected_models || []).map(
+    (modelId) => MODEL_LABELS.get(modelId) || modelId,
+  );
+  const affectedPreview = affectedModelNames.slice(0, 3).join(', ');
+  const affectedSuffix = affectedModelNames.length > 0
+    ? ` (${affectedPreview}${affectedModelNames.length > 3 ? ` +${affectedModelNames.length - 3} more` : ''})`
+    : '';
+  const llmError = health.checks.llm.error ? `Error: ${health.checks.llm.error}` : '';
+  const llmTitle = affectedModelNames.length > 0
+    ? `Affected models: ${affectedModelNames.join(', ')}${llmError ? `\n${llmError}` : ''}`
+    : llmError;
+
   if (degraded.length === 0) return null;
 
   return (
-    <div className="flex items-center justify-center gap-2 px-3 py-1.5 bg-warning/10 border-b border-warning/20 text-warning text-xs">
+    <div
+      className="flex items-center justify-center gap-2 px-3 py-1.5 bg-warning/10 border-b border-warning/20 text-warning text-xs"
+      title={llmTitle || undefined}
+    >
       <AlertTriangle size={12} />
-      <span>Some services are experiencing issues: {degraded.join(', ')}</span>
+      <span>
+        Some services are experiencing issues: {degraded.join(', ')}
+        {degraded.includes('AI models') ? affectedSuffix : ''}
+      </span>
     </div>
   );
 }
