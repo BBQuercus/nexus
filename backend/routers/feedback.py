@@ -49,31 +49,19 @@ async def create_feedback(
         raise HTTPException(status_code=400, detail="Rating must be 'up' or 'down'")
 
     # Verify conversation belongs to user
-    result = await db.execute(
-        select(Conversation).where(
-            Conversation.id == conv_id, Conversation.user_id == user_id
-        )
-    )
+    result = await db.execute(select(Conversation).where(Conversation.id == conv_id, Conversation.user_id == user_id))
     conv = result.scalar_one_or_none()
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
 
     # Verify message belongs to conversation
-    result = await db.execute(
-        select(Message).where(
-            Message.id == msg_id, Message.conversation_id == conv_id
-        )
-    )
+    result = await db.execute(select(Message).where(Message.id == msg_id, Message.conversation_id == conv_id))
     msg = result.scalar_one_or_none()
     if not msg:
         raise HTTPException(status_code=404, detail="Message not found")
 
     # Check for existing feedback on this message by this user
-    fb_result = await db.execute(
-        select(Feedback).where(
-            Feedback.message_id == msg_id, Feedback.user_id == user_id
-        )
-    )
+    fb_result = await db.execute(select(Feedback).where(Feedback.message_id == msg_id, Feedback.user_id == user_id))
     existing = fb_result.scalar_one_or_none()
 
     if existing:
@@ -107,9 +95,7 @@ async def create_feedback(
         )
 
     # Update message.feedback for backwards compatibility
-    await db.execute(
-        update(Message).where(Message.id == msg_id).values(feedback=body.rating)
-    )
+    await db.execute(update(Message).where(Message.id == msg_id).values(feedback=body.rating))
 
     await db.flush()
 
@@ -131,19 +117,13 @@ async def list_conversation_feedback(
 ):
     """List all feedback for a conversation."""
     # Verify conversation belongs to user
-    result = await db.execute(
-        select(Conversation).where(
-            Conversation.id == conv_id, Conversation.user_id == user_id
-        )
-    )
+    result = await db.execute(select(Conversation).where(Conversation.id == conv_id, Conversation.user_id == user_id))
     conv = result.scalar_one_or_none()
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
 
     fb_result = await db.execute(
-        select(Feedback)
-        .where(Feedback.conversation_id == conv_id)
-        .order_by(Feedback.created_at.desc())
+        select(Feedback).where(Feedback.conversation_id == conv_id).order_by(Feedback.created_at.desc())
     )
     feedbacks = fb_result.scalars().all()
 

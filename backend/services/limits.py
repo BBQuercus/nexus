@@ -43,6 +43,7 @@ limits = Limits()
 def check_upload_size(content_length: int | None, filename: str = ""):
     """Check upload size BEFORE reading into memory. Raise early."""
     from fastapi import HTTPException
+
     if content_length and content_length > limits.MAX_UPLOAD_SIZE_BYTES:
         max_mb = limits.MAX_UPLOAD_SIZE_BYTES / (1024 * 1024)
         raise HTTPException(
@@ -54,6 +55,7 @@ def check_upload_size(content_length: int | None, filename: str = ""):
 def check_message_length(content: str):
     """Check message length before processing."""
     from fastapi import HTTPException
+
     if len(content) > limits.MAX_MESSAGE_LENGTH:
         raise HTTPException(
             status_code=413,

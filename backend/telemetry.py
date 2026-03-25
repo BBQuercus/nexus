@@ -13,11 +13,13 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExport
 from prometheus_client import Counter, Gauge, Histogram, Info
 
 # --- Resource ---
-_resource = Resource.create({
-    "service.name": "nexus-backend",
-    "service.version": os.environ.get("RELEASE_VERSION", "dev"),
-    "deployment.environment": os.environ.get("ENVIRONMENT", "development"),
-})
+_resource = Resource.create(
+    {
+        "service.name": "nexus-backend",
+        "service.version": os.environ.get("RELEASE_VERSION", "dev"),
+        "deployment.environment": os.environ.get("ENVIRONMENT", "development"),
+    }
+)
 
 # --- Prometheus Metrics ---
 
@@ -126,10 +128,12 @@ def setup_telemetry(app=None, db_engine=None):
     """Initialize OpenTelemetry tracing and auto-instrumentation."""
 
     # Set app info
-    app_info.info({
-        "version": os.environ.get("RELEASE_VERSION", "dev"),
-        "environment": os.environ.get("ENVIRONMENT", "development"),
-    })
+    app_info.info(
+        {
+            "version": os.environ.get("RELEASE_VERSION", "dev"),
+            "environment": os.environ.get("ENVIRONMENT", "development"),
+        }
+    )
 
     # Configure tracer provider
     provider = TracerProvider(resource=_resource)
@@ -138,6 +142,7 @@ def setup_telemetry(app=None, db_engine=None):
     otlp_endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT")
     if otlp_endpoint:
         from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+
         exporter = OTLPSpanExporter(endpoint=otlp_endpoint)
         provider.add_span_processor(BatchSpanProcessor(exporter))
     elif os.environ.get("OTEL_CONSOLE_EXPORT"):

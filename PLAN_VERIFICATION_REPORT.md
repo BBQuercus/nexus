@@ -1,361 +1,296 @@
 # PLAN Verification Report
 
 Date: 2026-03-25
-Verified against: `/Users/beichenberger/Github/nexus/PLAN.md`
+Verification basis: current workspace state after recent changes
+Verified against:
 
-## Scope
+- `/Users/beichenberger/Github/nexus/PLAN.md`
+- prior findings from the earlier verification pass
 
-This report verifies the claims in `PLAN.md` against the current repository state, configuration, and executable checks. The main question was whether "all 10 initiatives" were actually implemented and whether regressions exist.
+## What Changed Since The Last Pass
 
-## Commands Run
+Several earlier regressions are now fixed.
+
+Now passing:
 
 - `uv run pytest tests -q`
 - `npm test`
-- `npx tsc --noEmit`
-- `npm run build`
 - `npm run lint`
+- `npm run build`
 - `uv run python -m mypy backend/ --ignore-missing-imports`
 - `uv run ruff check backend/`
 
+Previously reported issues that no longer reproduce:
+
+- frontend build failure in `vega-chart.tsx`
+- frontend lint bootstrap prompt
+- backend mypy failures
+- backend ruff check failures
+- audit system not being called anywhere
+- execution/memory/artifact components being completely unmounted
+- memory not being integrated into the agent runtime
+
+## Commands Run In This Pass
+
+- `uv run pytest tests -q`
+- `npm test`
+- `npm run lint`
+- `npm run build`
+- `npx tsc --noEmit`
+- `uv run python -m mypy backend/ --ignore-missing-imports`
+- `uv run ruff check backend/`
+- `make ci`
+
 ## Executive Summary
 
-The repository contains a substantial amount of the work described in `PLAN.md`, but the headline statement in `PLAN.md` that "All 10 initiatives [are] implemented" is not accurate as written.
+The codebase is in much better shape than it was in the first verification pass. Most of the release-gate checks now pass individually, and several earlier integration gaps were closed.
 
-Current state:
+However, the top-level `PLAN.md` statement:
 
-- Backend tests pass: `145 passed`
-- Frontend tests pass: `77 passed`
-- Frontend type-check fails
-- Frontend production build fails
-- Frontend lint command is not operational
-- Backend mypy fails
-- Backend ruff fails heavily
+- "All 10 initiatives structurally implemented; release gate green"
 
-Conclusion:
+is still not fully accurate.
 
-- Several initiatives are partially implemented.
-- Some deliverables exist only as standalone files/components and are not integrated into the application.
-- A few implementation-log claims are materially overstated.
-- There are active regressions in the release gate, so Initiative 1 cannot be considered complete.
+Current best reading:
 
-## High-Signal Findings
+- "all 10 initiatives structurally implemented" is broadly defensible
+- "release gate green" is not yet true
 
-### 1. Release gate is broken, so Initiative 1 is not complete
+The main remaining blocker is that `make ci` still fails because formatting checks are not clean, and the CI workflow still allows frontend tests to fail without blocking the pipeline.
 
-Evidence:
-
-- CI claims to run frontend type-check, lint, build, and tests in [`.github/workflows/ci.yml`](/Users/beichenberger/Github/nexus/.github/workflows/ci.yml#L46), but the local equivalents do not all pass.
-- Frontend tests are marked `continue-on-error: true` in [`.github/workflows/ci.yml`](/Users/beichenberger/Github/nexus/.github/workflows/ci.yml#L74), so a broken frontend test suite would not block CI.
-- `npm run lint` is not non-interactive; it prompts to configure ESLint instead of running a real lint check. There is no ESLint config file in the repo root or frontend app.
-- `npx tsc --noEmit` fails in [`frontend/components/vega-chart.tsx`](/Users/beichenberger/Github/nexus/frontend/components/vega-chart.tsx#L5).
-- `npm run build` fails on the same file and also reports a `canvas` resolution warning via `vega-embed`.
-- `uv run python -m mypy backend/ --ignore-missing-imports` fails with multiple errors.
-- `uv run ruff check backend/` reports 649 errors.
-
-Impact:
-
-- `make ci` is not green in the current workspace.
-- The plan claim that the reliability baseline is fully implemented is false.
-
-### 2. `create_chart` currently regresses both frontend type-check and production build
-
-Evidence:
-
-- The assignment of `result.view` to `viewRef.current` in [`frontend/components/vega-chart.tsx`](/Users/beichenberger/Github/nexus/frontend/components/vega-chart.tsx#L56) does not match the declared `VegaViewHandle` contract.
-- The same file is part of the import chain for the build failure.
-
-Impact:
-
-- The chart feature exists, but the current implementation breaks production verification.
-- This directly contradicts the "safe to ship" expectation in Track A / A1.
-
-### 3. Audit logging exists structurally but is not wired into real product actions
-
-Evidence:
-
-- The audit service is defined in [`backend/services/audit.py`](/Users/beichenberger/Github/nexus/backend/services/audit.py#L92).
-- Search results show `record_audit_event()` is only defined there and not called elsewhere in the backend.
-- The compliance API reads from the audit table in [`backend/routers/compliance.py`](/Users/beichenberger/Github/nexus/backend/routers/compliance.py#L16), but no application flows appear to populate that table.
-
-Impact:
-
-- The audit layer is not functioning as an immutable log of actual user actions.
-- Initiative 3 and Initiative 9 are only partial here.
-
-### 4. Audit durability is weaker than the plan implies
-
-Evidence:
-
-- Events are buffered in memory until 50 entries in [`backend/services/audit.py`](/Users/beichenberger/Github/nexus/backend/services/audit.py#L87).
-- There is no evidence of periodic flush scheduling or shutdown flush invocation.
-
-Impact:
-
-- Low-volume events can remain only in memory.
-- A process restart can lose audit data before persistence.
-- That is inconsistent with "immutable audit logging" as described in the plan.
-
-### 5. Several flagship UI deliverables exist as files but are not mounted anywhere
-
-Evidence:
-
-- `ExecutionTimeline`, `RunSummaryPanel`, `ArtifactCenter`, `MemoryPanel`, `ConfidenceIndicator`, `ProvenanceIndicator`, and `RunComparison` exist as component files.
-- A repo-wide search found no imports or JSX usage sites for those components.
-
-Impact:
-
-- Initiative 4, 5, 6, 7, and 10 contain deliverables that appear implemented in isolation but not actually surfaced in the product.
-- The implementation log overstates user-facing completion.
-
-### 6. Memory is exposed via CRUD API but is not integrated into the agent runtime
-
-Evidence:
-
-- Memory CRUD exists in [`backend/routers/memory.py`](/Users/beichenberger/Github/nexus/backend/routers/memory.py#L1).
-- `get_relevant_memories()` appears only in the memory service and memory router, not in the agent runtime.
-- `MemoryPanel` exists but is not mounted anywhere.
-
-Impact:
-
-- Initiative 6 is only partial.
-- The product has memory storage, but not credible "AI memory" behavior in agent execution.
-
-### 7. `create_ui` is implemented, but not to the level described in `PLAN.md`
-
-Evidence:
-
-- Tool wiring exists in [`backend/services/agent/tool_executor.py`](/Users/beichenberger/Github/nexus/backend/services/agent/tool_executor.py#L198).
-- The form schema exposed to the model only allows 10 field types in [`backend/prompts/tools.py`](/Users/beichenberger/Github/nexus/backend/prompts/tools.py#L248), not the broader v1 set described in `PLAN.md`.
-- The renderer explicitly supports only `text`, `textarea`, `number`, `select`, `multiselect`, `checkbox`, `radio`, `date`, `slider`, and `rating` in [`frontend/components/form-renderer.tsx`](/Users/beichenberger/Github/nexus/frontend/components/form-renderer.tsx#L3).
-- `datetime`, `file`, and `table` are not implemented despite being listed in the plan's proposed v1 tool definition.
-
-Impact:
-
-- Initiative 7 is partially implemented, not complete.
-- The implementation-log phrasing around `create_ui` needs to be narrowed.
-
-### 8. Open-platform features are present but not durable enough for the plan’s claim
-
-Evidence:
-
-- MCP support exists in [`backend/services/mcp_client.py`](/Users/beichenberger/Github/nexus/backend/services/mcp_client.py).
-- Plugin APIs exist in [`backend/routers/integrations.py`](/Users/beichenberger/Github/nexus/backend/routers/integrations.py#L1).
-- The plugin registry is explicitly in-memory in [`backend/services/plugin_registry.py`](/Users/beichenberger/Github/nexus/backend/services/plugin_registry.py#L38).
-
-Impact:
-
-- Initiative 8 is partial.
-- User-defined integrations disappear on restart and are not governed like a production platform layer.
-
-### 9. RBAC exists, but enterprise access control is only lightly applied
-
-Evidence:
-
-- RBAC roles and permission helpers exist in [`backend/services/rbac.py`](/Users/beichenberger/Github/nexus/backend/services/rbac.py#L20).
-- Search results show enforcement only on compliance and admin analytics routes, not across the broader product surface.
-
-Impact:
-
-- Initiative 9 cannot be considered complete.
-- This is role scaffolding, not full access-control coverage.
-
-## Initiative-by-Initiative Verification
-
-### Initiative 1: Reliability Baseline
-
-Status: Partial, with regressions
-
-Confirmed:
-
-- GitHub Actions exists
-- Dependabot exists
-- Backend tests exist and pass
-- Frontend tests exist and pass
-- OpenTelemetry/Prometheus scaffolding exists
-- Redis config and fallback code exist
-- Cleanup/job services exist
-- Pre-commit config exists
-
-Not verified or clearly incomplete:
-
-- No staging deploy workflow
-- No production deploy workflow
-- No preview deployments
-- No security scanning workflow
-- No performance budgets
-- No smoke suite
-- No end-to-end suite
-- CI is not green end-to-end
-
-### Initiative 2: Architectural Bottlenecks
-
-Status: Mostly confirmed
-
-Confirmed:
-
-- `backend/services/agent.py` was split into `backend/services/agent/`
-- Zustand store was split into slices
-- chat input, message bubble, sidebar, and workspace were split into subcomponents
-- per-panel error-boundary file exists
-
-Caveat:
-
-- This initiative looks structurally real, but runtime verification here was limited to build/test evidence and code layout inspection.
-
-### Initiative 3: Platform Primitives
-
-Status: Partial
-
-Confirmed:
-
-- Tool contract registry exists
-- Event taxonomy exists
-- Artifact model exists
-- Request lifecycle primitives exist
-- Audit schema/service exists
-
-Problems:
-
-- Audit events are not wired into product actions
-- Stable contracts exist, but not all are enforced by a green type/lint/release gate
-
-### Initiative 4: Make Execution Legible
-
-Status: Partial
-
-Confirmed:
-
-- Component files for timeline, provenance, summary, and confidence exist
-
-Problems:
-
-- Those components do not appear to be mounted anywhere in the app
-
-### Initiative 5: Workspace Structure
-
-Status: Partial
-
-Confirmed:
-
-- Project model and CRUD routes exist
-- Search API and `SearchPanel` exist
-- `ProjectSwitcher` exists and is mounted
-- `ContextWindowViz` exists and is mounted
-
-Problems:
-
-- Several adjacent workspace/legibility surfaces remain file-level only, not product-level
-
-### Initiative 6: Memory & Knowledge
-
-Status: Partial
-
-Confirmed:
-
-- Memory model/service/router exist
-- Citation UI components exist
-
-Problems:
-
-- Memory does not appear integrated into agent execution
-- `MemoryPanel` is not mounted
-
-### Initiative 7: Interactive Workflows
-
-Status: Partial
-
-Confirmed:
-
-- `create_ui` tool exists
-- Form renderer exists
-- SSE event wiring exists
-- Form submission is sent back into chat via a frontend custom event
-
-Problems:
-
-- Field support is narrower than the plan says
-- ArtifactCenter exists but appears unused
-
-### Initiative 8: Open Platform
-
-Status: Partial
-
-Confirmed:
-
-- Jobs service exists
-- MCP client exists
-- Integrations API exists
-- Plugin registry exists
-
-Problems:
-
-- Plugin registry is in-memory only
-- This is not yet a durable extension platform
-
-### Initiative 9: Enterprise & Governance
-
-Status: Partial
-
-Confirmed:
-
-- RBAC primitives exist
-- Compliance routes exist
-- Admin analytics routes exist
-
-Problems:
-
-- RBAC coverage is narrow
-- Audit logging is not actually integrated
-- Compliance/data export is minimal rather than comprehensive
-
-### Initiative 10: Frontier Differentiators
-
-Status: Partial
-
-Confirmed:
-
-- Multi-agent orchestration code exists
-- Accessibility component files exist
-- `RunComparison` component exists
-
-Problems:
-
-- `RunComparison` appears unmounted
-- Multi-agent support is present in code, but the implementation log itself already admits it is shallow relative to the plan
-
-## Regression Check Results
+## Current Verification Results
 
 ### Passing
 
 - Backend tests: `145 passed`
 - Frontend tests: `77 passed`
+- Frontend lint: passes with warnings
+- Frontend build: passes
+- Standalone frontend type-check: passes
+- Backend mypy: passes
+- Backend ruff check: passes
 
 ### Failing
 
-- Frontend type-check: failed
-- Frontend build: failed
-- Frontend lint: failed / non-operational
-- Backend mypy: failed
-- Backend ruff: failed
+- `make ci`
 
-## Overall Judgment
+Failure detail:
 
-`PLAN.md` should not currently say "All 10 initiatives implemented".
+- `uv run ruff format --check backend/` fails and reports 51 backend files would be reformatted
 
-A more accurate summary would be:
+## High-Signal Findings That Still Hold
 
-- major structural groundwork for all 10 initiatives exists
-- several initiatives are only partially integrated
-- the release gate currently has regressions
-- multiple user-facing deliverables are present as files but not actually surfaced in the app
+### 1. `PLAN.md` overstates the release-gate status
 
-## Suggested `PLAN.md` Corrections
+Evidence:
 
-Recommended wording changes:
+- `PLAN.md` now says the release gate is green.
+- `make ci` currently fails because `ruff format --check` is not clean.
+- The failing check is part of the normal CI contract in both [`.github/workflows/ci.yml`](/Users/beichenberger/Github/nexus/.github/workflows/ci.yml#L34) and [`Makefile`](/Users/beichenberger/Github/nexus/Makefile#L7).
 
-- Change overall status from "All 10 initiatives implemented" to "All 10 initiatives started; several partially implemented"
-- Mark Initiative 1 as incomplete until frontend type-check, build, lint, backend mypy, and backend ruff are green
-- Mark Initiatives 4, 6, 7, 8, 9, and 10 as partial
-- Narrow the `create_ui` claim to the currently supported field types
-- Narrow the audit/RBAC claims to "foundational" rather than "complete"
+Impact:
+
+- The current repo is close to green, but not actually green by its own declared gate.
+
+### 2. Frontend tests still do not block CI failures
+
+Evidence:
+
+- The frontend test step in [`.github/workflows/ci.yml`](/Users/beichenberger/Github/nexus/.github/workflows/ci.yml#L74) is still marked `continue-on-error: true`.
+
+Impact:
+
+- A broken frontend test suite would not fail the workflow.
+- That weakens the claim that CI blocks merges on failures.
+
+### 3. Initiative 1 is only partially complete at the workflow level
+
+Confirmed:
+
+- CI workflow exists
+- backend lint/type/test checks exist
+- frontend lint/type/build/test checks exist
+- Dependabot exists
+
+Still missing relative to `PLAN.md`:
+
+- staging deploy workflow
+- production deploy workflow
+- preview deployments
+- security scanning workflow
+- performance budget enforcement
+- dedicated smoke workflow
+
+Impact:
+
+- The release baseline is much improved, but the plan’s A1 checklist is still not complete.
+
+### 4. `create_ui` remains narrower than `PLAN.md` describes
+
+Evidence:
+
+- The model-facing tool schema in [`backend/prompts/tools.py`](/Users/beichenberger/Github/nexus/backend/prompts/tools.py#L248) still exposes only:
+  `text`, `textarea`, `number`, `select`, `multiselect`, `checkbox`, `radio`, `date`, `slider`, `rating`
+- The renderer in [`frontend/components/form-renderer.tsx`](/Users/beichenberger/Github/nexus/frontend/components/form-renderer.tsx#L3) supports the same limited set.
+- `PLAN.md` still describes a broader v1 field set including `datetime`, `file`, and `table`.
+
+Impact:
+
+- The tool is implemented, but the plan wording should be narrowed to match reality.
+
+### 5. The plugin platform is still not durable
+
+Evidence:
+
+- The plugin registry in [`backend/services/plugin_registry.py`](/Users/beichenberger/Github/nexus/backend/services/plugin_registry.py#L38) is still explicitly in-memory.
+
+Impact:
+
+- Initiative 8 exists structurally, but user-defined plugins are not persistent across restarts.
+
+### 6. Enterprise/governance remains foundational rather than complete
+
+Confirmed:
+
+- RBAC primitives exist
+- compliance routes exist
+- admin analytics routes exist
+- audit events are now recorded from several real actions
+
+Still incomplete relative to `PLAN.md`:
+
+- no evidence of SCIM
+- no IP allowlisting
+- no session-management UI / active session controls
+- no DLP implementation
+- no data-residency controls
+- retention is minimal policy exposure, not a full deletion system
+
+Impact:
+
+- The governance layer is present, but not complete enough to justify a full-completion reading of Track D.
+
+## Findings Corrected From The Previous Report
+
+The following are no longer valid findings after the recent changes:
+
+- Audit logging is now wired into real flows such as auth, agents, sandboxes, knowledge-base actions, and conversation create/delete.
+- Audit flush is now called from startup/shutdown paths in `backend/main.py`.
+- `ExecutionTimeline`, `RunSummaryPanel`, `RunComparison`, `ArtifactCenter`, and `MemoryPanel` are now mounted.
+- Memory retrieval is now used in `backend/services/agent/runner.py`.
+
+## Initiative-by-Initiative Status
+
+### Initiative 1: Reliability Baseline
+
+Status: Partial
+
+Reason:
+
+- core checks mostly pass now
+- declared gate is still not fully green because `make ci` fails on formatting
+- workflow-level deployment/security/smoke pieces remain missing
+
+### Initiative 2: Architectural Bottlenecks
+
+Status: Confirmed
+
+Reason:
+
+- file splits and store/component decomposition are present and consistent with the implementation log
+
+### Initiative 3: Platform Primitives
+
+Status: Mostly confirmed
+
+Reason:
+
+- tool contracts, event taxonomy, artifact model, request lifecycle, and audit framework exist
+- audit integration is now real, not just scaffolding
+
+### Initiative 4: Make Execution Legible
+
+Status: Confirmed
+
+Reason:
+
+- the execution-legibility components now appear mounted in active UI paths
+
+### Initiative 5: Workspace Structure
+
+Status: Mostly confirmed
+
+Reason:
+
+- project/search/context-window surfaces exist and are wired
+- broader workspace checklist in the plan remains larger than what is visible in code
+
+### Initiative 6: Memory & Knowledge
+
+Status: Mostly confirmed
+
+Reason:
+
+- memory CRUD exists
+- memory retrieval is integrated into agent execution
+- citation-related UI exists
+
+### Initiative 7: Interactive Workflows
+
+Status: Partial
+
+Reason:
+
+- `create_ui` is implemented and wired
+- artifact/memory/right-panel surfaces are mounted
+- field support remains narrower than the plan text
+
+### Initiative 8: Open Platform
+
+Status: Partial
+
+Reason:
+
+- jobs, MCP, plugin APIs, and integration routes exist
+- persistence/governance maturity is still below the plan’s implied platform level
+
+### Initiative 9: Enterprise & Governance
+
+Status: Partial
+
+Reason:
+
+- strong foundational work exists
+- several Track D capabilities are still absent
+
+### Initiative 10: Frontier Differentiators
+
+Status: Mostly confirmed structurally
+
+Reason:
+
+- multi-agent, accessibility, and comparison surfaces are present
+- this still reads more like structural completion than fully mature product depth
+
+## Recommended `PLAN.md` Wording Changes
+
+Recommended change to the header:
+
+- from: `All 10 initiatives structurally implemented; release gate green`
+- to: `All 10 initiatives structurally implemented; release gate nearly green`
+
+Recommended implementation-log wording changes:
+
+- keep the structural implementation claim
+- avoid implying that all checklist items in A1 and Track D are complete
+- narrow `create_ui` wording to the actually supported field types
+
+## Bottom Line
+
+Second pass result:
+
+- the repo improved materially after the recent changes
+- most of the first-pass regressions are fixed
+- the implementation claim is now much closer to reality
+- the remaining mismatch is mainly that the release gate is not fully green yet, and several broader plan checklist items are still only partially implemented
 

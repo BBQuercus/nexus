@@ -39,10 +39,10 @@ async def create_sandbox(
     try:
         labels = body.labels or {}
         labels["user_id"] = str(user_id)
-        sandbox = await sandbox_service.create_sandbox(
-            template=body.template, labels=labels
+        sandbox = await sandbox_service.create_sandbox(template=body.template, labels=labels)
+        await record_audit_event(
+            AuditAction.SANDBOX_CREATED, actor_id=str(user_id), resource_type="sandbox", resource_id=sandbox.id
         )
-        await record_audit_event(AuditAction.SANDBOX_CREATED, actor_id=str(user_id), resource_type="sandbox", resource_id=sandbox.id)
         return {
             "id": sandbox.id,
             "template": body.template,
@@ -189,9 +189,8 @@ async def upload_files(
             file_path = f"{path}/{file.filename}"
             # Write content directly via sandbox fs
             import asyncio
-            await asyncio.to_thread(
-                sandbox.fs.write_file, file_path, content.decode("utf-8", errors="replace")
-            )
+
+            await asyncio.to_thread(sandbox.fs.write_file, file_path, content.decode("utf-8", errors="replace"))
             uploaded.append(file_path)
         return {"uploaded": uploaded}
     except PermissionError as e:
@@ -220,6 +219,7 @@ async def list_output_files(
     try:
         sandbox = await sandbox_service.ensure_sandbox_access(sandbox_id, user_id, db)
         from backend.services.media import list_output_files
+
         files = await list_output_files(sandbox)
         return {"files": files}
     except PermissionError as e:
@@ -238,6 +238,7 @@ async def serve_output_file(
     try:
         sandbox = await sandbox_service.ensure_sandbox_access(sandbox_id, user_id, db)
         from backend.services.media import get_output_file
+
         content = await get_output_file(sandbox, filename)
 
         # Determine content type

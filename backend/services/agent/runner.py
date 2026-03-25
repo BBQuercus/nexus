@@ -51,15 +51,11 @@ async def run_agent_loop(
     existing_messages = await load_conversation_messages(db, conversation_id, leaf_message_id)
 
     # Load conversation
-    conv_result = await db.execute(
-        select(Conversation).where(Conversation.id == conversation_id)
-    )
+    conv_result = await db.execute(select(Conversation).where(Conversation.id == conversation_id))
     conversation = conv_result.scalar_one()
 
     # Determine knowledge availability
-    has_knowledge, knowledge_base_ids = await detect_knowledge(
-        db, conversation, conversation_id, persona
-    )
+    has_knowledge, knowledge_base_ids = await detect_knowledge(db, conversation, conversation_id, persona)
 
     # Get tools
     tools_enabled = None
@@ -72,7 +68,9 @@ async def run_agent_loop(
 
     # Inject relevant memories into the system prompt
     try:
-        memories = await get_relevant_memories(db, conversation.user_id, user_message, project_id=getattr(conversation, "project_id", None))
+        memories = await get_relevant_memories(
+            db, conversation.user_id, user_message, project_id=getattr(conversation, "project_id", None)
+        )
         if memories:
             memory_context = format_memories_for_prompt(memories)
             system_prompt = system_prompt + "\n\n" + memory_context
@@ -81,7 +79,13 @@ async def run_agent_loop(
 
     llm_messages = build_llm_messages(existing_messages, system_prompt, user_message, leaf_message_id)
 
-    logger.info("agent_loop_start", mode=mode, model=model, tool_count=len(tools) if tools else 0, conversation_id=str(conversation_id))
+    logger.info(
+        "agent_loop_start",
+        mode=mode,
+        model=model,
+        tool_count=len(tools) if tools else 0,
+        conversation_id=str(conversation_id),
+    )
 
     # Track sandbox and known output files
     sandbox = None
@@ -127,9 +131,7 @@ async def run_agent_loop(
         output_tokens = 0
 
         try:
-            async for chunk in llm_service.stream_chat(
-                llm_messages, model, tools=tools if tools else None
-            ):
+            async for chunk in llm_service.stream_chat(llm_messages, model, tools=tools if tools else None):
                 if not chunk.choices and hasattr(chunk, "usage") and chunk.usage:
                     input_tokens = chunk.usage.prompt_tokens or 0
                     output_tokens = chunk.usage.completion_tokens or 0
@@ -208,11 +210,13 @@ async def run_agent_loop(
             tool_call_id = tc["id"]
             tool_output = last_enriched["output"] if last_enriched else ""
 
-            llm_messages.append({
-                "role": "tool",
-                "tool_call_id": tool_call_id,
-                "content": tool_output,
-            })
+            llm_messages.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": tool_call_id,
+                    "content": tool_output,
+                }
+            )
 
         # Continue the loop - LLM will process tool results
 
@@ -253,20 +257,25 @@ async def run_agent_loop(
 
     duration_ms = int((time.monotonic() - start_time) * 1000)
 
-    yield sse_event("done", {
-        "message_id": str(assistant_msg_obj.id),
-        "active_leaf_id": str(assistant_msg_obj.id),
-        "input_tokens": total_input_tokens,
-        "output_tokens": total_output_tokens,
-        "duration_ms": duration_ms,
-        "sandbox_id": ctx.sandbox_id,
-        "artifacts": [
-            {"id": str(a.id), "type": a.type, "label": a.label}
-            for a in (await db.execute(
-                select(Artifact).where(Artifact.message_id == assistant_msg_obj.id)
-            )).scalars().all()
-        ] if artifacts_data else [],
-    })
+    yield sse_event(
+        "done",
+        {
+            "message_id": str(assistant_msg_obj.id),
+            "active_leaf_id": str(assistant_msg_obj.id),
+            "input_tokens": total_input_tokens,
+            "output_tokens": total_output_tokens,
+            "duration_ms": duration_ms,
+            "sandbox_id": ctx.sandbox_id,
+            "artifacts": [
+                {"id": str(a.id), "type": a.type, "label": a.label}
+                for a in (await db.execute(select(Artifact).where(Artifact.message_id == assistant_msg_obj.id)))
+                .scalars()
+                .all()
+            ]
+            if artifacts_data
+            else [],
+        },
+    )
 
 
 async def run_multi_agent_loop(
@@ -339,8 +348,11 @@ async def run_multi_agent_loop(
 
     # Emit all_done with collected message IDs
     first_msg_id = next((mid for mid in message_ids if mid), None)
-    yield sse_event("all_done", {
-        "message_ids": [mid for mid in message_ids if mid],
-        "active_leaf_id": first_msg_id,
-        "branch_count": num_responses,
-    })
+    yield sse_event(
+        "all_done",
+        {
+            "message_ids": [mid for mid in message_ids if mid],
+            "active_leaf_id": first_msg_id,
+            "branch_count": num_responses,
+        },
+    )

@@ -121,18 +121,12 @@ async def get_project(
     user_id: uuid.UUID = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(
-        select(Project).where(Project.id == project_id, Project.user_id == user_id)
-    )
+    result = await db.execute(select(Project).where(Project.id == project_id, Project.user_id == user_id))
     project = result.scalar_one_or_none()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    count_result = await db.execute(
-        select(func.count(Conversation.id)).where(
-            Conversation.project_id == project_id
-        )
-    )
+    count_result = await db.execute(select(func.count(Conversation.id)).where(Conversation.project_id == project_id))
     count = count_result.scalar() or 0
 
     return _serialize_project(project, count)
@@ -145,9 +139,7 @@ async def update_project(
     user_id: uuid.UUID = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(
-        select(Project).where(Project.id == project_id, Project.user_id == user_id)
-    )
+    result = await db.execute(select(Project).where(Project.id == project_id, Project.user_id == user_id))
     project = result.scalar_one_or_none()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -183,9 +175,7 @@ async def delete_project(
     user_id: uuid.UUID = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(
-        select(Project).where(Project.id == project_id, Project.user_id == user_id)
-    )
+    result = await db.execute(select(Project).where(Project.id == project_id, Project.user_id == user_id))
     project = result.scalar_one_or_none()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -209,17 +199,13 @@ async def move_conversation_to_project(
     db: AsyncSession = Depends(get_db),
 ):
     # Verify project ownership
-    proj_result = await db.execute(
-        select(Project).where(Project.id == project_id, Project.user_id == user_id)
-    )
+    proj_result = await db.execute(select(Project).where(Project.id == project_id, Project.user_id == user_id))
     if not proj_result.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Project not found")
 
     # Verify conversation ownership
     conv_result = await db.execute(
-        select(Conversation).where(
-            Conversation.id == body.conversation_id, Conversation.user_id == user_id
-        )
+        select(Conversation).where(Conversation.id == body.conversation_id, Conversation.user_id == user_id)
     )
     conv = conv_result.scalar_one_or_none()
     if not conv:
@@ -239,18 +225,12 @@ async def list_project_conversations(
     db: AsyncSession = Depends(get_db),
 ):
     # Verify project ownership
-    proj_result = await db.execute(
-        select(Project).where(Project.id == project_id, Project.user_id == user_id)
-    )
+    proj_result = await db.execute(select(Project).where(Project.id == project_id, Project.user_id == user_id))
     if not proj_result.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Project not found")
 
     # Count
-    count_result = await db.execute(
-        select(func.count(Conversation.id)).where(
-            Conversation.project_id == project_id
-        )
-    )
+    count_result = await db.execute(select(func.count(Conversation.id)).where(Conversation.project_id == project_id))
     total = count_result.scalar() or 0
 
     # Fetch page

@@ -74,7 +74,9 @@ async def create_agent(
     db.add(agent)
     await db.flush()
     await db.commit()
-    await record_audit_event(AuditAction.AGENT_CREATED, actor_id=str(user_id), resource_type="agent", resource_id=str(agent.id))
+    await record_audit_event(
+        AuditAction.AGENT_CREATED, actor_id=str(user_id), resource_type="agent", resource_id=str(agent.id)
+    )
     return _serialize_agent(agent)
 
 
@@ -117,9 +119,7 @@ async def get_agent(
     user_id: uuid.UUID = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(
-        select(AgentPersona).where(AgentPersona.id == agent_id)
-    )
+    result = await db.execute(select(AgentPersona).where(AgentPersona.id == agent_id))
     agent = result.scalar_one_or_none()
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
@@ -136,11 +136,7 @@ async def update_agent(
     user_id: uuid.UUID = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(
-        select(AgentPersona).where(
-            AgentPersona.id == agent_id, AgentPersona.user_id == user_id
-        )
-    )
+    result = await db.execute(select(AgentPersona).where(AgentPersona.id == agent_id, AgentPersona.user_id == user_id))
     agent = result.scalar_one_or_none()
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found or not owned by you")
@@ -172,18 +168,16 @@ async def delete_agent(
     user_id: uuid.UUID = Depends(require_permission("agent.delete")),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(
-        select(AgentPersona).where(
-            AgentPersona.id == agent_id, AgentPersona.user_id == user_id
-        )
-    )
+    result = await db.execute(select(AgentPersona).where(AgentPersona.id == agent_id, AgentPersona.user_id == user_id))
     agent = result.scalar_one_or_none()
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found or not owned by you")
 
     await db.delete(agent)
     await db.commit()
-    await record_audit_event(AuditAction.AGENT_DELETED, actor_id=str(user_id), resource_type="agent", resource_id=str(agent_id))
+    await record_audit_event(
+        AuditAction.AGENT_DELETED, actor_id=str(user_id), resource_type="agent", resource_id=str(agent_id)
+    )
     return {"ok": True}
 
 
@@ -193,9 +187,7 @@ async def duplicate_agent(
     user_id: uuid.UUID = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(
-        select(AgentPersona).where(AgentPersona.id == agent_id)
-    )
+    result = await db.execute(select(AgentPersona).where(AgentPersona.id == agent_id))
     original = result.scalar_one_or_none()
     if not original:
         raise HTTPException(status_code=404, detail="Agent not found")

@@ -99,8 +99,11 @@ async def lifespan(app: FastAPI):
             await conn.execute(sa_text("CREATE EXTENSION IF NOT EXISTS vector"))
         pgvector_ok = True
     except Exception as e:
-        logger.warning("pgvector_extension_unavailable", error=str(e),
-                       hint="Install pgvector for RAG features. RAG will be disabled without it.")
+        logger.warning(
+            "pgvector_extension_unavailable",
+            error=str(e),
+            hint="Install pgvector for RAG features. RAG will be disabled without it.",
+        )
 
     # Create all tables.  If pgvector is missing, exclude the chunks table
     # (which depends on the VECTOR type) so the rest of the app still starts.
@@ -109,12 +112,9 @@ async def lifespan(app: FastAPI):
             await conn.run_sync(Base.metadata.create_all)
         else:
             from backend.models import Chunk
-            tables_without_vector = [
-                t for t in Base.metadata.sorted_tables if t.name != Chunk.__tablename__
-            ]
-            await conn.run_sync(
-                lambda sync_conn: Base.metadata.create_all(sync_conn, tables=tables_without_vector)
-            )
+
+            tables_without_vector = [t for t in Base.metadata.sorted_tables if t.name != Chunk.__tablename__]
+            await conn.run_sync(lambda sync_conn: Base.metadata.create_all(sync_conn, tables=tables_without_vector))
 
     # Migrate existing tables: add columns that create_all won't add to
     # already-existing tables.  Each runs in its own transaction so a
@@ -127,9 +127,7 @@ async def lifespan(app: FastAPI):
     for table, column, col_type in migrations:
         try:
             async with engine.begin() as conn:
-                await conn.execute(sa_text(
-                    f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {col_type}"
-                ))
+                await conn.execute(sa_text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {col_type}"))
         except Exception:
             pass  # table might not exist yet either — harmless
 
@@ -220,6 +218,7 @@ app.include_router(admin_analytics_router)
 async def metrics():
     """Prometheus metrics endpoint."""
     from starlette.responses import Response
+
     return Response(
         content=generate_latest(),
         media_type=CONTENT_TYPE_LATEST,
@@ -233,6 +232,7 @@ async def _check_db() -> dict:
     """Check database connectivity."""
     try:
         from sqlalchemy import text
+
         async with engine.connect() as conn:
             await conn.execute(text("SELECT 1"))
         return {"status": "ok"}
@@ -369,9 +369,11 @@ async def _check_llm() -> dict[str, Any]:
 async def _check_redis() -> dict:
     """Check Redis connectivity."""
     from backend.redis import get_redis, is_redis_available
+
     if not is_redis_available():
         await get_redis()  # Try to reconnect
     from backend.redis import is_redis_available as check_avail
+
     if not check_avail():
         return {"status": "unavailable", "note": "Using in-memory fallback"}
     try:
@@ -390,6 +392,7 @@ async def _check_daytona() -> dict:
         return {"status": "unconfigured"}
     try:
         import httpx
+
         async with httpx.AsyncClient(timeout=3.0) as client:
             resp = await client.get(
                 f"{settings.DAYTONA_API_URL}/health",
@@ -561,17 +564,21 @@ async def sandbox_terminal(websocket: WebSocket, sandbox_id: str, token: str | N
                 command = message.get("command", "")
                 try:
                     result = await sandbox_service.execute_code(sandbox, "bash", command)
-                    await websocket.send_json({
-                        "type": "output",
-                        "stdout": result.stdout,
-                        "stderr": result.stderr,
-                        "exit_code": result.exit_code,
-                    })
+                    await websocket.send_json(
+                        {
+                            "type": "output",
+                            "stdout": result.stdout,
+                            "stderr": result.stderr,
+                            "exit_code": result.exit_code,
+                        }
+                    )
                 except Exception as e:
-                    await websocket.send_json({
-                        "type": "error",
-                        "data": str(e),
-                    })
+                    await websocket.send_json(
+                        {
+                            "type": "error",
+                            "data": str(e),
+                        }
+                    )
             elif message.get("type") == "ping":
                 await websocket.send_json({"type": "pong"})
     except WebSocketDisconnect:

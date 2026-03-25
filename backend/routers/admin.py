@@ -67,15 +67,11 @@ async def admin_overview(
     total_users = result.scalar() or 0
 
     # Active users (24h)
-    result = await db.execute(
-        select(func.count(User.id)).where(User.last_seen_at >= day_ago)
-    )
+    result = await db.execute(select(func.count(User.id)).where(User.last_seen_at >= day_ago))
     active_users_24h = result.scalar() or 0
 
     # Active users (7d)
-    result = await db.execute(
-        select(func.count(User.id)).where(User.last_seen_at >= week_ago)
-    )
+    result = await db.execute(select(func.count(User.id)).where(User.last_seen_at >= week_ago))
     active_users_7d = result.scalar() or 0
 
     # Total conversations
@@ -83,17 +79,11 @@ async def admin_overview(
     total_conversations = result.scalar() or 0
 
     # Messages today
-    result = await db.execute(
-        select(func.count(Message.id)).where(Message.created_at >= today_start)
-    )
+    result = await db.execute(select(func.count(Message.id)).where(Message.created_at >= today_start))
     messages_today = result.scalar() or 0
 
     # Error rate: frontend errors today / messages today
-    result = await db.execute(
-        select(func.count(FrontendError.id)).where(
-            FrontendError.created_at >= today_start
-        )
-    )
+    result = await db.execute(select(func.count(FrontendError.id)).where(FrontendError.created_at >= today_start))
     errors_today = result.scalar() or 0
     error_rate = (errors_today / messages_today * 100) if messages_today > 0 else 0.0
 
@@ -145,20 +135,13 @@ async def admin_list_feedback(
 
     user_names: dict[uuid.UUID, str] = {}
     if user_ids:
-        user_result = await db.execute(
-            select(User.id, User.name).where(User.id.in_(user_ids))
-        )
+        user_result = await db.execute(select(User.id, User.name).where(User.id.in_(user_ids)))
         user_names = {user_id: name or "Unknown" for user_id, name in user_result.all()}
 
     message_previews: dict[uuid.UUID, str] = {}
     if message_ids:
-        msg_result = await db.execute(
-            select(Message.id, Message.content).where(Message.id.in_(message_ids))
-        )
-        message_previews = {
-            message_id: (content or "")[:200]
-            for message_id, content in msg_result.all()
-        }
+        msg_result = await db.execute(select(Message.id, Message.content).where(Message.id.in_(message_ids)))
+        message_previews = {message_id: (content or "")[:200] for message_id, content in msg_result.all()}
 
     items = []
     for f in feedbacks:
@@ -196,10 +179,7 @@ async def admin_feedback_stats(
     week_ago = now - timedelta(days=7)
 
     # Rating distribution
-    result = await db.execute(
-        select(Feedback.rating, func.count(Feedback.id))
-        .group_by(Feedback.rating)
-    )
+    result = await db.execute(select(Feedback.rating, func.count(Feedback.id)).group_by(Feedback.rating))
     rating_distribution = {row[0]: row[1] for row in result.all()}
 
     # Feedback by model
@@ -275,9 +255,7 @@ async def admin_usage(
         .group_by("day")
         .order_by("day")
     )
-    messages_per_day = [
-        {"date": row[0].isoformat(), "count": row[1]} for row in result.all()
-    ]
+    messages_per_day = [{"date": row[0].isoformat(), "count": row[1]} for row in result.all()]
 
     # Popular models (from usage_logs last 30 days)
     result = await db.execute(
@@ -287,17 +265,11 @@ async def admin_usage(
         .order_by(func.count(UsageLog.id).desc())
         .limit(10)
     )
-    popular_models = [
-        {"model": row[0], "count": row[1]} for row in result.all()
-    ]
+    popular_models = [{"model": row[0], "count": row[1]} for row in result.all()]
 
     # Avg response time: approximate from usage_logs (output_tokens as proxy)
     # We don't have explicit response_time, so we report avg output tokens as a proxy
-    result = await db.execute(
-        select(func.avg(UsageLog.output_tokens)).where(
-            UsageLog.created_at >= month_ago
-        )
-    )
+    result = await db.execute(select(func.avg(UsageLog.output_tokens)).where(UsageLog.created_at >= month_ago))
     avg_output_tokens = float(result.scalar() or 0)
 
     # Most active users (last 30 days by usage_logs count)
@@ -315,9 +287,7 @@ async def admin_usage(
 
     most_active_users = []
     for row in active_user_rows:
-        user_result = await db.execute(
-            select(User.name, User.email).where(User.id == row[0])
-        )
+        user_result = await db.execute(select(User.name, User.email).where(User.id == row[0]))
         user_row = user_result.first()
         most_active_users.append(
             {
@@ -349,23 +319,17 @@ async def admin_list_users(
     total = result.scalar() or 0
 
     offset = (page - 1) * page_size
-    user_result = await db.execute(
-        select(User).order_by(User.created_at.desc()).offset(offset).limit(page_size)
-    )
+    user_result = await db.execute(select(User).order_by(User.created_at.desc()).offset(offset).limit(page_size))
     users: list[Any] = list(user_result.scalars().all())
 
     items = []
     for u in users:
         # Conversation count
-        conv_result = await db.execute(
-            select(func.count(Conversation.id)).where(Conversation.user_id == u.id)
-        )
+        conv_result = await db.execute(select(func.count(Conversation.id)).where(Conversation.user_id == u.id))
         conv_count = conv_result.scalar() or 0
 
         # Message count (via usage_logs)
-        msg_result = await db.execute(
-            select(func.count(UsageLog.id)).where(UsageLog.user_id == u.id)
-        )
+        msg_result = await db.execute(select(func.count(UsageLog.id)).where(UsageLog.user_id == u.id))
         msg_count = msg_result.scalar() or 0
 
         items.append(
@@ -435,19 +399,14 @@ async def admin_list_errors(
 
     offset = (page - 1) * page_size
     err_result = await db.execute(
-        select(FrontendError)
-        .order_by(FrontendError.created_at.desc())
-        .offset(offset)
-        .limit(page_size)
+        select(FrontendError).order_by(FrontendError.created_at.desc()).offset(offset).limit(page_size)
     )
     errors: list[Any] = list(err_result.scalars().all())
 
     items = []
     for e in errors:
         # Get user name
-        user_result = await db.execute(
-            select(User.name).where(User.id == e.user_id)
-        )
+        user_result = await db.execute(select(User.name).where(User.id == e.user_id))
         user_name = user_result.scalar() or "Unknown"
 
         items.append(
@@ -484,9 +443,7 @@ async def admin_model_metrics(
         select(
             UsageLog.model,
             func.count(UsageLog.id).label("message_count"),
-            func.avg(UsageLog.input_tokens + UsageLog.output_tokens).label(
-                "avg_tokens"
-            ),
+            func.avg(UsageLog.input_tokens + UsageLog.output_tokens).label("avg_tokens"),
             func.sum(UsageLog.cost_usd).label("total_cost"),
             func.avg(UsageLog.cost_usd).label("avg_cost_per_message"),
         )

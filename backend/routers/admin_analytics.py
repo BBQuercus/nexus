@@ -25,21 +25,15 @@ async def get_usage_stats(
     since = datetime.now(UTC) - timedelta(days=days)
 
     # Total messages
-    msg_count = await db.execute(
-        select(func.count(Message.id)).where(Message.created_at >= since)
-    )
+    msg_count = await db.execute(select(func.count(Message.id)).where(Message.created_at >= since))
     total_messages = msg_count.scalar() or 0
 
     # Total conversations
-    conv_count = await db.execute(
-        select(func.count(Conversation.id)).where(Conversation.created_at >= since)
-    )
+    conv_count = await db.execute(select(func.count(Conversation.id)).where(Conversation.created_at >= since))
     total_conversations = conv_count.scalar() or 0
 
     # Total users
-    user_count = await db.execute(
-        select(func.count(User.id)).where(User.last_seen_at >= since)
-    )
+    user_count = await db.execute(select(func.count(User.id)).where(User.last_seen_at >= since))
     active_users = user_count.scalar() or 0
 
     # Token usage by model

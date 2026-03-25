@@ -27,6 +27,7 @@ router = APIRouter(prefix="/api/conversations", tags=["conversations"])
 
 # ----- Schemas -----
 
+
 class CreateConversationRequest(BaseModel):
     title: str | None = None
     model: str | None = "gpt-4.1-chn"
@@ -68,6 +69,7 @@ class SwitchBranchRequest(BaseModel):
 
 # ----- Helpers -----
 
+
 async def get_active_path(db: AsyncSession, leaf_id: uuid.UUID) -> list[Message]:
     """Walk parent_id chain from leaf to root, return messages in root-to-leaf order."""
     result = await db.execute(
@@ -85,9 +87,7 @@ async def get_active_path(db: AsyncSession, leaf_id: uuid.UUID) -> list[Message]
     if not path_ids:
         return []
     # Load full Message objects in chronological order
-    msg_result = await db.execute(
-        select(Message).where(Message.id.in_(path_ids)).order_by(Message.created_at)
-    )
+    msg_result = await db.execute(select(Message).where(Message.id.in_(path_ids)).order_by(Message.created_at))
     return list(msg_result.scalars().all())
 
 
@@ -115,6 +115,7 @@ def _serialize_message(m: Message) -> dict:
 
 # ----- Endpoints -----
 
+
 @router.post("")
 async def create_conversation(
     body: CreateConversationRequest,
@@ -133,7 +134,9 @@ async def create_conversation(
     db.add(conv)
     await db.flush()
     await db.commit()
-    await record_audit_event(AuditAction.CONVERSATION_CREATED, actor_id=str(user_id), resource_type="conversation", resource_id=str(conv.id))
+    await record_audit_event(
+        AuditAction.CONVERSATION_CREATED, actor_id=str(user_id), resource_type="conversation", resource_id=str(conv.id)
+    )
     return {
         "id": str(conv.id),
         "title": conv.title,
@@ -161,9 +164,7 @@ async def list_conversations(
     query = query.order_by(Conversation.updated_at.desc())
 
     # Count total
-    count_query = select(func.count()).select_from(
-        query.subquery()
-    )
+    count_query = select(func.count()).select_from(query.subquery())
     total = (await db.execute(count_query)).scalar() or 0
 
     # Paginate
@@ -198,8 +199,7 @@ async def get_conversation(
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
-        select(Conversation)
-        .where(Conversation.id == conversation_id, Conversation.user_id == user_id)
+        select(Conversation).where(Conversation.id == conversation_id, Conversation.user_id == user_id)
     )
     conv = result.scalar_one_or_none()
     if not conv:
@@ -210,9 +210,7 @@ async def get_conversation(
         path_messages = await get_active_path(db, conv.active_leaf_id)
     else:
         msg_result = await db.execute(
-            select(Message)
-            .where(Message.conversation_id == conversation_id)
-            .order_by(Message.created_at)
+            select(Message).where(Message.conversation_id == conversation_id).order_by(Message.created_at)
         )
         path_messages = list(msg_result.scalars().all())
 
@@ -241,9 +239,7 @@ async def update_conversation(
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
-        select(Conversation).where(
-            Conversation.id == conversation_id, Conversation.user_id == user_id
-        )
+        select(Conversation).where(Conversation.id == conversation_id, Conversation.user_id == user_id)
     )
     conv = result.scalar_one_or_none()
     if not conv:
@@ -269,9 +265,7 @@ async def delete_conversation(
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
-        select(Conversation).where(
-            Conversation.id == conversation_id, Conversation.user_id == user_id
-        )
+        select(Conversation).where(Conversation.id == conversation_id, Conversation.user_id == user_id)
     )
     conv = result.scalar_one_or_none()
     if not conv:
@@ -293,7 +287,12 @@ async def delete_conversation(
 
     await db.delete(conv)
     await db.commit()
-    await record_audit_event(AuditAction.CONVERSATION_DELETED, actor_id=str(user_id), resource_type="conversation", resource_id=str(conversation_id))
+    await record_audit_event(
+        AuditAction.CONVERSATION_DELETED,
+        actor_id=str(user_id),
+        resource_type="conversation",
+        resource_id=str(conversation_id),
+    )
     return {"ok": True}
 
 
@@ -309,9 +308,7 @@ async def send_message(
 
     # Verify conversation belongs to user
     result = await db.execute(
-        select(Conversation).where(
-            Conversation.id == conversation_id, Conversation.user_id == user_id
-        )
+        select(Conversation).where(Conversation.id == conversation_id, Conversation.user_id == user_id)
     )
     conv = result.scalar_one_or_none()
     if not conv:
@@ -324,9 +321,9 @@ async def send_message(
 
     # Compute branch_index (count of existing children of same parent)
     if parent_id:
-        sibling_count = (await db.execute(
-            select(func.count()).select_from(Message).where(Message.parent_id == parent_id)
-        )).scalar() or 0
+        sibling_count = (
+            await db.execute(select(func.count()).select_from(Message).where(Message.parent_id == parent_id))
+        ).scalar() or 0
     else:
         sibling_count = 0
 
@@ -391,9 +388,7 @@ async def send_message(
     # Load persona if set
     persona = None
     if conv.agent_persona_id:
-        p_result = await db.execute(
-            select(AgentPersona).where(AgentPersona.id == conv.agent_persona_id)
-        )
+        p_result = await db.execute(select(AgentPersona).where(AgentPersona.id == conv.agent_persona_id))
         persona = p_result.scalar_one_or_none()
 
     compare_models = body.compare_models[:5] if body.compare_models else None
@@ -406,9 +401,7 @@ async def send_message(
         for ctx_id in body.context_conversation_ids[:3]:  # Max 3 contexts
             try:
                 ctx_result = await db.execute(
-                    select(Conversation).where(
-                        Conversation.id == ctx_id, Conversation.user_id == user_id
-                    )
+                    select(Conversation).where(Conversation.id == ctx_id, Conversation.user_id == user_id)
                 )
                 ctx_conv = ctx_result.scalar_one_or_none()
                 if not ctx_conv:
@@ -424,11 +417,10 @@ async def send_message(
                 if msgs:
                     summary = "\n".join(
                         f"{'User' if m.role == 'user' else 'Assistant'}: {(m.content or '')[:300]}"
-                        for m in msgs if m.role in ("user", "assistant")
+                        for m in msgs
+                        if m.role in ("user", "assistant")
                     )
-                    context_parts.append(
-                        f'[Context from conversation "{ctx_conv.title or "Untitled"}"]\n{summary}'
-                    )
+                    context_parts.append(f'[Context from conversation "{ctx_conv.title or "Untitled"}"]\n{summary}')
             except Exception:
                 continue
         if context_parts:
@@ -496,17 +488,21 @@ async def send_message(
         # Generate title after agent loop completes (for first message)
         try:
             await db.refresh(conv)
-            msg_count = (await db.execute(
-                select(func.count()).select_from(Message).where(Message.conversation_id == conversation_id)
-            )).scalar() or 0
+            msg_count = (
+                await db.execute(
+                    select(func.count()).select_from(Message).where(Message.conversation_id == conversation_id)
+                )
+            ).scalar() or 0
             if msg_count <= 2 and (not conv.title or conv.title == "New conversation"):
                 try:
-                    last_msg = (await db.execute(
-                        select(Message).where(
-                            Message.conversation_id == conversation_id,
-                            Message.role == "assistant"
-                        ).order_by(Message.created_at.desc()).limit(1)
-                    )).scalar_one_or_none()
+                    last_msg = (
+                        await db.execute(
+                            select(Message)
+                            .where(Message.conversation_id == conversation_id, Message.role == "assistant")
+                            .order_by(Message.created_at.desc())
+                            .limit(1)
+                        )
+                    ).scalar_one_or_none()
                     assistant_text = last_msg.content if last_msg else ""
                     title = await llm_service.generate_title(body.content, assistant_text)
                     conv.title = title
@@ -530,9 +526,7 @@ async def generate_image(
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
-        select(Conversation).where(
-            Conversation.id == conversation_id, Conversation.user_id == user_id
-        )
+        select(Conversation).where(Conversation.id == conversation_id, Conversation.user_id == user_id)
     )
     conv = result.scalar_one_or_none()
     if not conv:
@@ -542,9 +536,9 @@ async def generate_image(
 
     parent_id = conv.active_leaf_id
     if parent_id:
-        sibling_count = (await db.execute(
-            select(func.count()).select_from(Message).where(Message.parent_id == parent_id)
-        )).scalar() or 0
+        sibling_count = (
+            await db.execute(select(func.count()).select_from(Message).where(Message.parent_id == parent_id))
+        ).scalar() or 0
     else:
         sibling_count = 0
 
@@ -602,14 +596,16 @@ async def generate_image(
     db.add(assistant_msg)
     await db.flush()
 
-    db.add(Artifact(
-        conversation_id=conversation_id,
-        message_id=assistant_msg.id,
-        type="image",
-        label="generated-image.png",
-        content=image_url,
-        metadata_={"model": body.model, "prompt": body.prompt.strip(), "size": body.size},
-    ))
+    db.add(
+        Artifact(
+            conversation_id=conversation_id,
+            message_id=assistant_msg.id,
+            type="image",
+            label="generated-image.png",
+            content=image_url,
+            metadata_={"model": body.model, "prompt": body.prompt.strip(), "size": body.size},
+        )
+    )
 
     conv.active_leaf_id = assistant_msg.id
     await db.commit()
@@ -676,6 +672,7 @@ async def fork_conversation(
 class RegenerateRequest(BaseModel):
     model: str | None = None
 
+
 @router.post("/{conversation_id}/messages/{message_id}/regenerate")
 async def regenerate_message(
     conversation_id: uuid.UUID,
@@ -687,9 +684,7 @@ async def regenerate_message(
     """Regenerate creates a sibling branch — the old response is preserved."""
     # Verify ownership
     result = await db.execute(
-        select(Conversation).where(
-            Conversation.id == conversation_id, Conversation.user_id == user_id
-        )
+        select(Conversation).where(Conversation.id == conversation_id, Conversation.user_id == user_id)
     )
     conv = result.scalar_one_or_none()
     if not conv:
@@ -727,9 +722,7 @@ async def regenerate_message(
         user_message_content = user_msg.content
     else:
         # Load the parent (user) message
-        parent_result = await db.execute(
-            select(Message).where(Message.id == parent_msg_id)
-        )
+        parent_result = await db.execute(select(Message).where(Message.id == parent_msg_id))
         user_msg = parent_result.scalar_one_or_none()
         if not user_msg:
             raise HTTPException(status_code=400, detail="Parent user message not found")
@@ -740,9 +733,7 @@ async def regenerate_message(
 
     persona = None
     if conv.agent_persona_id:
-        p_result = await db.execute(
-            select(AgentPersona).where(AgentPersona.id == conv.agent_persona_id)
-        )
+        p_result = await db.execute(select(AgentPersona).where(AgentPersona.id == conv.agent_persona_id))
         persona = p_result.scalar_one_or_none()
 
     async def event_generator():
@@ -791,9 +782,7 @@ async def get_conversation_tree(
 ):
     """Return lightweight tree structure for the minimap visualizer."""
     result = await db.execute(
-        select(Conversation).where(
-            Conversation.id == conversation_id, Conversation.user_id == user_id
-        )
+        select(Conversation).where(Conversation.id == conversation_id, Conversation.user_id == user_id)
     )
     conv = result.scalar_one_or_none()
     if not conv:
@@ -801,9 +790,7 @@ async def get_conversation_tree(
 
     # Get all messages with just the fields needed for the tree
     msg_result = await db.execute(
-        select(Message)
-        .where(Message.conversation_id == conversation_id)
-        .order_by(Message.created_at)
+        select(Message).where(Message.conversation_id == conversation_id).order_by(Message.created_at)
     )
     all_messages = msg_result.scalars().all()
 
@@ -842,9 +829,11 @@ async def get_message_siblings(
     db: AsyncSession = Depends(get_db),
 ):
     """Get all sibling messages (messages sharing the same parent)."""
-    conv = (await db.execute(
-        select(Conversation).where(Conversation.id == conversation_id, Conversation.user_id == user_id)
-    )).scalar_one_or_none()
+    conv = (
+        await db.execute(
+            select(Conversation).where(Conversation.id == conversation_id, Conversation.user_id == user_id)
+        )
+    ).scalar_one_or_none()
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
 
@@ -854,11 +843,17 @@ async def get_message_siblings(
         raise HTTPException(status_code=404, detail="Message not found or has no parent")
 
     # Fetch all siblings (same parent)
-    siblings = (await db.execute(
-        select(Message)
-        .where(Message.parent_id == target.parent_id, Message.conversation_id == conversation_id)
-        .order_by(Message.branch_index, Message.created_at)
-    )).scalars().all()
+    siblings = (
+        (
+            await db.execute(
+                select(Message)
+                .where(Message.parent_id == target.parent_id, Message.conversation_id == conversation_id)
+                .order_by(Message.branch_index, Message.created_at)
+            )
+        )
+        .scalars()
+        .all()
+    )
 
     return [_serialize_message(m) for m in siblings]
 
@@ -872,9 +867,7 @@ async def switch_branch(
 ):
     """Switch active branch by updating active_leaf_id and returning the new path."""
     result = await db.execute(
-        select(Conversation).where(
-            Conversation.id == conversation_id, Conversation.user_id == user_id
-        )
+        select(Conversation).where(Conversation.id == conversation_id, Conversation.user_id == user_id)
     )
     conv = result.scalar_one_or_none()
     if not conv:
@@ -909,17 +902,13 @@ async def list_artifacts(
 ):
     # Verify ownership
     result = await db.execute(
-        select(Conversation).where(
-            Conversation.id == conversation_id, Conversation.user_id == user_id
-        )
+        select(Conversation).where(Conversation.id == conversation_id, Conversation.user_id == user_id)
     )
     if not result.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Conversation not found")
 
     artifacts_result = await db.execute(
-        select(Artifact)
-        .where(Artifact.conversation_id == conversation_id)
-        .order_by(Artifact.created_at)
+        select(Artifact).where(Artifact.conversation_id == conversation_id).order_by(Artifact.created_at)
     )
     artifacts = artifacts_result.scalars().all()
 
@@ -949,9 +938,7 @@ async def delete_artifact(
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
-        select(Artifact)
-        .join(Conversation)
-        .where(Artifact.id == artifact_id, Conversation.user_id == user_id)
+        select(Artifact).join(Conversation).where(Artifact.id == artifact_id, Conversation.user_id == user_id)
     )
     artifact = result.scalar_one_or_none()
     if not artifact:
@@ -975,9 +962,7 @@ async def update_artifact(
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
-        select(Artifact)
-        .join(Conversation)
-        .where(Artifact.id == artifact_id, Conversation.user_id == user_id)
+        select(Artifact).join(Conversation).where(Artifact.id == artifact_id, Conversation.user_id == user_id)
     )
     artifact = result.scalar_one_or_none()
     if not artifact:

@@ -99,7 +99,9 @@ async def create_knowledge_base(
     db.add(kb)
     await db.flush()
     await db.commit()
-    await record_audit_event(AuditAction.KB_CREATED, actor_id=str(user_id), resource_type="knowledge_base", resource_id=str(kb.id))
+    await record_audit_event(
+        AuditAction.KB_CREATED, actor_id=str(user_id), resource_type="knowledge_base", resource_id=str(kb.id)
+    )
     return _serialize_kb(kb)
 
 
@@ -165,7 +167,9 @@ async def delete_knowledge_base(
     await db.execute(sa_text("DELETE FROM knowledge_base_agents WHERE knowledge_base_id = :kid"), {"kid": str(kb_id)})
     await db.execute(sa_text("DELETE FROM knowledge_bases WHERE id = :kid"), {"kid": str(kb_id)})
     await db.commit()
-    await record_audit_event(AuditAction.KB_DELETED, actor_id=str(user_id), resource_type="knowledge_base", resource_id=str(kb_id))
+    await record_audit_event(
+        AuditAction.KB_DELETED, actor_id=str(user_id), resource_type="knowledge_base", resource_id=str(kb_id)
+    )
     return {"ok": True}
 
 
@@ -220,7 +224,13 @@ async def upload_documents(
 
     logger.info("documents_queued", kb_id=str(kb_id), count=len(documents))
     for doc in documents:
-        await record_audit_event(AuditAction.KB_DOCUMENT_UPLOADED, actor_id=str(user_id), resource_type="document", resource_id=str(doc.id), details={"knowledge_base_id": str(kb_id), "filename": doc.filename})
+        await record_audit_event(
+            AuditAction.KB_DOCUMENT_UPLOADED,
+            actor_id=str(user_id),
+            resource_type="document",
+            resource_id=str(doc.id),
+            details={"knowledge_base_id": str(kb_id), "filename": doc.filename},
+        )
     return {"documents": [_serialize_document(d) for d in documents]}
 
 
@@ -232,9 +242,7 @@ async def list_documents(
 ):
     await _get_kb_or_404(db, kb_id, user_id)
     result = await db.execute(
-        select(Document)
-        .where(Document.knowledge_base_id == kb_id)
-        .order_by(Document.created_at.desc())
+        select(Document).where(Document.knowledge_base_id == kb_id).order_by(Document.created_at.desc())
     )
     return [_serialize_document(d) for d in result.scalars().all()]
 
@@ -250,10 +258,9 @@ async def delete_document(
 
     # Check existence without loading the ORM object (avoids cascade issues)
     from sqlalchemy import func as sa_func
+
     exists = await db.scalar(
-        select(sa_func.count()).select_from(Document).where(
-            Document.id == doc_id, Document.knowledge_base_id == kb_id
-        )
+        select(sa_func.count()).select_from(Document).where(Document.id == doc_id, Document.knowledge_base_id == kb_id)
     )
     if not exists:
         raise HTTPException(status_code=404, detail="Document not found")
@@ -264,6 +271,7 @@ async def delete_document(
 
     # Update KB counters
     from backend.services.rag.pipeline import _update_kb_counters
+
     await _update_kb_counters(db, kb_id)
 
     await db.commit()
@@ -323,9 +331,7 @@ async def get_kb_stats(
     kb = await _get_kb_or_404(db, kb_id, user_id)
     from sqlalchemy import func
 
-    total_tokens = await db.scalar(
-        select(func.sum(Chunk.token_count)).where(Chunk.knowledge_base_id == kb_id)
-    )
+    total_tokens = await db.scalar(select(func.sum(Chunk.token_count)).where(Chunk.knowledge_base_id == kb_id))
 
     return {
         "document_count": kb.document_count,
@@ -350,11 +356,7 @@ async def upload_conversation_documents(
     """Upload documents scoped to a conversation (no KB needed)."""
     from backend.models import Conversation
 
-    result = await db.execute(
-        select(Conversation).where(
-            Conversation.id == conv_id, Conversation.user_id == user_id
-        )
-    )
+    result = await db.execute(select(Conversation).where(Conversation.id == conv_id, Conversation.user_id == user_id))
     conv = result.scalar_one_or_none()
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
@@ -402,18 +404,12 @@ async def list_conversation_documents(
 ):
     from backend.models import Conversation
 
-    result = await db.execute(
-        select(Conversation).where(
-            Conversation.id == conv_id, Conversation.user_id == user_id
-        )
-    )
+    result = await db.execute(select(Conversation).where(Conversation.id == conv_id, Conversation.user_id == user_id))
     if not result.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Conversation not found")
 
     doc_result = await db.execute(
-        select(Document)
-        .where(Document.conversation_id == conv_id)
-        .order_by(Document.created_at.desc())
+        select(Document).where(Document.conversation_id == conv_id).order_by(Document.created_at.desc())
     )
     return [_serialize_document(d) for d in doc_result.scalars().all()]
 
@@ -430,9 +426,7 @@ async def get_retrieval_log(
     """Get retrieval log for a message (shows why sources were chosen)."""
     from backend.models import RetrievalLog
 
-    result = await db.execute(
-        select(RetrievalLog).where(RetrievalLog.message_id == msg_id)
-    )
+    result = await db.execute(select(RetrievalLog).where(RetrievalLog.message_id == msg_id))
     log = result.scalar_one_or_none()
     if not log:
         raise HTTPException(status_code=404, detail="No retrieval log for this message")
@@ -463,12 +457,8 @@ def _validate_file(file: UploadFile) -> None:
         )
 
 
-async def _get_kb_or_404(
-    db: AsyncSession, kb_id: uuid.UUID, user_id: uuid.UUID
-) -> KnowledgeBase:
-    result = await db.execute(
-        select(KnowledgeBase).where(KnowledgeBase.id == kb_id)
-    )
+async def _get_kb_or_404(db: AsyncSession, kb_id: uuid.UUID, user_id: uuid.UUID) -> KnowledgeBase:
+    result = await db.execute(select(KnowledgeBase).where(KnowledgeBase.id == kb_id))
     kb = result.scalar_one_or_none()
     if not kb:
         raise HTTPException(status_code=404, detail="Knowledge base not found")
@@ -477,14 +467,8 @@ async def _get_kb_or_404(
     return kb
 
 
-async def _get_kb_owned_or_403(
-    db: AsyncSession, kb_id: uuid.UUID, user_id: uuid.UUID
-) -> KnowledgeBase:
-    result = await db.execute(
-        select(KnowledgeBase).where(
-            KnowledgeBase.id == kb_id, KnowledgeBase.user_id == user_id
-        )
-    )
+async def _get_kb_owned_or_403(db: AsyncSession, kb_id: uuid.UUID, user_id: uuid.UUID) -> KnowledgeBase:
+    result = await db.execute(select(KnowledgeBase).where(KnowledgeBase.id == kb_id, KnowledgeBase.user_id == user_id))
     kb = result.scalar_one_or_none()
     if not kb:
         raise HTTPException(status_code=404, detail="Knowledge base not found or not owned by you")
@@ -505,7 +489,9 @@ async def _safe_delete_chunks(
             if document_id:
                 await db.execute(sa_text("DELETE FROM chunks WHERE document_id = :did"), {"did": str(document_id)})
             elif knowledge_base_id:
-                await db.execute(sa_text("DELETE FROM chunks WHERE knowledge_base_id = :kid"), {"kid": str(knowledge_base_id)})
+                await db.execute(
+                    sa_text("DELETE FROM chunks WHERE knowledge_base_id = :kid"), {"kid": str(knowledge_base_id)}
+                )
     except Exception:
         # chunks table doesn't exist — savepoint rolled back, outer txn intact
         pass

@@ -40,11 +40,7 @@ async def get_relevant_memories(
     when a project_id is provided.  Falls back to global memories.
     """
     # Tokenise the context into significant keywords (4+ chars)
-    words = set(
-        w.lower()
-        for w in re.findall(r"[a-zA-Z0-9_]+", context)
-        if len(w) >= 4
-    )
+    words = set(w.lower() for w in re.findall(r"[a-zA-Z0-9_]+", context) if len(w) >= 4)
 
     if not words:
         # If no meaningful keywords, return most recent active memories
@@ -71,11 +67,7 @@ async def get_relevant_memories(
     # Score each memory by keyword overlap
     scored: list[tuple[float, Memory]] = []
     for mem in all_memories:
-        mem_words = set(
-            w.lower()
-            for w in re.findall(r"[a-zA-Z0-9_]+", mem.content)
-            if len(w) >= 4
-        )
+        mem_words = set(w.lower() for w in re.findall(r"[a-zA-Z0-9_]+", mem.content) if len(w) >= 4)
         if not mem_words:
             continue
         overlap = len(words & mem_words)
@@ -97,9 +89,7 @@ async def get_relevant_memories(
     if top_memories:
         mem_ids = [m.id for m in top_memories]
         await db.execute(
-            update(Memory)
-            .where(Memory.id.in_(mem_ids))
-            .values(relevance_count=Memory.relevance_count + 1)
+            update(Memory).where(Memory.id.in_(mem_ids)).values(relevance_count=Memory.relevance_count + 1)
         )
         await db.flush()
 

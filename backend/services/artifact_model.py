@@ -14,6 +14,7 @@ from pydantic import BaseModel
 
 class ArtifactType(StrEnum):
     """Canonical artifact types."""
+
     CODE = "code"
     CHART = "chart"
     TABLE = "table"
@@ -21,33 +22,36 @@ class ArtifactType(StrEnum):
     DIAGRAM = "diagram"
     IMAGE = "image"
     FILE = "file"
-    FORM = "form"       # For create_ui (future)
-    REPORT = "report"   # For generated reports (future)
+    FORM = "form"  # For create_ui (future)
+    REPORT = "report"  # For generated reports (future)
 
 
 class ArtifactSource(StrEnum):
     """How the artifact was produced."""
-    LLM_GENERATED = "llm_generated"     # Direct model output
-    TOOL_OUTPUT = "tool_output"         # Result of tool execution
-    SANDBOX_FILE = "sandbox_file"       # File created in sandbox
-    USER_UPLOAD = "user_upload"         # Uploaded by user
-    DERIVED = "derived"                 # Derived from another artifact
+
+    LLM_GENERATED = "llm_generated"  # Direct model output
+    TOOL_OUTPUT = "tool_output"  # Result of tool execution
+    SANDBOX_FILE = "sandbox_file"  # File created in sandbox
+    USER_UPLOAD = "user_upload"  # Uploaded by user
+    DERIVED = "derived"  # Derived from another artifact
 
 
 class ArtifactLineage(BaseModel):
     """Tracks the provenance of an artifact."""
+
     source: ArtifactSource
     conversation_id: str | None = None
     message_id: str | None = None
     tool_call_id: str | None = None
     tool_name: str | None = None
     parent_artifact_id: str | None = None  # For derived artifacts
-    model: str | None = None               # Which model generated it
-    prompt_snippet: str | None = None       # First 200 chars of prompt that led to this
+    model: str | None = None  # Which model generated it
+    prompt_snippet: str | None = None  # First 200 chars of prompt that led to this
 
 
 class ArtifactVersion(BaseModel):
     """A version of an artifact."""
+
     version: int
     content: Any
     metadata: dict[str, Any] = {}
@@ -61,6 +65,7 @@ class ArtifactEnvelope(BaseModel):
     This is the canonical representation used for artifact center,
     lineage tracking, and export workflows.
     """
+
     id: str
     type: ArtifactType
     label: str
@@ -97,7 +102,11 @@ def classify_artifact_type(content: Any, label: str = "", tool_name: str = "") -
     if "diagram" in label_lower or "mermaid" in label_lower:
         return ArtifactType.DIAGRAM
 
-    if isinstance(content, str) and len(content) > 0 and (content.strip().startswith("{") or content.strip().startswith("```")):
+    if (
+        isinstance(content, str)
+        and len(content) > 0
+        and (content.strip().startswith("{") or content.strip().startswith("```"))
+    ):
         return ArtifactType.CODE
 
     return ArtifactType.DOCUMENT

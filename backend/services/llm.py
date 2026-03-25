@@ -68,6 +68,7 @@ def calculate_cost(model: str, input_tokens: int, output_tokens: int) -> Decimal
 
 class LLMUnavailableError(Exception):
     """Raised when the LLM is temporarily unavailable after retries."""
+
     pass
 
 
@@ -152,7 +153,7 @@ async def generate_title(user_message: str, assistant_response: str, model: str 
                 ],
                 max_tokens=30,
             )
-            title = (response.choices[0].message.content or "").strip().strip('"\'')
+            title = (response.choices[0].message.content or "").strip().strip("\"'")
             if title:
                 return title[:100]
         except Exception:

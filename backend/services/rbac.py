@@ -37,30 +37,55 @@ ROLE_PERMISSIONS = {
         "project.read",
     },
     Role.EDITOR: {
-        "conversation.read", "conversation.create", "conversation.update", "conversation.delete",
-        "message.read", "message.create", "message.delete",
-        "artifact.read", "artifact.create", "artifact.delete",
-        "agent.read", "agent.create", "agent.update", "agent.delete",
-        "kb.read", "kb.create", "kb.update", "kb.delete",
-        "kb.document.upload", "kb.document.delete",
-        "sandbox.create", "sandbox.execute", "sandbox.delete",
+        "conversation.read",
+        "conversation.create",
+        "conversation.update",
+        "conversation.delete",
+        "message.read",
+        "message.create",
+        "message.delete",
+        "artifact.read",
+        "artifact.create",
+        "artifact.delete",
+        "agent.read",
+        "agent.create",
+        "agent.update",
+        "agent.delete",
+        "kb.read",
+        "kb.create",
+        "kb.update",
+        "kb.delete",
+        "kb.document.upload",
+        "kb.document.delete",
+        "sandbox.create",
+        "sandbox.execute",
+        "sandbox.delete",
         "tool.use",
-        "memory.read", "memory.create", "memory.update", "memory.delete",
-        "project.read", "project.create", "project.update", "project.delete",
+        "memory.read",
+        "memory.create",
+        "memory.update",
+        "memory.delete",
+        "project.read",
+        "project.create",
+        "project.update",
+        "project.delete",
         "search.use",
     },
     Role.ADMIN: {
         # All editor permissions plus admin-specific
-        "admin.users.read", "admin.users.update",
+        "admin.users.read",
+        "admin.users.update",
         "admin.analytics.read",
         "admin.audit.read",
-        "admin.settings.read", "admin.settings.update",
+        "admin.settings.read",
+        "admin.settings.update",
         "integration.mcp.manage",
         "integration.plugin.manage",
     },
     Role.ORG_ADMIN: {
         # All admin permissions plus org-level
-        "admin.users.create", "admin.users.delete",
+        "admin.users.create",
+        "admin.users.delete",
         "admin.roles.manage",
         "admin.compliance.read",
         "admin.data.export",
@@ -76,13 +101,14 @@ ROLE_PERMISSIONS[Role.ORG_ADMIN] = ROLE_PERMISSIONS[Role.ORG_ADMIN] | ROLE_PERMI
 async def get_user_role(user_id: uuid.UUID, db: AsyncSession) -> Role:
     """Get a user's role from the database."""
     from backend.models import User
+
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
     # Map existing is_admin to roles, with new role field taking precedence
-    if hasattr(user, 'role') and user.role:
+    if hasattr(user, "role") and user.role:
         return Role(user.role)
     return Role.ADMIN if user.is_admin else Role.EDITOR
 
@@ -94,6 +120,7 @@ def has_permission(role: Role, permission: str) -> bool:
 
 def require_permission(permission: str):
     """FastAPI dependency that checks a permission."""
+
     async def checker(
         user_id: uuid.UUID = Depends(get_current_user),
         db: AsyncSession = Depends(get_db),
@@ -106,6 +133,7 @@ def require_permission(permission: str):
                 detail=f"Permission denied: {permission}",
             )
         return user_id
+
     return checker
 
 
@@ -124,4 +152,5 @@ def require_role(min_role: Role):
                 detail=f"Requires {min_role.value} role or higher",
             )
         return user_id
+
     return checker

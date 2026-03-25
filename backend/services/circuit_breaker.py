@@ -41,7 +41,10 @@ class CircuitBreaker:
 
     @property
     def state(self) -> CircuitState:
-        if self._state == CircuitState.OPEN and time.monotonic() - (self._last_failure_time or 0) >= self.recovery_timeout:
+        if (
+            self._state == CircuitState.OPEN
+            and time.monotonic() - (self._last_failure_time or 0) >= self.recovery_timeout
+        ):
             return CircuitState.HALF_OPEN
         return self._state
 
@@ -90,6 +93,7 @@ class CircuitBreaker:
 
 class CircuitOpenError(Exception):
     """Raised when a circuit breaker is open."""
+
     pass
 
 

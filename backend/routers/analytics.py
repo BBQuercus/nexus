@@ -87,9 +87,7 @@ async def my_usage_stats(
 
     # Tokens used this month
     result = await db.execute(
-        select(
-            func.coalesce(func.sum(UsageLog.input_tokens + UsageLog.output_tokens), 0)
-        ).where(
+        select(func.coalesce(func.sum(UsageLog.input_tokens + UsageLog.output_tokens), 0)).where(
             UsageLog.user_id == user_id,
             UsageLog.created_at >= month_start,
         )

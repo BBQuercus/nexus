@@ -16,8 +16,16 @@ logger = get_logger("rag.ingestion")
 _enc = tiktoken.get_encoding("cl100k_base")
 
 SUPPORTED_EXTENSIONS = {
-    "txt", "md", "csv", "tsv", "xlsx", "xls",
-    "pdf", "docx", "pptx", "json",
+    "txt",
+    "md",
+    "csv",
+    "tsv",
+    "xlsx",
+    "xls",
+    "pdf",
+    "docx",
+    "pptx",
+    "json",
 }
 
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50 MB
@@ -26,6 +34,7 @@ MAX_FILE_SIZE = 50 * 1024 * 1024  # 50 MB
 @dataclass
 class ParsedChunk:
     """A single chunk of text extracted from a document."""
+
     content: str
     chunk_index: int
     page_number: int | None = None
@@ -37,6 +46,7 @@ class ParsedChunk:
 @dataclass
 class ParsedDocument:
     """Full result of parsing a document."""
+
     filename: str
     content_type: str
     raw_text: str
@@ -84,9 +94,7 @@ def parse_plaintext(file_bytes: bytes, filename: str) -> ParsedDocument:
     total_tokens = count_tokens(text)
 
     if total_tokens > settings.RAG_MAX_DOCUMENT_TOKENS:
-        raise ValueError(
-            f"Document exceeds max token limit ({total_tokens:,} > {settings.RAG_MAX_DOCUMENT_TOKENS:,})"
-        )
+        raise ValueError(f"Document exceeds max token limit ({total_tokens:,} > {settings.RAG_MAX_DOCUMENT_TOKENS:,})")
 
     # Split by double newlines (paragraphs), then merge small ones
     paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
@@ -107,11 +115,13 @@ def parse_plaintext(file_bytes: bytes, filename: str) -> ParsedDocument:
     idx = 0
     for block in merged:
         for sub in _chunk_text(block):
-            chunks.append(ParsedChunk(
-                content=sub,
-                chunk_index=idx,
-                token_count=count_tokens(sub),
-            ))
+            chunks.append(
+                ParsedChunk(
+                    content=sub,
+                    chunk_index=idx,
+                    token_count=count_tokens(sub),
+                )
+            )
             idx += 1
 
     return ParsedDocument(
@@ -143,9 +153,7 @@ def parse_csv(file_bytes: bytes, filename: str) -> ParsedDocument:
     total_text = df.to_string()
     total_tokens = count_tokens(total_text)
     if total_tokens > settings.RAG_MAX_DOCUMENT_TOKENS:
-        raise ValueError(
-            f"Document exceeds max token limit ({total_tokens:,} > {settings.RAG_MAX_DOCUMENT_TOKENS:,})"
-        )
+        raise ValueError(f"Document exceeds max token limit ({total_tokens:,} > {settings.RAG_MAX_DOCUMENT_TOKENS:,})")
 
     chunks: list[ParsedChunk] = []
     idx = 0
@@ -158,10 +166,7 @@ def parse_csv(file_bytes: bytes, filename: str) -> ParsedDocument:
         sample_vals = df[col].dropna().head(3).tolist()
         col_info.append(f"  - {col} ({dtype}, {nunique} unique): samples {sample_vals}")
 
-    schema_text = (
-        f'File "{filename}": {len(df)} rows, {len(df.columns)} columns.\n'
-        f"Columns:\n" + "\n".join(col_info)
-    )
+    schema_text = f'File "{filename}": {len(df)} rows, {len(df.columns)} columns.\nColumns:\n' + "\n".join(col_info)
 
     # Add summary stats for numeric columns
     numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
@@ -169,13 +174,15 @@ def parse_csv(file_bytes: bytes, filename: str) -> ParsedDocument:
         stats = df[numeric_cols].describe().round(2)
         schema_text += f"\n\nSummary statistics:\n{stats.to_string()}"
 
-    chunks.append(ParsedChunk(
-        content=schema_text,
-        chunk_index=idx,
-        token_count=count_tokens(schema_text),
-        section_title="Schema & Statistics",
-        metadata={"type": "schema"},
-    ))
+    chunks.append(
+        ParsedChunk(
+            content=schema_text,
+            chunk_index=idx,
+            token_count=count_tokens(schema_text),
+            section_title="Schema & Statistics",
+            metadata={"type": "schema"},
+        )
+    )
     idx += 1
 
     # Row-group chunks (50-100 rows)
@@ -183,30 +190,31 @@ def parse_csv(file_bytes: bytes, filename: str) -> ParsedDocument:
     for start_row in range(0, len(df), rows_per_chunk):
         end_row = min(start_row + rows_per_chunk, len(df))
         subset = df.iloc[start_row:end_row]
-        row_text = (
-            f'Rows {start_row + 1}-{end_row} of "{filename}":\n'
-            f"{subset.to_string()}"
-        )
+        row_text = f'Rows {start_row + 1}-{end_row} of "{filename}":\n{subset.to_string()}'
         tokens = count_tokens(row_text)
         # If row chunk is too large, further split it
         if tokens > settings.RAG_CHUNK_SIZE * 2:
             for sub in _chunk_text(row_text):
-                chunks.append(ParsedChunk(
-                    content=sub,
-                    chunk_index=idx,
-                    token_count=count_tokens(sub),
-                    section_title=f"Rows {start_row + 1}-{end_row}",
-                    metadata={"type": "data", "row_range": [start_row, end_row]},
-                ))
+                chunks.append(
+                    ParsedChunk(
+                        content=sub,
+                        chunk_index=idx,
+                        token_count=count_tokens(sub),
+                        section_title=f"Rows {start_row + 1}-{end_row}",
+                        metadata={"type": "data", "row_range": [start_row, end_row]},
+                    )
+                )
                 idx += 1
         else:
-            chunks.append(ParsedChunk(
-                content=row_text,
-                chunk_index=idx,
-                token_count=tokens,
-                section_title=f"Rows {start_row + 1}-{end_row}",
-                metadata={"type": "data", "row_range": [start_row, end_row]},
-            ))
+            chunks.append(
+                ParsedChunk(
+                    content=row_text,
+                    chunk_index=idx,
+                    token_count=tokens,
+                    section_title=f"Rows {start_row + 1}-{end_row}",
+                    metadata={"type": "data", "row_range": [start_row, end_row]},
+                )
+            )
             idx += 1
 
     return ParsedDocument(
@@ -257,13 +265,15 @@ def parse_excel(file_bytes: bytes, filename: str) -> ParsedDocument:
             schema_text += f"\n\nSummary statistics:\n{stats.to_string()}"
 
         all_schema_parts.append(schema_text)
-        all_chunks.append(ParsedChunk(
-            content=schema_text,
-            chunk_index=idx,
-            token_count=count_tokens(schema_text),
-            section_title=f'Sheet "{sheet_name}" — Schema',
-            metadata={"type": "schema", "sheet": sheet_name},
-        ))
+        all_chunks.append(
+            ParsedChunk(
+                content=schema_text,
+                chunk_index=idx,
+                token_count=count_tokens(schema_text),
+                section_title=f'Sheet "{sheet_name}" — Schema',
+                metadata={"type": "schema", "sheet": sheet_name},
+            )
+        )
         idx += 1
 
         # Row-group chunks
@@ -271,26 +281,23 @@ def parse_excel(file_bytes: bytes, filename: str) -> ParsedDocument:
         for start_row in range(0, len(df), rows_per_chunk):
             end_row = min(start_row + rows_per_chunk, len(df))
             subset = df.iloc[start_row:end_row]
-            row_text = (
-                f'Sheet "{sheet_name}", Rows {start_row + 1}-{end_row}:\n'
-                f"{subset.to_string()}"
-            )
+            row_text = f'Sheet "{sheet_name}", Rows {start_row + 1}-{end_row}:\n{subset.to_string()}'
             for sub in _chunk_text(row_text):
-                all_chunks.append(ParsedChunk(
-                    content=sub,
-                    chunk_index=idx,
-                    token_count=count_tokens(sub),
-                    section_title=f'Sheet "{sheet_name}" — Rows {start_row + 1}-{end_row}',
-                    metadata={"type": "data", "sheet": sheet_name, "row_range": [start_row, end_row]},
-                ))
+                all_chunks.append(
+                    ParsedChunk(
+                        content=sub,
+                        chunk_index=idx,
+                        token_count=count_tokens(sub),
+                        section_title=f'Sheet "{sheet_name}" — Rows {start_row + 1}-{end_row}',
+                        metadata={"type": "data", "sheet": sheet_name, "row_range": [start_row, end_row]},
+                    )
+                )
                 idx += 1
 
     full_schema = "\n\n".join(all_schema_parts)
     total_tokens = sum(c.token_count for c in all_chunks)
     if total_tokens > settings.RAG_MAX_DOCUMENT_TOKENS:
-        raise ValueError(
-            f"Document exceeds max token limit ({total_tokens:,} > {settings.RAG_MAX_DOCUMENT_TOKENS:,})"
-        )
+        raise ValueError(f"Document exceeds max token limit ({total_tokens:,} > {settings.RAG_MAX_DOCUMENT_TOKENS:,})")
 
     return ParsedDocument(
         filename=filename,
@@ -354,7 +361,7 @@ def _parse_pdf_docling(file_bytes: bytes, filename: str) -> ParsedDocument:
 
         for item in doc.iterate_items():
             element = item[1] if isinstance(item, tuple) else item
-            text = element.export_to_markdown() if hasattr(element, 'export_to_markdown') else str(element)
+            text = element.export_to_markdown() if hasattr(element, "export_to_markdown") else str(element)
             if not text.strip():
                 continue
 
@@ -364,13 +371,15 @@ def _parse_pdf_docling(file_bytes: bytes, filename: str) -> ParsedDocument:
                 # Flush current section
                 if current_text.strip():
                     for sub in _chunk_text(current_text):
-                        chunks.append(ParsedChunk(
-                            content=sub,
-                            chunk_index=idx,
-                            token_count=count_tokens(sub),
-                            section_title=current_section or None,
-                            metadata={"type": "section"},
-                        ))
+                        chunks.append(
+                            ParsedChunk(
+                                content=sub,
+                                chunk_index=idx,
+                                token_count=count_tokens(sub),
+                                section_title=current_section or None,
+                                metadata={"type": "section"},
+                            )
+                        )
                         idx += 1
                 current_section = text.strip().lstrip("# ")
                 current_text = ""
@@ -380,23 +389,27 @@ def _parse_pdf_docling(file_bytes: bytes, filename: str) -> ParsedDocument:
         # Flush last section
         if current_text.strip():
             for sub in _chunk_text(current_text):
-                chunks.append(ParsedChunk(
-                    content=sub,
-                    chunk_index=idx,
-                    token_count=count_tokens(sub),
-                    section_title=current_section or None,
-                    metadata={"type": "section"},
-                ))
+                chunks.append(
+                    ParsedChunk(
+                        content=sub,
+                        chunk_index=idx,
+                        token_count=count_tokens(sub),
+                        section_title=current_section or None,
+                        metadata={"type": "section"},
+                    )
+                )
                 idx += 1
 
         # If no structured chunks produced, fall back to simple chunking
         if not chunks:
             for sub in _chunk_text(full_text):
-                chunks.append(ParsedChunk(
-                    content=sub,
-                    chunk_index=idx,
-                    token_count=count_tokens(sub),
-                ))
+                chunks.append(
+                    ParsedChunk(
+                        content=sub,
+                        chunk_index=idx,
+                        token_count=count_tokens(sub),
+                    )
+                )
                 idx += 1
 
         return ParsedDocument(
@@ -426,9 +439,7 @@ def _parse_pdf_fallback(file_bytes: bytes, filename: str) -> ParsedDocument:
     full_text = "\n\n".join(pages_text)
     total_tokens = count_tokens(full_text)
     if total_tokens > settings.RAG_MAX_DOCUMENT_TOKENS:
-        raise ValueError(
-            f"Document exceeds max token limit ({total_tokens:,} > {settings.RAG_MAX_DOCUMENT_TOKENS:,})"
-        )
+        raise ValueError(f"Document exceeds max token limit ({total_tokens:,} > {settings.RAG_MAX_DOCUMENT_TOKENS:,})")
 
     chunks: list[ParsedChunk] = []
     idx = 0
@@ -436,13 +447,15 @@ def _parse_pdf_fallback(file_bytes: bytes, filename: str) -> ParsedDocument:
         if not page_text.strip():
             continue
         for sub in _chunk_text(page_text):
-            chunks.append(ParsedChunk(
-                content=sub,
-                chunk_index=idx,
-                page_number=page_num,
-                token_count=count_tokens(sub),
-                metadata={"type": "page"},
-            ))
+            chunks.append(
+                ParsedChunk(
+                    content=sub,
+                    chunk_index=idx,
+                    page_number=page_num,
+                    token_count=count_tokens(sub),
+                    metadata={"type": "page"},
+                )
+            )
             idx += 1
 
     return ParsedDocument(
@@ -483,17 +496,17 @@ def parse_docx(file_bytes: bytes, filename: str) -> ParsedDocument:
 
     total_tokens = count_tokens(text)
     if total_tokens > settings.RAG_MAX_DOCUMENT_TOKENS:
-        raise ValueError(
-            f"Document exceeds max token limit ({total_tokens:,} > {settings.RAG_MAX_DOCUMENT_TOKENS:,})"
-        )
+        raise ValueError(f"Document exceeds max token limit ({total_tokens:,} > {settings.RAG_MAX_DOCUMENT_TOKENS:,})")
 
     chunks: list[ParsedChunk] = []
     for idx, sub in enumerate(_chunk_text(text)):
-        chunks.append(ParsedChunk(
-            content=sub,
-            chunk_index=idx,
-            token_count=count_tokens(sub),
-        ))
+        chunks.append(
+            ParsedChunk(
+                content=sub,
+                chunk_index=idx,
+                token_count=count_tokens(sub),
+            )
+        )
 
     return ParsedDocument(
         filename=filename,

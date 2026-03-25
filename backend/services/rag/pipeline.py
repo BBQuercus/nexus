@@ -38,14 +38,16 @@ async def ingest_document(
         try:
             # 0. Pre-flight: check that the chunks table exists (requires pgvector)
             from sqlalchemy import text as sa_text
+
             try:
                 await db.execute(sa_text("SELECT 1 FROM chunks LIMIT 0"))
             except Exception:
                 await db.rollback()
                 await _mark_document_error(
-                    db, document_id,
+                    db,
+                    document_id,
                     "RAG storage unavailable: pgvector extension is not installed. "
-                    "Install pgvector on your PostgreSQL server to enable document processing."
+                    "Install pgvector on your PostgreSQL server to enable document processing.",
                 )
                 await db.commit()
                 logger.warning("chunks_table_missing", document_id=str(document_id))
@@ -110,28 +112,26 @@ async def ingest_document(
             for _i, (parsed_chunk, prefix, embedding) in enumerate(
                 zip(parsed.chunks, prefixes, embeddings, strict=False)
             ):
-                chunk_records.append(Chunk(
-                    document_id=document_id,
-                    knowledge_base_id=knowledge_base_id,
-                    conversation_id=conversation_id,
-                    content=parsed_chunk.content,
-                    context_prefix=prefix or None,
-                    chunk_index=parsed_chunk.chunk_index,
-                    page_number=parsed_chunk.page_number,
-                    section_title=parsed_chunk.section_title,
-                    embedding=embedding,
-                    token_count=parsed_chunk.token_count,
-                    metadata_=parsed_chunk.metadata,
-                ))
+                chunk_records.append(
+                    Chunk(
+                        document_id=document_id,
+                        knowledge_base_id=knowledge_base_id,
+                        conversation_id=conversation_id,
+                        content=parsed_chunk.content,
+                        context_prefix=prefix or None,
+                        chunk_index=parsed_chunk.chunk_index,
+                        page_number=parsed_chunk.page_number,
+                        section_title=parsed_chunk.section_title,
+                        embedding=embedding,
+                        token_count=parsed_chunk.token_count,
+                        metadata_=parsed_chunk.metadata,
+                    )
+                )
 
             db.add_all(chunk_records)
 
             # 5. Mark document as ready
-            await db.execute(
-                update(Document)
-                .where(Document.id == document_id)
-                .values(status="ready")
-            )
+            await db.execute(update(Document).where(Document.id == document_id).values(status="ready"))
 
             # 6. Update KB counters
             if knowledge_base_id:
@@ -165,9 +165,7 @@ async def _mark_document_error(
     error_message: str,
 ) -> None:
     await db.execute(
-        update(Document)
-        .where(Document.id == document_id)
-        .values(status="error", error_message=error_message[:2000])
+        update(Document).where(Document.id == document_id).values(status="error", error_message=error_message[:2000])
     )
 
 
@@ -176,13 +174,17 @@ async def _update_kb_counters(db: AsyncSession, kb_id: uuid.UUID) -> None:
     from sqlalchemy import func
 
     doc_count = await db.scalar(
-        select(func.count()).select_from(Document).where(
+        select(func.count())
+        .select_from(Document)
+        .where(
             Document.knowledge_base_id == kb_id,
             Document.status == "ready",
         )
     )
     chunk_count = await db.scalar(
-        select(func.count()).select_from(Chunk).where(
+        select(func.count())
+        .select_from(Chunk)
+        .where(
             Chunk.knowledge_base_id == kb_id,
         )
     )

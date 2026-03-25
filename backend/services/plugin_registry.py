@@ -21,6 +21,7 @@ logger = get_logger("plugins")
 @dataclass
 class PluginTool:
     """A user-defined tool."""
+
     id: str
     user_id: str
     name: str

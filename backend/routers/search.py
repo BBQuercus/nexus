@@ -66,15 +66,17 @@ async def search(
         conv_result = await db.execute(conv_query)
         conversations = conv_result.scalars().all()
         for c in conversations:
-            results["conversations"].append({
-                "id": str(c.id),
-                "type": "conversation",
-                "title": c.title or "Untitled",
-                "snippet": c.title or "",
-                "conversation_id": str(c.id),
-                "project_id": str(c.project_id) if c.project_id else None,
-                "created_at": c.created_at.isoformat() if c.created_at else None,
-            })
+            results["conversations"].append(
+                {
+                    "id": str(c.id),
+                    "type": "conversation",
+                    "title": c.title or "Untitled",
+                    "snippet": c.title or "",
+                    "conversation_id": str(c.id),
+                    "project_id": str(c.project_id) if c.project_id else None,
+                    "created_at": c.created_at.isoformat() if c.created_at else None,
+                }
+            )
 
     # ── Search messages by content ──
     if scope in ("all", "messages"):
@@ -93,14 +95,16 @@ async def search(
         msg_result = await db.execute(msg_query)
         messages = msg_result.scalars().all()
         for m in messages:
-            results["messages"].append({
-                "id": str(m.id),
-                "type": "message",
-                "title": f"{m.role.capitalize()} message",
-                "snippet": _snippet(m.content, search_term),
-                "conversation_id": str(m.conversation_id),
-                "created_at": m.created_at.isoformat() if m.created_at else None,
-            })
+            results["messages"].append(
+                {
+                    "id": str(m.id),
+                    "type": "message",
+                    "title": f"{m.role.capitalize()} message",
+                    "snippet": _snippet(m.content, search_term),
+                    "conversation_id": str(m.conversation_id),
+                    "created_at": m.created_at.isoformat() if m.created_at else None,
+                }
+            )
 
     # ── Search artifacts by label and content ──
     if scope in ("all", "artifacts"):
@@ -125,19 +129,17 @@ async def search(
                 snippet = a.label
             else:
                 snippet = _snippet(a.content or "", search_term)
-            results["artifacts"].append({
-                "id": str(a.id),
-                "type": "artifact",
-                "title": a.label or a.type,
-                "snippet": snippet,
-                "conversation_id": str(a.conversation_id),
-                "created_at": a.created_at.isoformat() if a.created_at else None,
-            })
+            results["artifacts"].append(
+                {
+                    "id": str(a.id),
+                    "type": "artifact",
+                    "title": a.label or a.type,
+                    "snippet": snippet,
+                    "conversation_id": str(a.conversation_id),
+                    "created_at": a.created_at.isoformat() if a.created_at else None,
+                }
+            )
 
-    results["total"] = (
-        len(results["conversations"])
-        + len(results["messages"])
-        + len(results["artifacts"])
-    )
+    results["total"] = len(results["conversations"]) + len(results["messages"]) + len(results["artifacts"])
 
     return results

@@ -1,4 +1,3 @@
-
 TOOLS = [
     {
         "type": "function",

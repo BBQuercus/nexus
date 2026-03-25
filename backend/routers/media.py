@@ -42,7 +42,9 @@ async def transcribe_audio(
 
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(_litellm_v1_url("/audio/transcriptions"), data=form, files=files, headers=headers)
+            response = await client.post(
+                _litellm_v1_url("/audio/transcriptions"), data=form, files=files, headers=headers
+            )
             response.raise_for_status()
             payload = response.json()
             return {"text": payload.get("text", ""), "model": model}

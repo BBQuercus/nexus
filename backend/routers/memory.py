@@ -122,9 +122,7 @@ async def update_memory(
     db: AsyncSession = Depends(get_db),
 ):
     """Update an existing memory."""
-    result = await db.execute(
-        select(Memory).where(Memory.id == memory_id, Memory.user_id == user_id)
-    )
+    result = await db.execute(select(Memory).where(Memory.id == memory_id, Memory.user_id == user_id))
     mem = result.scalar_one_or_none()
     if not mem:
         raise HTTPException(404, "Memory not found")
@@ -152,9 +150,7 @@ async def delete_memory(
     db: AsyncSession = Depends(get_db),
 ):
     """Hard delete a memory."""
-    result = await db.execute(
-        select(Memory).where(Memory.id == memory_id, Memory.user_id == user_id)
-    )
+    result = await db.execute(select(Memory).where(Memory.id == memory_id, Memory.user_id == user_id))
     mem = result.scalar_one_or_none()
     if not mem:
         raise HTTPException(404, "Memory not found")

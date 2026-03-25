@@ -23,6 +23,7 @@ logger = get_logger("rag.retrieval")
 @dataclass
 class SearchScope:
     """Defines where to search."""
+
     knowledge_base_ids: list[uuid.UUID] = field(default_factory=list)
     conversation_id: uuid.UUID | None = None
 
@@ -30,6 +31,7 @@ class SearchScope:
 @dataclass
 class ScoredChunk:
     """A chunk with retrieval scores and source metadata."""
+
     id: uuid.UUID
     document_id: uuid.UUID
     knowledge_base_id: uuid.UUID | None
@@ -47,6 +49,7 @@ class ScoredChunk:
 @dataclass
 class RetrievalResult:
     """Complete result of a retrieval operation."""
+
     chunks: list[ScoredChunk]
     query: str
     sub_queries: list[str] | None = None
@@ -157,9 +160,7 @@ async def _load_chunks(
         return []
 
     stmt = (
-        select(Chunk, Document.filename)
-        .join(Document, Chunk.document_id == Document.id)
-        .where(Chunk.id.in_(chunk_ids))
+        select(Chunk, Document.filename).join(Document, Chunk.document_id == Document.id).where(Chunk.id.in_(chunk_ids))
     )
     result = await db.execute(stmt)
 
