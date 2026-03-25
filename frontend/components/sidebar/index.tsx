@@ -24,6 +24,7 @@ export default function Sidebar() {
   const setConversations = useStore((s) => s.setConversations);
   const setActiveConversationId = useStore((s) => s.setActiveConversationId);
   const setMessages = useStore((s) => s.setMessages);
+  const removeConversation = useStore((s) => s.removeConversation);
   const activeModel = useStore((s) => s.activeModel);
   const togglePinConversation = useStore((s) => s.togglePinConversation);
   const activeProjectId = useStore((s) => s.activeProjectId);
@@ -33,6 +34,7 @@ export default function Sidebar() {
   // Bulk selection
   const [bulkMode, setBulkMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
 
   // Rename
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -87,6 +89,8 @@ export default function Sidebar() {
 
   const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (deletingIds.has(id)) return;
+
     const confirmed = await useStore.getState().showConfirm({
       title: 'Delete this conversation?',
       message: 'This action cannot be undone.',
@@ -94,13 +98,45 @@ export default function Sidebar() {
       variant: 'danger',
     });
     if (!confirmed) return;
+
+    const snapshot = useStore.getState();
+    setDeletingIds((prev) => new Set(prev).add(id));
+    removeConversation(id);
+    setSelectedIds((prev) => {
+      if (!prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+
     try {
       await api.deleteConversation(id);
-      if (activeConversationId === id) { setActiveConversationId(null); setMessages([]); }
-      loadConversations();
       toast.success('Conversation deleted');
     } catch {
+      useStore.setState({
+        conversations: snapshot.conversations,
+        activeConversationId: snapshot.activeConversationId,
+        messages: snapshot.messages,
+        messagesByConversation: snapshot.messagesByConversation,
+        sandboxStatus: snapshot.sandboxStatus,
+        sandboxId: snapshot.sandboxId,
+        activeLeafId: snapshot.activeLeafId,
+        conversationTree: snapshot.conversationTree,
+        artifacts: snapshot.artifacts,
+        previewUrl: snapshot.previewUrl,
+        abortController: snapshot.abortController,
+        isStreaming: snapshot.isStreaming,
+        streaming: snapshot.streaming,
+        multiStreaming: snapshot.multiStreaming,
+      });
+      loadConversations();
       toast.error('Failed to delete conversation');
+    } finally {
+      setDeletingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
     }
   };
 
@@ -176,18 +212,63 @@ export default function Sidebar() {
       variant: 'danger',
     });
     if (!confirmed) return;
-    let deleted = 0;
-    for (const id of selectedIds) {
-      try {
-        await api.deleteConversation(id);
-        if (activeConversationId === id) { setActiveConversationId(null); setMessages([]); }
-        deleted++;
-      } catch {}
+
+    const ids = Array.from(selectedIds);
+    const snapshot = useStore.getState();
+    setDeletingIds((prev) => {
+      const next = new Set(prev);
+      ids.forEach((id) => next.add(id));
+      return next;
+    });
+    ids.forEach((id) => removeConversation(id));
+
+    const results = await Promise.allSettled(ids.map(async (id) => {
+      await api.deleteConversation(id);
+      return id;
+    }));
+
+    const failed = results.filter((result) => result.status === 'rejected').length;
+    const deleted = results.length - failed;
+
+    if (failed > 0) {
+      useStore.setState({
+        conversations: snapshot.conversations,
+        activeConversationId: snapshot.activeConversationId,
+        messages: snapshot.messages,
+        messagesByConversation: snapshot.messagesByConversation,
+        sandboxStatus: snapshot.sandboxStatus,
+        sandboxId: snapshot.sandboxId,
+        activeLeafId: snapshot.activeLeafId,
+        conversationTree: snapshot.conversationTree,
+        artifacts: snapshot.artifacts,
+        previewUrl: snapshot.previewUrl,
+        abortController: snapshot.abortController,
+        isStreaming: snapshot.isStreaming,
+        streaming: snapshot.streaming,
+        multiStreaming: snapshot.multiStreaming,
+      });
+      loadConversations();
     }
+
     setSelectedIds(new Set());
     setBulkMode(false);
-    loadConversations();
-    toast.success(`Deleted ${deleted} conversation${deleted > 1 ? 's' : ''}`);
+    setDeletingIds((prev) => {
+      const next = new Set(prev);
+      ids.forEach((id) => next.delete(id));
+      return next;
+    });
+
+    if (failed === 0) {
+      toast.success(`Deleted ${deleted} conversation${deleted > 1 ? 's' : ''}`);
+      return;
+    }
+
+    if (deleted > 0) {
+      toast.error(`Deleted ${deleted}, but ${failed} failed`);
+      return;
+    }
+
+    toast.error('Failed to delete conversations');
   };
 
   const handleBulkExport = async () => {
@@ -278,6 +359,7 @@ export default function Sidebar() {
         conversations={filteredConversations}
         search={search}
         activeConversationId={activeConversationId}
+        deletingIds={deletingIds}
         bulkMode={bulkMode}
         selectedIds={selectedIds}
         renamingId={renamingId}

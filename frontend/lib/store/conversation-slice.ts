@@ -18,6 +18,7 @@ export interface ConversationSlice {
   setSandboxId: (id: string | null) => void;
   updateConversationTitle: (id: string, title: string) => void;
   togglePinConversation: (id: string) => void;
+  removeConversation: (id: string) => void;
 }
 
 export const createConversationSlice: StateCreator<StoreState, [], [], ConversationSlice> = (set) => ({
@@ -87,4 +88,31 @@ export const createConversationSlice: StateCreator<StoreState, [], [], Conversat
       return { conversations: updated };
     });
   },
+  removeConversation: (id) =>
+    set((state) => {
+      const conversations = state.conversations.filter((c) => c.id !== id);
+      const messagesByConversation = { ...state.messagesByConversation };
+      delete messagesByConversation[id];
+
+      return {
+        conversations,
+        messagesByConversation,
+        ...(state.activeConversationId === id
+          ? {
+              activeConversationId: null,
+              messages: [],
+              sandboxStatus: 'none',
+              sandboxId: null,
+              activeLeafId: null,
+              conversationTree: null,
+              artifacts: [],
+              previewUrl: null,
+              abortController: null,
+              isStreaming: false,
+              streaming: cloneEmptyStreaming(),
+              multiStreaming: null,
+            }
+          : {}),
+      };
+    }),
 });
