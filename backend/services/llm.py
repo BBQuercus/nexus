@@ -1,4 +1,5 @@
 import asyncio
+import time
 from collections.abc import AsyncGenerator
 from decimal import Decimal
 from typing import Any
@@ -7,6 +8,12 @@ import openai
 
 from backend.config import settings
 from backend.logging_config import get_logger
+from backend.telemetry import (
+    errors_total,
+    llm_request_duration,
+    llm_requests_total,
+    llm_time_to_first_token,
+)
 
 logger = get_logger("llm")
 
@@ -100,32 +107,52 @@ async def stream_chat(
             kwargs["tool_choice"] = "auto"
 
     last_error: Exception | None = None
+    request_start = time.monotonic()
+    first_token_emitted = False
 
     for attempt in range(_MAX_RETRIES + 1):
         try:
             response = await client.chat.completions.create(**kwargs)
             async for chunk in response:
+                if not first_token_emitted and chunk.choices:
+                    delta = chunk.choices[0].delta
+                    if delta.content or (hasattr(delta, "reasoning_content") and delta.reasoning_content):
+                        llm_time_to_first_token.labels(model=model).observe(time.monotonic() - request_start)
+                        first_token_emitted = True
                 yield chunk
+            llm_requests_total.labels(model=model, status="success").inc()
+            llm_request_duration.labels(model=model).observe(time.monotonic() - request_start)
             return  # Success
         except openai.RateLimitError as e:
             last_error = e
             logger.warning("llm_rate_limited", model=model, attempt=attempt, error=str(e))
+            llm_requests_total.labels(model=model, status="rate_limited").inc()
+            errors_total.labels(error_type="rate_limited", component="llm").inc()
         except openai.APIStatusError as e:
             if e.status_code in _RETRYABLE_STATUSES:
                 last_error = e
                 logger.warning("llm_api_error", model=model, status=e.status_code, attempt=attempt)
+                llm_requests_total.labels(model=model, status="error").inc()
+                errors_total.labels(error_type="api_error", component="llm").inc()
             else:
+                llm_requests_total.labels(model=model, status="error").inc()
+                errors_total.labels(error_type="api_error", component="llm").inc()
                 raise
         except openai.APITimeoutError as e:
             last_error = e
             logger.warning("llm_timeout", model=model, attempt=attempt)
+            llm_requests_total.labels(model=model, status="timeout").inc()
+            errors_total.labels(error_type="timeout", component="llm").inc()
         except openai.APIConnectionError as e:
             last_error = e
             logger.warning("llm_connection_error", model=model, attempt=attempt, error=str(e))
+            llm_requests_total.labels(model=model, status="connection_error").inc()
+            errors_total.labels(error_type="connection_error", component="llm").inc()
 
         if attempt < _MAX_RETRIES:
             await asyncio.sleep(_RETRY_BACKOFF_S * (attempt + 1))
 
+    llm_request_duration.labels(model=model).observe(time.monotonic() - request_start)
     raise LLMUnavailableError(
         f"Model '{model}' is temporarily unavailable. Please try again or switch to a different model. "
         f"(Last error: {last_error})"

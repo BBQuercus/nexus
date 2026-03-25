@@ -1,6 +1,7 @@
 """Tool call execution logic and tool result handling."""
 
 import json
+import time
 import uuid
 from collections.abc import AsyncGenerator
 from typing import Any
@@ -8,6 +9,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.logging_config import get_logger
+from backend.telemetry import errors_total, tool_execution_duration, tool_executions_total
 from backend.models import RetrievalLog
 from backend.services import sandbox as sandbox_service
 from backend.services.chart_tool import normalize_chart_spec
@@ -111,6 +113,7 @@ async def execute_tool_call(
 
     tool_output = ""
     tool_exit_code = 0
+    tool_start_time = time.monotonic()
     try:
         if func_name == "execute_code":
             async for event in _execute_code(func_name, args, tool_call_id, ctx):
@@ -232,8 +235,13 @@ async def execute_tool_call(
         tool_output = f"Error executing {func_name}: {str(e)}"
         tool_exit_code = 1
         logger.error("tool_execution_error", tool=func_name, error=str(e))
+        tool_executions_total.labels(tool_name=func_name, status="error").inc()
+        errors_total.labels(error_type="tool_execution_error", component="api").inc()
         yield sse_event("tool_output", {"tool": func_name, "output": tool_output, "tool_call_id": tool_call_id})
+    else:
+        tool_executions_total.labels(tool_name=func_name, status="success").inc()
 
+    tool_execution_duration.labels(tool_name=func_name).observe(time.monotonic() - tool_start_time)
     yield sse_event("tool_end", {"tool": func_name, "tool_call_id": tool_call_id})
 
     # Build enriched tool call for persistence
@@ -518,6 +526,7 @@ async def _knowledge_search(
 
     except Exception as rag_err:
         logger.warning("knowledge_search_failed", error=str(rag_err), query=args.get("query", ""))
+        errors_total.labels(error_type="knowledge_search_failed", component="rag").inc()
         tool_output = f"Knowledge search encountered an error: {rag_err}. Try rephrasing your query."
 
     if _rag_sse_event:

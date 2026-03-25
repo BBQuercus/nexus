@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.logging_config import get_logger
 from backend.models import Artifact, Conversation, KnowledgeBase
 from backend.prompts.system import build_system_prompt
+from backend.telemetry import active_streams, errors_total, llm_token_usage, stream_duration
 from backend.prompts.tools import get_tools_for_mode
 from backend.services import llm as llm_service
 from backend.services import sandbox as sandbox_service
@@ -66,6 +67,7 @@ async def run_agent_loop(
     and included in the path.
     """
     start_time = time.monotonic()
+    active_streams.inc()
 
     # Load conversation messages
     existing_messages = await load_conversation_messages(db, conversation_id, leaf_message_id)
@@ -204,15 +206,25 @@ async def run_agent_loop(
 
         except llm_service.LLMUnavailableError as e:
             logger.warning("llm_unavailable", model=model, iteration=iteration, error=str(e))
+            errors_total.labels(error_type="llm_unavailable", component="api").inc()
+            active_streams.dec()
+            stream_duration.observe(time.monotonic() - start_time)
             yield sse_event("error", {"message": str(e)})
             return
         except Exception as e:
             logger.error("llm_stream_error", error=str(e), model=model, iteration=iteration)
+            errors_total.labels(error_type="llm_stream_error", component="api").inc()
+            active_streams.dec()
+            stream_duration.observe(time.monotonic() - start_time)
             yield sse_event("error", {"message": f"An error occurred while generating a response: {e}"})
             return
 
         total_input_tokens += input_tokens
         total_output_tokens += output_tokens
+        if input_tokens:
+            llm_token_usage.labels(model=model, direction="input").inc(input_tokens)
+        if output_tokens:
+            llm_token_usage.labels(model=model, direction="output").inc(output_tokens)
 
         # Finalize tool calls
         if tool_call_buffers:
@@ -288,6 +300,8 @@ async def run_agent_loop(
     await db.commit()
 
     duration_ms = int((time.monotonic() - start_time) * 1000)
+    active_streams.dec()
+    stream_duration.observe(duration_ms / 1000.0)
 
     yield sse_event(
         "done",
