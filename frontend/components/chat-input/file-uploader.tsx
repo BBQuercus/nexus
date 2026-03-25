@@ -26,10 +26,27 @@ export function FilePreviewCard({ file, onRemove }: FilePreviewCardProps) {
     : category === 'pdf' ? <FileText size={16} className="text-red-400" />
     : <FileIcon size={16} className="text-text-tertiary" />;
 
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+
   return (
     <div className="relative group/card flex items-center gap-2 px-2.5 py-2 bg-surface-1 border border-border-default rounded-lg text-[11px] min-w-0 max-w-[200px]">
       {category === 'image' && thumbUrl ? (
-        <img src={thumbUrl} alt={file.name} className="w-8 h-8 rounded object-cover shrink-0 border border-border-default" />
+        <>
+          <img
+            src={thumbUrl}
+            alt={file.name}
+            className="w-8 h-8 rounded object-cover shrink-0 border border-border-default cursor-pointer hover:opacity-80 transition-opacity"
+            onClick={() => setLightboxOpen(true)}
+          />
+          {lightboxOpen && (
+            <div
+              className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm cursor-zoom-out"
+              onClick={() => setLightboxOpen(false)}
+            >
+              <img src={thumbUrl} alt={file.name} className="max-w-[90vw] max-h-[90vh] rounded-lg object-contain shadow-2xl" />
+            </div>
+          )}
+        </>
       ) : (
         <div className="w-8 h-8 rounded bg-surface-2 border border-border-default flex items-center justify-center shrink-0">
           {icon}

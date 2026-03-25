@@ -478,6 +478,60 @@ export function useChatSubmit({ textareaRef }: UseChatSubmitOptions): UseChatSub
 
     if (!text && pendingFiles.length === 0 && attachedContexts.length === 0) return;
 
+    // Convert image files to base64 BEFORE creating conversation to avoid race conditions
+    const SUPPORTED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
+
+    const convertImageToDataUrl = (file: File): Promise<{ filename: string; dataUrl: string }> =>
+      new Promise((resolve) => {
+        if (SUPPORTED_IMAGE_TYPES.has(file.type)) {
+          const reader = new FileReader();
+          reader.onload = () => resolve({ filename: file.name, dataUrl: reader.result as string });
+          reader.readAsDataURL(file);
+        } else {
+          // Re-encode unsupported formats (avif, bmp, tiff, svg) to JPEG via canvas
+          const url = URL.createObjectURL(file);
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.naturalWidth;
+            canvas.height = img.naturalHeight;
+            const ctx = canvas.getContext('2d')!;
+            ctx.drawImage(img, 0, 0);
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+            URL.revokeObjectURL(url);
+            resolve({ filename: file.name.replace(/\.[^.]+$/, '.jpg'), dataUrl });
+          };
+          img.onerror = () => {
+            URL.revokeObjectURL(url);
+            const reader = new FileReader();
+            reader.onload = () => resolve({ filename: file.name, dataUrl: reader.result as string });
+            reader.readAsDataURL(file);
+          };
+          img.src = url;
+        }
+      });
+
+    let imageDataUrls: { filename: string; dataUrl: string }[] | undefined;
+    let attachmentIds: string[] | undefined;
+    if (pendingFiles.length > 0) {
+      const imageFiles = pendingFiles.filter((f) => f.type.startsWith('image/'));
+      const otherFiles = pendingFiles.filter((f) => !f.type.startsWith('image/'));
+
+      if (imageFiles.length > 0) {
+        imageDataUrls = await Promise.all(imageFiles.map(convertImageToDataUrl));
+      }
+
+      // Upload non-image files to sandbox if available
+      if (otherFiles.length > 0 && sandboxId) {
+        try {
+          const result = await api.uploadSandboxFiles(sandboxId, otherFiles);
+          attachmentIds = result.ids;
+        } catch {
+          toast.error('Failed to upload files');
+        }
+      }
+    }
+
     const contextIds = attachedContexts.map((c) => c.id);
 
     let convId = activeConversationId;
@@ -503,16 +557,6 @@ export function useChatSubmit({ textareaRef }: UseChatSubmitOptions): UseChatSub
       }
     }
 
-    let attachmentIds: string[] | undefined;
-    if (pendingFiles.length > 0 && sandboxId) {
-      try {
-        const result = await api.uploadSandboxFiles(sandboxId, pendingFiles);
-        attachmentIds = result.ids;
-      } catch {
-        toast.error('Failed to upload files');
-      }
-    }
-
     const parentId = branchingFromId || undefined;
     setBranchingFromId(null);
     setContent('');
@@ -521,12 +565,13 @@ export function useChatSubmit({ textareaRef }: UseChatSubmitOptions): UseChatSub
     saveDraft(convId, '');
     saveDraft(activeConversationId, '');
 
-    // Add user message optimistically
+    // Add user message optimistically (include image previews)
     const userMsg: Message = {
       id: `temp-${Date.now()}`, conversationId: convId, role: 'user',
       content: text || '[File upload]', createdAt: new Date().toISOString(),
       parentId,
       ...(attachedContexts.length > 0 ? { contexts: [...attachedContexts] } : {}),
+      ...(imageDataUrls ? { images: imageDataUrls.map((img) => ({ filename: img.filename, url: img.dataUrl })) } : {}),
     };
     if (parentId) {
       const branchIdx = messages.findIndex((m) => m.id === parentId);
@@ -538,6 +583,7 @@ export function useChatSubmit({ textareaRef }: UseChatSubmitOptions): UseChatSub
     const currentKBIds = useStore.getState().activeKnowledgeBaseIds;
     await streamSend(text, convId, {
       attachmentIds,
+      images: imageDataUrls,
       model: activePersona?.defaultModel || activeModel,
       parentId,
       numResponses,
