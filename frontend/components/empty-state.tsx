@@ -128,7 +128,7 @@ function WelcomeScreen() {
   };
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 gap-6 sm:gap-8 overflow-y-auto py-6 sm:py-8 cascade-sections">
+    <div className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 gap-6 sm:gap-8 overflow-y-auto py-6 sm:py-8 animate-fade-in">
       {/* Hero */}
       <div className="relative flex flex-col items-center gap-4">
         <div className="relative">
@@ -213,7 +213,7 @@ function ReturningUserScreen() {
   };
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 gap-6 sm:gap-10 overflow-y-auto py-6 sm:py-8 cascade-sections">
+    <div className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 gap-6 sm:gap-10 overflow-y-auto py-6 sm:py-8 animate-fade-in">
       {/* Logo */}
       <div className="relative flex flex-col items-center gap-4">
         <div className="relative">
