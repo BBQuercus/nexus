@@ -130,7 +130,7 @@ function WelcomeScreen() {
   return (
     <div className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 gap-6 sm:gap-8 overflow-y-auto py-6 sm:py-8 animate-fade-in">
       {/* Hero */}
-      <div className="relative flex flex-col items-center gap-4 animate-fade-in-up">
+      <div className="relative flex flex-col items-center gap-4 animate-fade-in">
         <div className="relative">
           <div className="absolute inset-0 w-16 h-16 -m-3 rounded-lg bg-accent/8 animate-pulse" />
           <div className="relative flex items-center gap-2.5 z-10">
@@ -215,7 +215,7 @@ function ReturningUserScreen() {
   return (
     <div className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 gap-6 sm:gap-10 overflow-y-auto py-6 sm:py-8 animate-fade-in">
       {/* Logo */}
-      <div className="relative flex flex-col items-center gap-4 animate-fade-in-up">
+      <div className="relative flex flex-col items-center gap-4 animate-fade-in">
         <div className="relative">
           <div className="absolute inset-0 w-14 h-14 -m-2 rounded-lg bg-accent/5 animate-pulse" />
           <div className="relative flex items-center gap-2 z-10">
