@@ -40,6 +40,13 @@ export default function AgentsView() {
 
   useEffect(() => { api.listAgents().then(setAgents).catch(() => setAgents([])); }, []);
 
+  // Auto-select first agent once loaded
+  useEffect(() => {
+    if (!editing && agents && agents.length > 0) {
+      setEditing({ ...agents[0] });
+    }
+  }, [agents]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Auto-open editor with pre-filled data from URL params
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -162,34 +169,40 @@ export default function AgentsView() {
   return (
     <PageShell title="Agents" sidebar={agentsSidebar}>
       {editing ? (
-        <div className="flex-1 overflow-y-auto">
-          <div className="max-w-xl mx-auto p-6">
+        <div className="flex-1 overflow-y-auto p-6">
+          <div className="max-w-2xl">
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-sm font-semibold text-text-primary">
-                {editing.id ? 'Edit Agent' : 'New Agent'}
-              </h3>
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-surface-2 border border-border-default flex items-center justify-center shrink-0">
+                  <AgentIcon name={editing.icon} size={18} className="text-text-tertiary" />
+                </div>
+                <h3 className="text-sm font-semibold text-text-primary">
+                  {editing.id ? editing.name || 'Edit Agent' : 'New Agent'}
+                </h3>
+              </div>
               <button onClick={() => setEditing(null)} className="text-text-tertiary hover:text-text-primary cursor-pointer">
                 <X size={14} />
               </button>
             </div>
 
             <div className="space-y-5">
-              <div>
-                <Label>Icon</Label>
-                <IconPicker
-                  value={editing.icon}
-                  onChange={(icon) => setEditing({ ...editing, icon })}
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="agent-name">Name</Label>
-                <Input
-                  id="agent-name"
-                  value={editing.name}
-                  onChange={(e) => setEditing({ ...editing, name: e.target.value })}
-                  placeholder="Agent name"
-                />
+              <div className="grid grid-cols-[1fr_1fr] gap-4">
+                <div>
+                  <Label htmlFor="agent-name">Name</Label>
+                  <Input
+                    id="agent-name"
+                    value={editing.name}
+                    onChange={(e) => setEditing({ ...editing, name: e.target.value })}
+                    placeholder="Agent name"
+                  />
+                </div>
+                <div>
+                  <Label>Icon</Label>
+                  <IconPicker
+                    value={editing.icon}
+                    onChange={(icon) => setEditing({ ...editing, icon })}
+                  />
+                </div>
               </div>
 
               <div>
@@ -209,31 +222,32 @@ export default function AgentsView() {
                   value={editing.systemPrompt}
                   onChange={(e) => setEditing({ ...editing, systemPrompt: e.target.value })}
                   placeholder="Instructions for this agent..."
-                  rows={8}
+                  rows={10}
                 />
               </div>
 
-              <div>
-                <Label htmlFor="agent-model">Default Model</Label>
-                <Select
-                  id="agent-model"
-                  value={editing.defaultModel}
-                  onChange={(e) => setEditing({ ...editing, defaultModel: e.target.value })}
-                >
-                  {MODEL_OPTIONS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
-                </Select>
+              <div className="grid grid-cols-[1fr_auto] gap-4 items-end">
+                <div>
+                  <Label htmlFor="agent-model">Default Model</Label>
+                  <Select
+                    id="agent-model"
+                    value={editing.defaultModel}
+                    onChange={(e) => setEditing({ ...editing, defaultModel: e.target.value })}
+                  >
+                    {MODEL_OPTIONS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+                  </Select>
+                </div>
+                <div className="flex items-center gap-2.5 pb-0.5">
+                  <Label className="mb-0 text-text-tertiary">Public</Label>
+                  <Switch
+                    checked={editing.isPublic ?? false}
+                    onCheckedChange={(checked) => setEditing({ ...editing, isPublic: checked })}
+                  />
+                </div>
               </div>
 
-              <div className="flex items-center justify-between py-1">
-                <Label className="mb-0">Public</Label>
-                <Switch
-                  checked={editing.isPublic ?? false}
-                  onCheckedChange={(checked) => setEditing({ ...editing, isPublic: checked })}
-                />
-              </div>
-
-              <div className="flex gap-2 pt-3 border-t border-border-default">
-                <button onClick={handleSave} className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-accent text-bg text-[11px] font-medium rounded-lg hover:bg-accent-hover cursor-pointer transition-colors">
+              <div className="flex gap-2 pt-4 border-t border-border-default">
+                <button onClick={handleSave} className="flex items-center justify-center gap-1.5 px-5 py-2.5 bg-accent text-bg text-[11px] font-medium rounded-lg hover:bg-accent-hover cursor-pointer transition-colors">
                   <Save size={12} /> Save
                 </button>
                 {editing.id && (
@@ -241,9 +255,10 @@ export default function AgentsView() {
                     <Play size={12} /> Try
                   </button>
                 )}
+                <div className="flex-1" />
                 {editing.id && (
-                  <button onClick={handleDelete} className="flex items-center justify-center gap-1.5 px-4 py-2.5 text-error text-[11px] rounded-lg hover:bg-error/10 cursor-pointer transition-colors">
-                    <Trash2 size={12} />
+                  <button onClick={handleDelete} className="flex items-center justify-center gap-1.5 px-4 py-2.5 text-error/70 hover:text-error text-[11px] rounded-lg hover:bg-error/10 cursor-pointer transition-colors">
+                    <Trash2 size={12} /> Delete
                   </button>
                 )}
               </div>
@@ -251,38 +266,20 @@ export default function AgentsView() {
           </div>
         </div>
       ) : isInitialLoading ? (
-        <div className="flex-1 overflow-y-auto">
-          <div className="max-w-xl mx-auto p-6">
-            <div className="animate-pulse">
-              <div className="flex items-center justify-between mb-6">
-                <div className="h-4 w-24 rounded bg-surface-2" />
-                <div className="h-4 w-4 rounded bg-surface-2" />
+        <div className="flex-1 overflow-y-auto p-6">
+          <div className="max-w-2xl animate-pulse">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-9 h-9 rounded-lg bg-surface-2" />
+              <div className="h-4 w-24 rounded bg-surface-2" />
+            </div>
+            <div className="space-y-5">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2"><div className="h-3 w-10 rounded bg-surface-2" /><div className="h-10 rounded-lg bg-surface-1 border border-border-default" /></div>
+                <div className="space-y-2"><div className="h-3 w-8 rounded bg-surface-2" /><div className="h-10 rounded-lg bg-surface-1 border border-border-default" /></div>
               </div>
-              <div className="space-y-5">
-                <div className="space-y-2">
-                  <div className="h-3 w-10 rounded bg-surface-2" />
-                  <div className="h-24 rounded-xl bg-surface-1 border border-border-default" />
-                </div>
-                <div className="space-y-2">
-                  <div className="h-3 w-12 rounded bg-surface-2" />
-                  <div className="h-10 rounded-lg bg-surface-1 border border-border-default" />
-                </div>
-                <div className="space-y-2">
-                  <div className="h-3 w-20 rounded bg-surface-2" />
-                  <div className="h-10 rounded-lg bg-surface-1 border border-border-default" />
-                </div>
-                <div className="space-y-2">
-                  <div className="h-3 w-24 rounded bg-surface-2" />
-                  <div className="h-36 rounded-xl bg-surface-1 border border-border-default" />
-                </div>
-                <div className="space-y-2">
-                  <div className="h-3 w-24 rounded bg-surface-2" />
-                  <div className="h-10 rounded-lg bg-surface-1 border border-border-default" />
-                </div>
-                <div className="flex gap-2 pt-3 border-t border-border-default">
-                  <div className="h-10 flex-1 rounded-lg bg-surface-2" />
-                </div>
-              </div>
+              <div className="space-y-2"><div className="h-3 w-20 rounded bg-surface-2" /><div className="h-10 rounded-lg bg-surface-1 border border-border-default" /></div>
+              <div className="space-y-2"><div className="h-3 w-24 rounded bg-surface-2" /><div className="h-40 rounded-xl bg-surface-1 border border-border-default" /></div>
+              <div className="space-y-2"><div className="h-3 w-24 rounded bg-surface-2" /><div className="h-10 rounded-lg bg-surface-1 border border-border-default" /></div>
             </div>
           </div>
         </div>

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Shield, Users, MessageSquare, ThumbsUp, ThumbsDown, AlertTriangle, Cpu, RefreshCw, BarChart3 } from 'lucide-react';
 import PageShell from '@/components/page-shell';
+import { useStore } from '@/lib/store';
 import * as api from '@/lib/api';
 
 type Tab = 'overview' | 'feedback' | 'users' | 'errors';
@@ -21,13 +22,15 @@ const fmtDate = (v: unknown) => {
 export default function AdminPage() {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>('overview');
-  const [auth, setAuth] = useState<boolean | null>(null);
+  const user = useStore((s) => s.user);
+  const [auth, setAuth] = useState<boolean | null>(user ? !!user.isAdmin : null);
 
   useEffect(() => {
+    if (user) { setAuth(!!user.isAdmin); return; }
     api.getCurrentUser()
       .then((u) => setAuth(!!u.isAdmin))
       .catch(() => setAuth(false));
-  }, []);
+  }, [user]);
 
   if (auth === null) return <div className="h-screen bg-bg flex items-center justify-center"><div className="w-5 h-5 border-2 border-accent border-t-transparent rounded-full animate-spin" /></div>;
 

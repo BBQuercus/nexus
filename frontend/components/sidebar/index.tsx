@@ -253,11 +253,11 @@ export default function Sidebar() {
   }, [filteredConversations, today, yesterday, weekAgo]);
 
   return (
-    <div className="relative flex flex-col w-[85vw] sm:w-[272px] max-w-[320px] bg-surface-0 border-r border-border-default shrink-0 h-full min-w-0 sm:min-w-[272px]">
+    <div data-tour="sidebar" className="relative flex flex-col w-[85vw] sm:w-[272px] max-w-[320px] bg-surface-0 border-r border-border-default shrink-0 h-full min-w-0 sm:min-w-[272px]">
       <div className="absolute inset-0 grid-texture opacity-10 pointer-events-none" />
 
       {/* Project switcher */}
-      <div className="px-2 pt-2 pb-0.5">
+      <div data-tour="project-switcher" className="px-2 pt-2 pb-0.5">
         <ProjectSwitcher />
       </div>
 

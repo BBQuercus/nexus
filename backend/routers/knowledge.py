@@ -247,6 +247,58 @@ async def list_documents(
     return [_serialize_document(d) for d in result.scalars().all()]
 
 
+@router.get("/{kb_id}/documents/{doc_id}/content")
+async def get_document_content(
+    kb_id: uuid.UUID,
+    doc_id: uuid.UUID,
+    user_id: uuid.UUID = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return the extracted raw text for a document."""
+    await _get_kb_or_404(db, kb_id, user_id)
+    result = await db.execute(
+        select(Document).where(Document.id == doc_id, Document.knowledge_base_id == kb_id)
+    )
+    doc = result.scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    return {
+        "id": str(doc.id),
+        "filename": doc.filename,
+        "content_type": doc.content_type,
+        "raw_text": doc.raw_text or "",
+    }
+
+
+@router.get("/{kb_id}/documents/{doc_id}/chunks")
+async def get_document_chunks(
+    kb_id: uuid.UUID,
+    doc_id: uuid.UUID,
+    user_id: uuid.UUID = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return all chunks for a document, ordered by chunk_index."""
+    await _get_kb_or_404(db, kb_id, user_id)
+    result = await db.execute(
+        select(Chunk)
+        .where(Chunk.document_id == doc_id, Chunk.knowledge_base_id == kb_id)
+        .order_by(Chunk.chunk_index)
+    )
+    chunks = result.scalars().all()
+    return [
+        {
+            "id": str(c.id),
+            "chunk_index": c.chunk_index,
+            "content": c.content,
+            "context_prefix": c.context_prefix,
+            "page_number": c.page_number,
+            "section_title": c.section_title,
+            "token_count": c.token_count,
+        }
+        for c in chunks
+    ]
+
+
 @router.delete("/{kb_id}/documents/{doc_id}")
 async def delete_document(
     kb_id: uuid.UUID,
