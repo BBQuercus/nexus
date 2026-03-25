@@ -22,13 +22,24 @@ export default function ChatMessages() {
   const isStreamingRef = useRef(isStreaming);
   isStreamingRef.current = isStreaming;
   const containerRef = useRef<HTMLDivElement>(null);
+  const autoScrollRef = useRef(true);
+  const previousMessageCountRef = useRef(messages.length);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const scrollToBottom = useCallback(() => {
-    if (containerRef.current) {
-      containerRef.current.scrollTop = containerRef.current.scrollHeight;
-    }
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    container.scrollTo({ top: container.scrollHeight, behavior });
+  }, []);
+
+  const isNearBottom = useCallback(() => {
+    const container = containerRef.current;
+    if (!container) return true;
+
+    const distFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+    return distFromBottom <= 80;
   }, []);
 
   const updateScrollButtonVisibility = useCallback(() => {
@@ -47,30 +58,58 @@ export default function ChatMessages() {
     setShowScrollButton(isScrollable && distFromBottom > 150);
   }, [isStreaming, messages.length]);
 
+  const scrollToBottomIfPinned = useCallback((behavior: ScrollBehavior = 'auto') => {
+    if (!autoScrollRef.current) {
+      updateScrollButtonVisibility();
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      scrollToBottom(behavior);
+      updateScrollButtonVisibility();
+    });
+  }, [scrollToBottom, updateScrollButtonVisibility]);
+
   // Track scroll position to show/hide scroll-to-bottom button
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
-    const handleScroll = () => updateScrollButtonVisibility();
+    const handleScroll = () => {
+      autoScrollRef.current = isNearBottom();
+      updateScrollButtonVisibility();
+    };
 
     container.addEventListener('scroll', handleScroll, { passive: true });
     return () => container.removeEventListener('scroll', handleScroll);
-  }, [updateScrollButtonVisibility]);
+  }, [isNearBottom, updateScrollButtonVisibility]);
 
   useEffect(() => {
     updateScrollButtonVisibility();
   }, [activeConversationId, messages, isStreaming, loading, updateScrollButtonVisibility]);
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, scrollToBottom]);
+    autoScrollRef.current = true;
+    previousMessageCountRef.current = useStore.getState().messages.length;
+    scrollToBottomIfPinned();
+  }, [activeConversationId, scrollToBottomIfPinned]);
+
+  useEffect(() => {
+    const previousCount = previousMessageCountRef.current;
+    const nextCount = messages.length;
+
+    if (nextCount > previousCount) {
+      scrollToBottomIfPinned('smooth');
+    }
+
+    previousMessageCountRef.current = nextCount;
+  }, [messages.length, scrollToBottomIfPinned]);
 
   // Also scroll when streaming content changes
   const streamingContent = useStore((s) => s.streaming.content);
   useEffect(() => {
-    if (isStreaming) scrollToBottom();
-  }, [streamingContent, isStreaming, scrollToBottom]);
+    if (isStreaming) scrollToBottomIfPinned();
+  }, [streamingContent, isStreaming, scrollToBottomIfPinned]);
 
   useEffect(() => {
     if (!activeConversationId || isStreamingRef.current) return;
@@ -146,7 +185,11 @@ export default function ChatMessages() {
       {/* Scroll to bottom button */}
       {showScrollButton && (
         <button
-          onClick={scrollToBottom}
+          onClick={() => {
+            autoScrollRef.current = true;
+            scrollToBottom('smooth');
+            updateScrollButtonVisibility();
+          }}
           className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 px-3 py-1.5 bg-surface-1 border border-border-default rounded-full text-[11px] text-text-secondary hover:text-text-primary hover:border-border-focus shadow-lg transition-all cursor-pointer animate-fade-in-up"
           style={{ animationDuration: '0.15s' }}
         >
