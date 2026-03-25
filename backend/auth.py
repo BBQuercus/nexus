@@ -24,9 +24,7 @@ def _get_workos_client():
     global _workos_client
     if _workos_client is None:
         if not settings.WORKOS_API_KEY or not settings.WORKOS_CLIENT_ID:
-            raise HTTPException(
-                status_code=503, detail="WorkOS not configured"
-            )
+            raise HTTPException(status_code=503, detail="WorkOS not configured")
         import workos
 
         _workos_client = workos.WorkOSClient(
@@ -69,9 +67,7 @@ def create_access_token(user_id: str, email: str) -> str:
         "exp": now + timedelta(minutes=settings.JWT_ACCESS_TOKEN_MINUTES),
         "iat": now,
     }
-    return jwt.encode(
-        payload, settings.SERVER_SECRET, algorithm=settings.JWT_ENCODING_ALGORITHM
-    )
+    return jwt.encode(payload, settings.SERVER_SECRET, algorithm=settings.JWT_ENCODING_ALGORITHM)
 
 
 def create_refresh_token(user_id: str, email: str) -> str:
@@ -84,9 +80,7 @@ def create_refresh_token(user_id: str, email: str) -> str:
         "exp": now + timedelta(days=settings.JWT_REFRESH_TOKEN_DAYS),
         "iat": now,
     }
-    return jwt.encode(
-        payload, settings.SERVER_SECRET, algorithm=settings.JWT_ENCODING_ALGORITHM
-    )
+    return jwt.encode(payload, settings.SERVER_SECRET, algorithm=settings.JWT_ENCODING_ALGORITHM)
 
 
 # Keep backwards compat alias
@@ -133,6 +127,7 @@ async def get_current_user(request: Request) -> uuid.UUID:
 
 # ── CSRF Validation ──
 
+
 async def validate_csrf(request: Request) -> None:
     """Validate CSRF token on state-changing requests using cookie-based auth.
 
@@ -157,6 +152,7 @@ async def validate_csrf(request: Request) -> None:
 
 # ── Routes ──
 
+
 @router.get("/login")
 async def login():
     """Redirect to WorkOS login."""
@@ -179,9 +175,7 @@ async def callback(code: str, db: AsyncSession = Depends(get_db)):
         frontend_url = _get_frontend_url()
         return RedirectResponse(url=f"{frontend_url}/login?error=auth_failed")
 
-    result = await db.execute(
-        select(User).where(User.workos_id == workos_user.id)
-    )
+    result = await db.execute(select(User).where(User.workos_id == workos_user.id))
     user = result.scalar_one_or_none()
 
     if user is None:

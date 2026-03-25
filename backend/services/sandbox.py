@@ -38,9 +38,7 @@ def _get_daytona():
     return _daytona_client
 
 
-async def create_sandbox(
-    template: str = "python-data-science", labels: dict | None = None
-) -> Any:
+async def create_sandbox(template: str = "python-data-science", labels: dict | None = None) -> Any:
     """Create a new Daytona sandbox."""
     daytona = _get_daytona()
     if daytona is None:
@@ -69,10 +67,10 @@ async def create_sandbox(
     owner_id = (labels or {}).get("user_id")
     try:
         result = await asyncio.to_thread(daytona.list)
-        items = list(getattr(result, 'items', result))
+        items = list(getattr(result, "items", result))
         for s in items:
-            state = str(getattr(s, 'state', ''))
-            if 'STOPPED' not in state:
+            state = str(getattr(s, "state", ""))
+            if "STOPPED" not in state:
                 continue
             if owner_id and get_sandbox_owner_id(s) != owner_id:
                 continue
@@ -92,10 +90,7 @@ async def create_sandbox(
     await asyncio.to_thread(sandbox.process.exec, "mkdir -p /home/daytona/output")
 
     # Ensure document generation packages are available
-    await asyncio.to_thread(
-        sandbox.process.exec,
-        "pip install -q python-pptx reportlab openpyxl 2>/dev/null || true"
-    )
+    await asyncio.to_thread(sandbox.process.exec, "pip install -q python-pptx reportlab openpyxl 2>/dev/null || true")
 
     return sandbox
 
@@ -104,24 +99,15 @@ async def execute_code(sandbox, language: str, code: str) -> ExecutionResult:
     """Execute code in a sandbox."""
     if language in ("python", "python3", "py"):
         b64 = base64.b64encode(code.encode("utf-8")).decode("ascii")
-        await asyncio.to_thread(
-            sandbox.process.exec,
-            f"echo '{b64}' | base64 -d > /tmp/_nexus_exec.py"
-        )
+        await asyncio.to_thread(sandbox.process.exec, f"echo '{b64}' | base64 -d > /tmp/_nexus_exec.py")
         cmd = "cd /home/daytona && python3 /tmp/_nexus_exec.py"
     elif language in ("javascript", "js", "node"):
         b64 = base64.b64encode(code.encode("utf-8")).decode("ascii")
-        await asyncio.to_thread(
-            sandbox.process.exec,
-            f"echo '{b64}' | base64 -d > /tmp/_nexus_exec.js"
-        )
+        await asyncio.to_thread(sandbox.process.exec, f"echo '{b64}' | base64 -d > /tmp/_nexus_exec.js")
         cmd = "cd /home/daytona && node /tmp/_nexus_exec.js"
     elif language in ("typescript", "ts"):
         b64 = base64.b64encode(code.encode("utf-8")).decode("ascii")
-        await asyncio.to_thread(
-            sandbox.process.exec,
-            f"echo '{b64}' | base64 -d > /tmp/_nexus_exec.ts"
-        )
+        await asyncio.to_thread(sandbox.process.exec, f"echo '{b64}' | base64 -d > /tmp/_nexus_exec.ts")
         cmd = "cd /home/daytona && npx tsx /tmp/_nexus_exec.ts"
     elif language in ("bash", "sh", "shell"):
         cmd = f"cd /home/daytona && {code}"
@@ -161,10 +147,7 @@ async def read_file(sandbox, path: str) -> str:
 async def write_file(sandbox, path: str, content: str) -> None:
     """Write file content to sandbox."""
     b64 = base64.b64encode(content.encode("utf-8")).decode("ascii")
-    await asyncio.to_thread(
-        sandbox.process.exec,
-        f"echo '{b64}' | base64 -d > '{path}'"
-    )
+    await asyncio.to_thread(sandbox.process.exec, f"echo '{b64}' | base64 -d > '{path}'")
 
 
 async def list_files(sandbox, path: str) -> list[str]:
@@ -179,10 +162,7 @@ async def upload_file(sandbox, local_path: str, sandbox_path: str) -> None:
     with open(local_path, "rb") as f:
         data = f.read()
     b64 = base64.b64encode(data).decode("ascii")
-    await asyncio.to_thread(
-        sandbox.process.exec,
-        f"echo '{b64}' | base64 -d > '{sandbox_path}'"
-    )
+    await asyncio.to_thread(sandbox.process.exec, f"echo '{b64}' | base64 -d > '{sandbox_path}'")
 
 
 async def get_sandbox(sandbox_id: str):
@@ -223,9 +203,7 @@ async def ensure_sandbox_access(sandbox_id: str, user_id: uuid.UUID, db=None):
 
         from backend.models import Conversation
 
-        result = await db.execute(
-            select(Conversation.user_id).where(Conversation.sandbox_id == sandbox_id).limit(1)
-        )
+        result = await db.execute(select(Conversation.user_id).where(Conversation.sandbox_id == sandbox_id).limit(1))
         conversation_owner = result.scalar_one_or_none()
         if conversation_owner is not None:
             if conversation_owner != user_id:

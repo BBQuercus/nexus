@@ -23,6 +23,7 @@ from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR, UUID
 # provide a flag that startup code checks to decide whether to skip vector columns.
 try:
     from pgvector.sqlalchemy import Vector as _PgVector
+
     _has_pgvector_python = True
 except ImportError:
     _PgVector = None  # type: ignore[assignment,misc]
@@ -46,16 +47,10 @@ class User(Base):
     email: Mapped[str] = mapped_column(String)
     name: Mapped[str] = mapped_column(String)
     avatar_url: Mapped[str | None] = mapped_column(String, nullable=True)
-    is_admin: Mapped[bool] = mapped_column(
-        Boolean, default=False, server_default=text("false")
-    )
+    is_admin: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"))
     role: Mapped[str | None] = mapped_column(String, nullable=True)  # viewer, editor, admin, org_admin
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
-    last_seen_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     conversations: Mapped[list["Conversation"]] = relationship(back_populates="user")
     projects: Mapped[list["Project"]] = relationship()
@@ -72,9 +67,7 @@ class Project(Base):
         default=uuid.uuid4,
         server_default=text("gen_random_uuid()"),
     )
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id")
-    )
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
     name: Mapped[str] = mapped_column(String)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     icon: Mapped[str | None] = mapped_column(String, nullable=True)
@@ -86,12 +79,8 @@ class Project(Base):
     knowledge_base_ids: Mapped[Any | None] = mapped_column(JSON, nullable=True)
     pinned_conversation_ids: Mapped[Any | None] = mapped_column(JSON, nullable=True)
     settings: Mapped[Any | None] = mapped_column(JSON, nullable=True)
-    archived: Mapped[bool] = mapped_column(
-        Boolean, default=False, server_default=text("false")
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    archived: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
@@ -109,9 +98,7 @@ class Conversation(Base):
         default=uuid.uuid4,
         server_default=text("gen_random_uuid()"),
     )
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id")
-    )
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
     project_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("projects.id", ondelete="SET NULL"), nullable=True, index=True
     )
@@ -132,9 +119,7 @@ class Conversation(Base):
         ForeignKey("messages.id", use_alter=True, name="fk_conversations_active_leaf_id"),
         nullable=True,
     )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
@@ -142,12 +127,11 @@ class Conversation(Base):
     user: Mapped["User"] = relationship(back_populates="conversations")
     project: Mapped[Optional["Project"]] = relationship(back_populates="conversations")
     messages: Mapped[list["Message"]] = relationship(
-        back_populates="conversation", cascade="all, delete-orphan",
+        back_populates="conversation",
+        cascade="all, delete-orphan",
         foreign_keys="[Message.conversation_id]",
     )
-    artifacts: Mapped[list["Artifact"]] = relationship(
-        back_populates="conversation", cascade="all, delete-orphan"
-    )
+    artifacts: Mapped[list["Artifact"]] = relationship(back_populates="conversation", cascade="all, delete-orphan")
     agent_persona: Mapped[Optional["AgentPersona"]] = relationship()
     usage_logs: Mapped[list["UsageLog"]] = relationship(back_populates="conversation")
 
@@ -161,9 +145,7 @@ class Message(Base):
         default=uuid.uuid4,
         server_default=text("gen_random_uuid()"),
     )
-    conversation_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("conversations.id")
-    )
+    conversation_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("conversations.id"))
     role: Mapped[str] = mapped_column(String)
     content: Mapped[str] = mapped_column(Text, default="")
     reasoning: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -175,22 +157,17 @@ class Message(Base):
     citations: Mapped[Any | None] = mapped_column(JSON, nullable=True)
     feedback: Mapped[str | None] = mapped_column(String, nullable=True)
     token_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    cost_usd: Mapped[Decimal | None] = mapped_column(
-        Numeric(10, 6), nullable=True
-    )
+    cost_usd: Mapped[Decimal | None] = mapped_column(Numeric(10, 6), nullable=True)
     parent_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("messages.id"), nullable=True, index=True
     )
     branch_index: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
-    conversation: Mapped["Conversation"] = relationship(
-        back_populates="messages", foreign_keys=[conversation_id]
-    )
+    conversation: Mapped["Conversation"] = relationship(back_populates="messages", foreign_keys=[conversation_id])
     parent: Mapped[Optional["Message"]] = relationship(
-        remote_side="Message.id", foreign_keys="Message.parent_id",
+        remote_side="Message.id",
+        foreign_keys="Message.parent_id",
     )
     artifacts: Mapped[list["Artifact"]] = relationship(back_populates="message")
 
@@ -204,22 +181,14 @@ class Artifact(Base):
         default=uuid.uuid4,
         server_default=text("gen_random_uuid()"),
     )
-    conversation_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("conversations.id")
-    )
-    message_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("messages.id")
-    )
+    conversation_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("conversations.id"))
+    message_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("messages.id"))
     type: Mapped[str] = mapped_column(String)
     label: Mapped[str] = mapped_column(String)
     content: Mapped[str] = mapped_column(Text)
-    metadata_: Mapped[Any | None] = mapped_column(
-        "metadata", JSON, nullable=True
-    )
+    metadata_: Mapped[Any | None] = mapped_column("metadata", JSON, nullable=True)
     pinned: Mapped[bool] = mapped_column(Boolean, default=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     conversation: Mapped["Conversation"] = relationship(back_populates="artifacts")
     message: Mapped["Message"] = relationship(back_populates="artifacts")
@@ -234,9 +203,7 @@ class AgentPersona(Base):
         default=uuid.uuid4,
         server_default=text("gen_random_uuid()"),
     )
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id")
-    )
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
     name: Mapped[str] = mapped_column(String)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     system_prompt: Mapped[str] = mapped_column(Text)
@@ -247,9 +214,7 @@ class AgentPersona(Base):
     knowledge_base_ids: Mapped[Any | None] = mapped_column(JSON, nullable=True)
     is_public: Mapped[bool] = mapped_column(Boolean, default=False)
     usage_count: Mapped[int] = mapped_column(Integer, default=0)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
@@ -266,9 +231,7 @@ class FrontendError(Base):
         default=uuid.uuid4,
         server_default=text("gen_random_uuid()"),
     )
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id")
-    )
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
     message: Mapped[str] = mapped_column(Text)
     stack: Mapped[str | None] = mapped_column(Text, nullable=True)
     url: Mapped[str | None] = mapped_column(String, nullable=True)
@@ -276,9 +239,7 @@ class FrontendError(Base):
     component: Mapped[str | None] = mapped_column(String, nullable=True)
     request_id: Mapped[str | None] = mapped_column(String, nullable=True)
     extra: Mapped[Any | None] = mapped_column(JSON, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class UsageLog(Base):
@@ -290,20 +251,14 @@ class UsageLog(Base):
         default=uuid.uuid4,
         server_default=text("gen_random_uuid()"),
     )
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id")
-    )
-    conversation_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("conversations.id")
-    )
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+    conversation_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("conversations.id"))
     model: Mapped[str] = mapped_column(String)
     input_tokens: Mapped[int] = mapped_column(Integer)
     output_tokens: Mapped[int] = mapped_column(Integer)
     cost_usd: Mapped[Decimal] = mapped_column(Numeric(10, 6))
     sandbox_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     user: Mapped["User"] = relationship(back_populates="usage_logs")
     conversation: Mapped["Conversation"] = relationship(back_populates="usage_logs")
@@ -318,12 +273,8 @@ class Feedback(Base):
         default=uuid.uuid4,
         server_default=text("gen_random_uuid()"),
     )
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id")
-    )
-    message_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("messages.id", ondelete="CASCADE")
-    )
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+    message_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("messages.id", ondelete="CASCADE"))
     conversation_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("conversations.id", ondelete="CASCADE")
     )
@@ -331,9 +282,7 @@ class Feedback(Base):
     tags: Mapped[Any | None] = mapped_column(JSON, nullable=True)
     comment: Mapped[str | None] = mapped_column(Text, nullable=True)
     model: Mapped[str | None] = mapped_column(String, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     user: Mapped["User"] = relationship()
     message: Mapped["Message"] = relationship()
@@ -349,14 +298,10 @@ class AnalyticsEvent(Base):
         default=uuid.uuid4,
         server_default=text("gen_random_uuid()"),
     )
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id")
-    )
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
     event_type: Mapped[str] = mapped_column(String)
     event_data: Mapped[Any | None] = mapped_column(JSON, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 # ── RAG Models ──
@@ -371,29 +316,24 @@ class KnowledgeBase(Base):
         default=uuid.uuid4,
         server_default=text("gen_random_uuid()"),
     )
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id")
-    )
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
     name: Mapped[str] = mapped_column(String)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    embedding_model: Mapped[str] = mapped_column(
-        String, default="text-embedding-3-small"
-    )
+    embedding_model: Mapped[str] = mapped_column(String, default="text-embedding-3-small")
     chunk_strategy: Mapped[str] = mapped_column(String, default="contextual")
     document_count: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
     chunk_count: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
     status: Mapped[str] = mapped_column(String, default="ready")
     is_public: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"))
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
     user: Mapped["User"] = relationship()
     documents: Mapped[list["Document"]] = relationship(
-        back_populates="knowledge_base", cascade="save-update, merge",
+        back_populates="knowledge_base",
+        cascade="save-update, merge",
         passive_deletes=True,
     )
 
@@ -410,9 +350,7 @@ class Document(Base):
     knowledge_base_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("knowledge_bases.id", ondelete="CASCADE"), nullable=True, index=True
     )
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id")
-    )
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
     conversation_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("conversations.id", ondelete="CASCADE"), nullable=True, index=True
     )
@@ -424,13 +362,12 @@ class Document(Base):
     metadata_: Mapped[Any | None] = mapped_column("metadata", JSON, nullable=True)
     status: Mapped[str] = mapped_column(String, default="processing")
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     knowledge_base: Mapped[Optional["KnowledgeBase"]] = relationship(back_populates="documents")
     chunks: Mapped[list["Chunk"]] = relationship(
-        back_populates="document", cascade="save-update, merge",
+        back_populates="document",
+        cascade="save-update, merge",
         passive_deletes=True,
     )
 
@@ -469,9 +406,7 @@ class Chunk(Base):
         Computed("to_tsvector('english', content)", persisted=True),
         nullable=True,
     )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     document: Mapped["Document"] = relationship(back_populates="chunks")
 
@@ -485,28 +420,18 @@ class Memory(Base):
         default=uuid.uuid4,
         server_default=text("gen_random_uuid()"),
     )
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id")
-    )
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
     project_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("projects.id", ondelete="SET NULL"), nullable=True
     )
     scope: Mapped[str] = mapped_column(String, default="global")
     category: Mapped[str] = mapped_column(String, default="preference")
     content: Mapped[str] = mapped_column(Text)
-    source_conversation_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), nullable=True
-    )
-    source_message_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), nullable=True
-    )
+    source_conversation_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    source_message_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     relevance_count: Mapped[int] = mapped_column(Integer, default=0)
-    active: Mapped[bool] = mapped_column(
-        Boolean, default=True, server_default=text("true")
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    active: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("true"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
@@ -516,21 +441,16 @@ class Memory(Base):
 
 class AuditEventLog(Base):
     """Append-only audit trail for sensitive actions."""
+
     __tablename__ = "audit_events"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    timestamp: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, index=True
-    )
+    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
     action: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
-    actor_id: Mapped[str | None] = mapped_column(
-        String(36), nullable=True, index=True
-    )
+    actor_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     resource_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
     resource_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
-    details: Mapped[Any | None] = mapped_column(
-        JSONB, server_default=text("'{}'::jsonb"), nullable=True
-    )
+    details: Mapped[Any | None] = mapped_column(JSONB, server_default=text("'{}'::jsonb"), nullable=True)
     ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)
     user_agent: Mapped[str | None] = mapped_column(Text, nullable=True)
     request_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
@@ -551,9 +471,7 @@ class KnowledgeBaseAgent(Base):
     agent_persona_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("agent_personas.id", ondelete="CASCADE")
     )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class RetrievalLog(Base):
@@ -574,6 +492,4 @@ class RetrievalLog(Base):
     total_candidates: Mapped[int] = mapped_column(Integer, default=0)
     retrieval_time_ms: Mapped[int] = mapped_column(Integer, default=0)
     rerank_time_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

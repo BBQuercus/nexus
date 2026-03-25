@@ -73,7 +73,6 @@ jobs:
 
       - name: Run tests
         run: npx vitest run --reporter=verbose --passWithNoTests
-        continue-on-error: true
 
   docker:
     name: Docker Build

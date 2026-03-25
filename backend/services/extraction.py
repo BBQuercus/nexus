@@ -2,9 +2,7 @@ import re
 from typing import Any
 
 
-def extract_artifacts(
-    message_content: str, tool_calls: list[dict[str, Any]] | None = None
-) -> list[dict[str, Any]]:
+def extract_artifacts(message_content: str, tool_calls: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
     """Extract artifacts from message content and tool calls.
 
     Detects:
@@ -17,9 +15,7 @@ def extract_artifacts(
 
     if message_content:
         # Extract fenced code blocks
-        code_pattern = re.compile(
-            r"```(\w+)?\s*\n(.*?)```", re.DOTALL
-        )
+        code_pattern = re.compile(r"```(\w+)?\s*\n(.*?)```", re.DOTALL)
         for match in code_pattern.finditer(message_content):
             language = match.group(1) or "text"
             code = match.group(2).strip()
@@ -65,6 +61,7 @@ def extract_artifacts(
                 if isinstance(args, str):
                     try:
                         import json
+
                         arguments = json.loads(args)
                     except (json.JSONDecodeError, TypeError):
                         arguments = {}
@@ -76,6 +73,7 @@ def extract_artifacts(
                     func_name = call.function.name
                     try:
                         import json
+
                         arguments = json.loads(call.function.arguments)
                     except (json.JSONDecodeError, TypeError, AttributeError):
                         arguments = {}

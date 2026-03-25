@@ -31,16 +31,12 @@ async def load_conversation_messages(
         )
         path_ids = [row[0] for row in path_result.fetchall()]
         if path_ids:
-            result = await db.execute(
-                select(Message).where(Message.id.in_(path_ids)).order_by(Message.created_at)
-            )
+            result = await db.execute(select(Message).where(Message.id.in_(path_ids)).order_by(Message.created_at))
             return list(result.scalars().all())
         return []
     else:
         result = await db.execute(
-            select(Message)
-            .where(Message.conversation_id == conversation_id)
-            .order_by(Message.created_at)
+            select(Message).where(Message.conversation_id == conversation_id).order_by(Message.created_at)
         )
         return list(result.scalars().all())
 
@@ -59,22 +55,17 @@ async def detect_knowledge(
 
     # Check conversation-level KB attachments
     if conversation.knowledge_base_ids:
-        knowledge_base_ids.extend(
-            uuid.UUID(kid) for kid in conversation.knowledge_base_ids if kid
-        )
+        knowledge_base_ids.extend(uuid.UUID(kid) for kid in conversation.knowledge_base_ids if kid)
 
     # Check agent persona KB attachments
     if persona and hasattr(persona, "knowledge_base_ids") and persona.knowledge_base_ids:
-        knowledge_base_ids.extend(
-            uuid.UUID(kid) for kid in persona.knowledge_base_ids if kid
-        )
+        knowledge_base_ids.extend(uuid.UUID(kid) for kid in persona.knowledge_base_ids if kid)
 
     # Check if conversation has any scoped documents
     from backend.models import Document as DocumentModel
+
     conv_doc_count = await db.scalar(
-        select(func.count()).select_from(DocumentModel).where(
-            DocumentModel.conversation_id == conversation_id
-        )
+        select(func.count()).select_from(DocumentModel).where(DocumentModel.conversation_id == conversation_id)
     )
     has_knowledge = bool(knowledge_base_ids) or (conv_doc_count or 0) > 0
     return has_knowledge, knowledge_base_ids
@@ -96,7 +87,9 @@ def build_llm_messages(
             if not entry["content"]:
                 entry.pop("content", None)
         if msg.role == "tool" and msg.tool_result:
-            entry["content"] = json.dumps(msg.tool_result) if isinstance(msg.tool_result, dict) else str(msg.tool_result)
+            entry["content"] = (
+                json.dumps(msg.tool_result) if isinstance(msg.tool_result, dict) else str(msg.tool_result)
+            )
             entry["tool_call_id"] = msg.tool_result.get("tool_call_id", "") if isinstance(msg.tool_result, dict) else ""
         llm_messages.append(entry)
 

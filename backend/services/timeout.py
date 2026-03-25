@@ -6,6 +6,7 @@ from dataclasses import dataclass
 @dataclass(frozen=True)
 class TimeoutPolicy:
     """Timeout configuration for a dependency class."""
+
     connect_timeout: float  # seconds
     read_timeout: float  # seconds
     total_timeout: float  # seconds
@@ -66,6 +67,7 @@ DB_QUERY_TIMEOUT = TimeoutPolicy(
 def to_httpx_timeout(policy: TimeoutPolicy):
     """Convert to httpx.Timeout object."""
     import httpx
+
     return httpx.Timeout(
         connect=policy.connect_timeout,
         read=policy.read_timeout,

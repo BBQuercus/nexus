@@ -19,6 +19,7 @@ logger = get_logger("audit")
 
 class AuditAction(StrEnum):
     """Auditable actions in the system."""
+
     # Auth
     USER_LOGIN = "user.login"
     USER_LOGOUT = "user.logout"
@@ -70,14 +71,15 @@ class AuditAction(StrEnum):
 
 class AuditEvent(BaseModel):
     """An immutable audit event."""
+
     id: str
     timestamp: datetime
     action: AuditAction
-    actor_id: str | None = None      # User who performed the action
-    actor_email: str | None = None   # For human-readable logs
-    resource_type: str | None = None # What was acted on (conversation, agent, etc.)
-    resource_id: str | None = None   # ID of the resource
-    details: dict[str, Any] = {}        # Action-specific details
+    actor_id: str | None = None  # User who performed the action
+    actor_email: str | None = None  # For human-readable logs
+    resource_type: str | None = None  # What was acted on (conversation, agent, etc.)
+    resource_id: str | None = None  # ID of the resource
+    details: dict[str, Any] = {}  # Action-specific details
     ip_address: str | None = None
     user_agent: str | None = None
     request_id: str | None = None

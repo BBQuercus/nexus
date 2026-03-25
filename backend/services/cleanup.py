@@ -54,6 +54,7 @@ async def cleanup_orphaned_streams():
 async def cleanup_expired_analytics(days_to_keep: int = 90):
     """Remove analytics events older than retention period."""
     from sqlalchemy import text
+
     try:
         async with async_session() as session:
             cutoff = datetime.now(UTC) - timedelta(days=days_to_keep)

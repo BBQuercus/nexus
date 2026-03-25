@@ -41,8 +41,13 @@ async def retry_async(
             result = await func(*args, **kwargs)
 
             # Check for retryable status codes on httpx-like responses
-            if retryable_status_codes and hasattr(result, 'status_code') and result.status_code in retryable_status_codes and attempt < max_retries:
-                delay = min(base_delay * (backoff_factor ** attempt), max_delay)
+            if (
+                retryable_status_codes
+                and hasattr(result, "status_code")
+                and result.status_code in retryable_status_codes
+                and attempt < max_retries
+            ):
+                delay = min(base_delay * (backoff_factor**attempt), max_delay)
                 delay += random.uniform(0, delay * 0.1)  # jitter
                 logger.warning(
                     "retry_on_status",
@@ -63,7 +68,7 @@ async def retry_async(
             if not is_retryable or attempt >= max_retries:
                 raise
 
-            delay = min(base_delay * (backoff_factor ** attempt), max_delay)
+            delay = min(base_delay * (backoff_factor**attempt), max_delay)
             delay += random.uniform(0, delay * 0.1)  # jitter
 
             logger.warning(

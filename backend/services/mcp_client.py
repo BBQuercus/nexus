@@ -17,6 +17,7 @@ logger = get_logger("mcp")
 @dataclass
 class MCPServer:
     """An MCP server connection."""
+
     id: str
     name: str
     url: str
@@ -41,7 +42,7 @@ async def register_mcp_server(server: MCPServer) -> MCPServer:
         for tool in tools:
             contract = ToolContract(
                 name=f"mcp_{server.id}_{tool['name']}",
-                description=tool.get('description', ''),
+                description=tool.get("description", ""),
                 timeout=TimeoutPolicy(timeout_seconds=35.0, description=f"MCP: {tool['name']}"),
                 retry=RetryPolicy(max_retries=1),
                 requires_network=True,

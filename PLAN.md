@@ -1,7 +1,7 @@
 # Nexus — Master Plan
 
 **Last updated:** 2026-03-25
-**Status:** All 10 initiatives structurally implemented; release gate green (see Implementation Log below)
+**Status:** All 10 initiatives structurally implemented; `make ci` green (see Implementation Log below)
 **Goal:** Build the de-facto gold standard AI chat application.
 **Sources:** Codebase audit, competitive analysis (ChatGPT, Claude.ai, Cursor, TypingMind, OpenWebUI, LibreChat), CompanyGPT teardown, colleague review, and tool implementation specs.
 

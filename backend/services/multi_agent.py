@@ -15,15 +15,16 @@ logger = get_logger("multi_agent")
 
 
 class AgentStrategy(StrEnum):
-    PARALLEL = "parallel"      # Run all agents simultaneously
+    PARALLEL = "parallel"  # Run all agents simultaneously
     SEQUENTIAL = "sequential"  # Run one after another
-    BEST_OF_N = "best_of_n"    # Run N, pick best
-    DEBATE = "debate"          # Agents critique each other's outputs
+    BEST_OF_N = "best_of_n"  # Run N, pick best
+    DEBATE = "debate"  # Agents critique each other's outputs
 
 
 @dataclass
 class AgentRun:
     """A single agent execution within a multi-agent workflow."""
+
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     model: str = ""
     persona_id: str | None = None
@@ -40,6 +41,7 @@ class AgentRun:
 @dataclass
 class MultiAgentWorkflow:
     """A multi-agent workflow orchestration."""
+
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     strategy: AgentStrategy = AgentStrategy.PARALLEL
     prompt: str = ""

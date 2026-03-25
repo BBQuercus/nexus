@@ -183,17 +183,11 @@ class ToolContract:
         metadata: dict[str, Any] | None = None,
     ) -> ToolResult:
         """Build a standardised ToolResult for this contract."""
-        duration_ms = (
-            round((time.monotonic() - started_at) * 1000, 1) if started_at else None
-        )
+        duration_ms = round((time.monotonic() - started_at) * 1000, 1) if started_at else None
 
         if error is not None:
             category = self.classify_error(error)
-            status = (
-                ToolStatus.TIMEOUT
-                if category is ToolErrorCategory.TIMEOUT
-                else ToolStatus.FAILED
-            )
+            status = ToolStatus.TIMEOUT if category is ToolErrorCategory.TIMEOUT else ToolStatus.FAILED
             return ToolResult(
                 tool_name=self.name,
                 status=status,

@@ -75,9 +75,7 @@ async def export_data(
     from backend.models import Conversation
 
     # Get all conversations
-    result = await db.execute(
-        select(Conversation).where(Conversation.user_id == user_id)
-    )
+    result = await db.execute(select(Conversation).where(Conversation.user_id == user_id))
     conversations = result.scalars().all()
 
     export_data = {

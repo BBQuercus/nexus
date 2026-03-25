@@ -99,11 +99,14 @@ async def execute_tool_call(
         args = {}
 
     tool_call_id = tc["id"]
-    yield sse_event("tool_start", {
-        "tool": func_name,
-        "arguments": sanitize_tool_arguments(func_name, args),
-        "tool_call_id": tool_call_id,
-    })
+    yield sse_event(
+        "tool_start",
+        {
+            "tool": func_name,
+            "arguments": sanitize_tool_arguments(func_name, args),
+            "tool_call_id": tool_call_id,
+        },
+    )
 
     tool_output = ""
     tool_exit_code = 0
@@ -167,12 +170,14 @@ async def execute_tool_call(
             title = args.get("title") or "Interactive Chart"
             yield sse_event("chart_output", {"spec": spec, "title": title})
             ctx.collected_charts.append({"spec": spec, "title": title})
-            ctx.runtime_artifacts.append({
-                "type": "chart",
-                "label": title,
-                "content": json.dumps(spec),
-                "metadata": {"title": title},
-            })
+            ctx.runtime_artifacts.append(
+                {
+                    "type": "chart",
+                    "label": title,
+                    "content": json.dumps(spec),
+                    "metadata": {"title": title},
+                }
+            )
             tool_output = json.dumps({"title": title, "spec": spec}, indent=2)
             yield sse_event("tool_output", {"tool": func_name, "output": tool_output, "tool_call_id": tool_call_id})
 
@@ -198,14 +203,17 @@ async def execute_tool_call(
 
         elif func_name == "create_ui":
             tool_output = _handle_create_ui(args, tool_call_id, ctx)
-            yield sse_event("ui_form", {
-                "title": args.get("title", "Form"),
-                "description": args.get("description", ""),
-                "fields": args.get("fields", []),
-                "submit_label": args.get("submit_label", "Submit"),
-                "allow_multiple": args.get("allow_multiple", False),
-                "tool_call_id": tool_call_id,
-            })
+            yield sse_event(
+                "ui_form",
+                {
+                    "title": args.get("title", "Form"),
+                    "description": args.get("description", ""),
+                    "fields": args.get("fields", []),
+                    "submit_label": args.get("submit_label", "Submit"),
+                    "allow_multiple": args.get("allow_multiple", False),
+                    "tool_call_id": tool_call_id,
+                },
+            )
             yield sse_event("tool_output", {"tool": func_name, "output": tool_output, "tool_call_id": tool_call_id})
 
         elif func_name == "knowledge_search":
@@ -228,14 +236,16 @@ async def execute_tool_call(
     yield sse_event("tool_end", {"tool": func_name, "tool_call_id": tool_call_id})
 
     # Build enriched tool call for persistence
-    ctx.enriched_tool_calls.append({
-        "id": tool_call_id,
-        "name": func_name,
-        "language": args.get("language", "") if func_name == "execute_code" else "",
-        "code": args.get("code", "") if func_name == "execute_code" else "",
-        "output": tool_output,
-        "exitCode": tool_exit_code,
-    })
+    ctx.enriched_tool_calls.append(
+        {
+            "id": tool_call_id,
+            "name": func_name,
+            "language": args.get("language", "") if func_name == "execute_code" else "",
+            "code": args.get("code", "") if func_name == "execute_code" else "",
+            "output": tool_output,
+            "exitCode": tool_exit_code,
+        }
+    )
 
 
 async def _ensure_sandbox(ctx: ToolExecutionContext):
@@ -256,7 +266,9 @@ async def _execute_code(
 ) -> AsyncGenerator[dict, None]:
     """Handle execute_code tool."""
     if ctx.sandbox is None:
-        yield sse_event("tool_output", {"tool": func_name, "output": "Creating sandbox...", "tool_call_id": tool_call_id})
+        yield sse_event(
+            "tool_output", {"tool": func_name, "output": "Creating sandbox...", "tool_call_id": tool_call_id}
+        )
         await _ensure_sandbox(ctx)
 
     lang = args.get("language", "python")
@@ -285,53 +297,73 @@ async def _execute_code(
         if f.lower().endswith((".png", ".jpg", ".jpeg", ".svg", ".gif", ".webp")):
             try:
                 from backend.services.media import get_output_file
+
                 img_bytes = await get_output_file(ctx.sandbox, f)
                 import base64 as b64mod
+
                 img_b64 = b64mod.b64encode(img_bytes).decode("ascii")
                 ext = f.rsplit(".", 1)[-1].lower()
-                mime = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg", "svg": "image/svg+xml", "gif": "image/gif", "webp": "image/webp"}.get(ext, "image/png")
+                mime = {
+                    "png": "image/png",
+                    "jpg": "image/jpeg",
+                    "jpeg": "image/jpeg",
+                    "svg": "image/svg+xml",
+                    "gif": "image/gif",
+                    "webp": "image/webp",
+                }.get(ext, "image/png")
                 data_url = f"data:{mime};base64,{img_b64}"
                 yield sse_event("image_output", {"filename": f, "url": data_url, "sandbox_id": ctx.sandbox_id})
                 ctx.collected_images.append({"filename": f, "url": data_url})
-                ctx.runtime_artifacts.append({
-                    "type": "image",
-                    "label": f,
-                    "content": data_url,
-                    "metadata": {"path": f, "mime_type": mime},
-                })
+                ctx.runtime_artifacts.append(
+                    {
+                        "type": "image",
+                        "label": f,
+                        "content": data_url,
+                        "metadata": {"path": f, "mime_type": mime},
+                    }
+                )
             except Exception as img_err:
                 logger.error("image_read_failed", file=f, error=str(img_err))
                 yield sse_event("image_output", {"filename": f, "sandbox_id": ctx.sandbox_id})
         elif f.lower().endswith((".pptx", ".xlsx", ".pdf", ".docx", ".csv")):
             file_type = f.rsplit(".", 1)[-1].lower()
-            yield sse_event("file_output", {
-                "filename": f,
-                "sandbox_id": ctx.sandbox_id,
-                "file_type": file_type,
-            })
-            ctx.collected_files.append({
-                "filename": f,
-                "fileType": file_type,
-                "sandboxId": ctx.sandbox_id,
-            })
-            ctx.runtime_artifacts.append({
-                "type": "document",
-                "label": f,
-                "content": "",
-                "metadata": {"path": f, "file_type": file_type},
-            })
+            yield sse_event(
+                "file_output",
+                {
+                    "filename": f,
+                    "sandbox_id": ctx.sandbox_id,
+                    "file_type": file_type,
+                },
+            )
+            ctx.collected_files.append(
+                {
+                    "filename": f,
+                    "fileType": file_type,
+                    "sandboxId": ctx.sandbox_id,
+                }
+            )
+            ctx.runtime_artifacts.append(
+                {
+                    "type": "document",
+                    "label": f,
+                    "content": "",
+                    "metadata": {"path": f, "file_type": file_type},
+                }
+            )
 
     # Detect tables
     if result.stdout:
         table = detect_table(result.stdout)
         if table:
             yield sse_event("table_output", {"rows": table})
-            ctx.runtime_artifacts.append({
-                "type": "table",
-                "label": "Query Results",
-                "content": rows_to_csv(table),
-                "metadata": {"rows": table},
-            })
+            ctx.runtime_artifacts.append(
+                {
+                    "type": "table",
+                    "label": "Query Results",
+                    "content": rows_to_csv(table),
+                    "metadata": {"rows": table},
+                }
+            )
 
     # Signal the output back via a special marker dict
     yield {"__set_output__": True, "output": tool_output, "exit_code": tool_exit_code}
@@ -346,9 +378,7 @@ async def _write_file(args: dict, ctx: ToolExecutionContext) -> str:
         ctx.conversation.sandbox_id = ctx.sandbox_id
         await ctx.db.flush()
 
-    await sandbox_service.write_file(
-        ctx.sandbox, args.get("path", "/home/daytona/file.txt"), args.get("content", "")
-    )
+    await sandbox_service.write_file(ctx.sandbox, args.get("path", "/home/daytona/file.txt"), args.get("content", ""))
     return f"File written: {args.get('path', '')}"
 
 
@@ -357,7 +387,9 @@ async def _run_sql(
 ) -> AsyncGenerator[dict, None]:
     """Handle run_sql tool."""
     if ctx.sandbox is None:
-        yield sse_event("tool_output", {"tool": func_name, "output": "Creating sandbox...", "tool_call_id": tool_call_id})
+        yield sse_event(
+            "tool_output", {"tool": func_name, "output": "Creating sandbox...", "tool_call_id": tool_call_id}
+        )
         template = ctx.conversation.sandbox_template or "python-data-science"
         ctx.sandbox = await sandbox_service.create_sandbox(template=template)
         ctx.sandbox_id = ctx.sandbox.id
@@ -381,12 +413,14 @@ async def _run_sql(
         table = detect_table(result.stdout)
         if table:
             yield sse_event("table_output", {"rows": table, "label": "SQL Results"})
-            ctx.runtime_artifacts.append({
-                "type": "table",
-                "label": "SQL Results",
-                "content": rows_to_csv(table),
-                "metadata": {"rows": table},
-            })
+            ctx.runtime_artifacts.append(
+                {
+                    "type": "table",
+                    "label": "SQL Results",
+                    "content": rows_to_csv(table),
+                    "metadata": {"rows": table},
+                }
+            )
 
     yield {"__set_output__": True, "output": tool_output, "exit_code": tool_exit_code}
 
@@ -415,12 +449,14 @@ def _handle_create_ui(args: dict, tool_call_id: str, ctx: ToolExecutionContext) 
         "allow_multiple": args.get("allow_multiple", False),
     }
 
-    ctx.runtime_artifacts.append({
-        "type": "form",
-        "label": title,
-        "content": json.dumps(form_spec),
-        "metadata": {"tool_call_id": tool_call_id},
-    })
+    ctx.runtime_artifacts.append(
+        {
+            "type": "form",
+            "label": title,
+            "content": json.dumps(form_spec),
+            "metadata": {"tool_call_id": tool_call_id},
+        }
+    )
 
     return json.dumps({"status": "form_created", "title": title, "field_count": len(fields)})
 

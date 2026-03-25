@@ -42,6 +42,7 @@ def _normalize_path(path: str) -> str:
     global _UUID_PATTERN
     if _UUID_PATTERN is None:
         import re
+
         _UUID_PATTERN = re.compile(
             r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
             re.IGNORECASE,
@@ -184,21 +185,27 @@ class GlobalExceptionMiddleware:
                 method=scope.get("method", ""),
             )
 
-            body = json.dumps({
-                "error": "internal_server_error",
-                "message": "An unexpected error occurred. Please try again.",
-                "request_id": request_id,
-            }).encode()
+            body = json.dumps(
+                {
+                    "error": "internal_server_error",
+                    "message": "An unexpected error occurred. Please try again.",
+                    "request_id": request_id,
+                }
+            ).encode()
 
-            await send({
-                "type": "http.response.start",
-                "status": 500,
-                "headers": [
-                    (b"content-type", b"application/json"),
-                    (b"x-request-id", request_id.encode()),
-                ],
-            })
-            await send({
-                "type": "http.response.body",
-                "body": body,
-            })
+            await send(
+                {
+                    "type": "http.response.start",
+                    "status": 500,
+                    "headers": [
+                        (b"content-type", b"application/json"),
+                        (b"x-request-id", request_id.encode()),
+                    ],
+                }
+            )
+            await send(
+                {
+                    "type": "http.response.body",
+                    "body": body,
+                }
+            )

@@ -24,10 +24,7 @@ async def text_to_speech(
     if not settings.AZURE_SPEECH_KEY:
         raise HTTPException(status_code=501, detail="TTS not configured (AZURE_SPEECH_KEY missing)")
 
-    tts_url = (
-        f"https://{settings.AZURE_SPEECH_LOCATION}.tts.speech.microsoft.com"
-        f"/cognitiveservices/v1"
-    )
+    tts_url = f"https://{settings.AZURE_SPEECH_LOCATION}.tts.speech.microsoft.com/cognitiveservices/v1"
 
     ssml = f"""<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'>
     <voice name='{body.voice}'>{body.text}</voice>

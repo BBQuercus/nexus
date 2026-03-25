@@ -48,9 +48,11 @@ _job_queue: asyncio.Queue = asyncio.Queue()
 
 def register_job_handler(name: str):
     """Decorator to register a job handler."""
+
     def decorator(func):
         _job_handlers[name] = func
         return func
+
     return decorator
 
 

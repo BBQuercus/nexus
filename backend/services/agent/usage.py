@@ -33,7 +33,7 @@ async def save_assistant_message(
         sibling_result = await db.execute(
             select(func.count()).select_from(Message).where(Message.parent_id == assistant_parent_id)
         )
-        assistant_branch_index = (sibling_result.scalar() or 0)
+        assistant_branch_index = sibling_result.scalar() or 0
 
     assistant_msg_obj = Message(
         conversation_id=conversation_id,
@@ -43,12 +43,14 @@ async def save_assistant_message(
         tool_calls=enriched_tool_calls if enriched_tool_calls else None,
         images=collected_images if collected_images else None,
         charts=collected_charts if collected_charts else None,
-        attachments=(
-            [{"type": "files", "files": collected_files}] if collected_files else None
-        ),
+        attachments=([{"type": "files", "files": collected_files}] if collected_files else None),
         citations=rag_citations if rag_citations else None,
-        token_count=(total_input_tokens + total_output_tokens) if (total_input_tokens + total_output_tokens) > 0 else None,
-        cost_usd=llm_service.calculate_cost(model, total_input_tokens, total_output_tokens) if total_input_tokens > 0 else None,
+        token_count=(total_input_tokens + total_output_tokens)
+        if (total_input_tokens + total_output_tokens) > 0
+        else None,
+        cost_usd=llm_service.calculate_cost(model, total_input_tokens, total_output_tokens)
+        if total_input_tokens > 0
+        else None,
         parent_id=assistant_parent_id,
         branch_index=assistant_branch_index,
     )
@@ -68,10 +70,9 @@ async def link_retrieval_logs(
     from sqlalchemy import update as sa_update
 
     from backend.models import RetrievalLog
+
     await db.execute(
-        sa_update(RetrievalLog)
-        .where(RetrievalLog.id.in_(retrieval_log_ids))
-        .values(message_id=message_id)
+        sa_update(RetrievalLog).where(RetrievalLog.id.in_(retrieval_log_ids)).values(message_id=message_id)
     )
 
 
