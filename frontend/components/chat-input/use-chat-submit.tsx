@@ -612,6 +612,21 @@ export function useChatSubmit({ textareaRef }: UseChatSubmitOptions): UseChatSub
     return () => window.removeEventListener('nexus:edit-message', handler);
   }, [setBranchingFromId, textareaRef]);
 
+  // Handle compose mode changes (e.g. switch to image mode from landing page)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.mode) setComposeMode(detail.mode);
+      if (detail?.imageModel) setImageModel(detail.imageModel);
+      if (detail?.prompt) {
+        setPendingPrompt(detail.prompt);
+        setContent(detail.prompt);
+      }
+    };
+    window.addEventListener('nexus:set-compose', handler);
+    return () => window.removeEventListener('nexus:set-compose', handler);
+  }, [setPendingPrompt]);
+
   // Handle form submissions and other programmatic message sends
   useEffect(() => {
     const handler = (e: Event) => {
