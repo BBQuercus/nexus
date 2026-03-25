@@ -42,5 +42,9 @@ export default function HomePage() {
     );
   }
 
-  return <Workspace />;
+  return (
+    <div className="animate-fade-in">
+      <Workspace />
+    </div>
+  );
 }

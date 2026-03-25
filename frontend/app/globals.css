@@ -215,6 +215,15 @@ pre code {
 }
 .brand-processing { animation: brandGlow 2s ease-in-out infinite; }
 
+/* Simple fade in — for page-level transitions */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.animate-fade-in {
+  animation: fadeIn 0.35s ease-out both;
+}
+
 /* Fade in up — for page-level entrances */
 @keyframes fadeInUp {
   from { opacity: 0; transform: translateY(8px); }
@@ -224,17 +233,24 @@ pre code {
   animation: fadeInUp 0.4s ease-out both;
 }
 
-/* Staggered fade children */
+/* Staggered fade children — supports up to 12 items.
+   Children start hidden via opacity:0 and animate in with delays. */
 .stagger-children > * {
   opacity: 0;
-  animation: fadeInUp 0.35s ease-out both;
+  animation: fadeInUp 0.3s ease-out forwards;
 }
-.stagger-children > *:nth-child(1) { animation-delay: 0.04s; }
-.stagger-children > *:nth-child(2) { animation-delay: 0.08s; }
-.stagger-children > *:nth-child(3) { animation-delay: 0.12s; }
-.stagger-children > *:nth-child(4) { animation-delay: 0.16s; }
-.stagger-children > *:nth-child(5) { animation-delay: 0.20s; }
-.stagger-children > *:nth-child(6) { animation-delay: 0.24s; }
+.stagger-children > *:nth-child(1) { animation-delay: 0.03s; }
+.stagger-children > *:nth-child(2) { animation-delay: 0.06s; }
+.stagger-children > *:nth-child(3) { animation-delay: 0.09s; }
+.stagger-children > *:nth-child(4) { animation-delay: 0.12s; }
+.stagger-children > *:nth-child(5) { animation-delay: 0.15s; }
+.stagger-children > *:nth-child(6) { animation-delay: 0.18s; }
+.stagger-children > *:nth-child(7) { animation-delay: 0.21s; }
+.stagger-children > *:nth-child(8) { animation-delay: 0.24s; }
+.stagger-children > *:nth-child(9) { animation-delay: 0.27s; }
+.stagger-children > *:nth-child(10) { animation-delay: 0.30s; }
+.stagger-children > *:nth-child(11) { animation-delay: 0.33s; }
+.stagger-children > *:nth-child(12) { animation-delay: 0.36s; }
 
 /* Slide in from left — for sidebar items */
 @keyframes slideInLeft {
