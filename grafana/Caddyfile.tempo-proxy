@@ -1,0 +1,12 @@
+:80 {
+	handle /ready {
+		respond 200
+	}
+
+	handle {
+		reverse_proxy tempo-v3.railway.internal:4318 {
+			header_up Host {upstream_hostport}
+			flush_interval -1
+		}
+	}
+}
