@@ -1,59 +1,80 @@
 'use client';
 
-import { Zap, BarChart3, Code2, MessageCircle, Database, Globe, Terminal, Cpu, Sparkles } from 'lucide-react';
+import {
+  Zap, BarChart3, Code2, Database, Globe, Terminal, Cpu,
+  Sparkles, ClipboardList, Brain, Search, GitCompare,
+  Image, Blocks, ArrowRight,
+} from 'lucide-react';
 import { useStore } from '@/lib/store';
 
 const ACTION_CARDS = [
   {
-    icon: <BarChart3 size={22} />,
-    title: 'Analyze Data',
-    description: 'Upload datasets, create visualizations, and extract insights',
-    prompt: 'I have a CSV dataset I\'d like to analyze. Help me load it, explore the data with summary statistics, and create meaningful visualizations using matplotlib and pandas.',
+    icon: <Terminal size={20} />,
+    title: 'Sandbox & Execute',
+    description: 'Run Python, Node, SQL — inspect outputs, generate artifacts, and iterate in a live environment',
+    prompt: 'Spin up a sandbox and help me work through a real task end to end. Use Python or Node as needed, inspect files, run code, and produce useful artifacts I can review.',
     color: 'text-emerald-400',
     bg: 'bg-emerald-400/5 hover:bg-emerald-400/10',
     border: 'border-emerald-400/10 hover:border-emerald-400/20',
   },
   {
-    icon: <Code2 size={22} />,
-    title: 'Write Code',
-    description: 'Build applications, debug issues, and refactor code',
-    prompt: 'Help me build a well-structured application. I\'d like to start with a project scaffold, implement core features, and follow best practices for code quality.',
+    icon: <Code2 size={20} />,
+    title: 'Build & Preview',
+    description: 'Create apps with live preview, file diffs, and hot-reload — ship from chat',
+    prompt: 'Help me build a polished app prototype. Set up the project, implement the first version, and keep the app ready to preview and iterate on quickly.',
     color: 'text-blue-400',
     bg: 'bg-blue-400/5 hover:bg-blue-400/10',
     border: 'border-blue-400/10 hover:border-blue-400/20',
   },
   {
-    icon: <MessageCircle size={22} />,
-    title: 'Ask Anything',
-    description: 'Get explanations, brainstorm ideas, and solve problems',
-    prompt: 'I have a question and would like a thorough, well-explained answer with examples where relevant.',
+    icon: <Search size={20} />,
+    title: 'Research & Ground',
+    description: 'Web search, knowledge bases, and cited sources — answers you can trace back',
+    prompt: 'Help me answer a complex question using grounded sources. Search where needed, use knowledge bases if available, and clearly cite the evidence behind the answer.',
     color: 'text-purple-400',
     bg: 'bg-purple-400/5 hover:bg-purple-400/10',
     border: 'border-purple-400/10 hover:border-purple-400/20',
   },
+  {
+    icon: <ClipboardList size={20} />,
+    title: 'Forms & Workflows',
+    description: 'AI builds interactive forms, surveys, and decision frameworks — you fill them in',
+    prompt: 'Create an interactive form that helps me make a decision. Include rating scales, conditional fields, and give me a structured recommendation based on my answers.',
+    color: 'text-amber-400',
+    bg: 'bg-amber-400/5 hover:bg-amber-400/10',
+    border: 'border-amber-400/10 hover:border-amber-400/20',
+  },
 ];
 
-const TEMPLATES = [
-  { label: 'Python', icon: <Terminal size={12} />, prompt: 'Create a Python project with a clean structure: a main module, utility helpers, and a requirements.txt. Set up basic logging and error handling.' },
-  { label: 'Node.js', icon: <Cpu size={12} />, prompt: 'Set up a Node.js project with Express, including routes, middleware for error handling, and a basic package.json with scripts for dev and production.' },
-  { label: 'Data Analysis', icon: <Database size={12} />, prompt: 'Set up a data analysis environment with pandas, numpy, and matplotlib. Create a Jupyter-style workflow that loads a sample dataset and generates summary statistics and charts.' },
-  { label: 'Web App', icon: <Globe size={12} />, prompt: 'Build a simple web application with HTML, CSS, and JavaScript. Include a responsive layout, a navigation bar, and interactive elements.' },
+const CAPABILITIES = [
+  { label: 'Python Sandbox', icon: <Terminal size={11} />, prompt: 'Start a Python sandbox workflow for data analysis, automation, or scripting. Use the terminal, create files as needed, and leave me with runnable output.' },
+  { label: 'Node 22', icon: <Cpu size={11} />, prompt: 'Set up a modern Node 22 project with a clean structure, useful scripts, and a solid development workflow I can build on immediately.' },
+  { label: 'Knowledge Base', icon: <Database size={11} />, prompt: 'Help me structure a knowledge-grounded workflow. I want to work with uploaded documents, retrieve the right context, and produce answers with sources.' },
+  { label: 'Live Preview', icon: <Globe size={11} />, prompt: 'Build a modern web app I can iterate on in live preview. Start with a strong foundation, implement the core experience, and keep the UI polished.' },
+  { label: 'Charts', icon: <BarChart3 size={11} />, prompt: 'Create interactive data visualizations. Use Vega-Lite to build charts from data I provide or generate sample data to demonstrate different chart types.' },
+  { label: 'SQL on Files', icon: <Blocks size={11} />, prompt: 'Load my CSV or Excel files into DuckDB and run SQL queries. Show the schema, suggest interesting queries, and visualize the results.' },
+  { label: 'Interactive Forms', icon: <ClipboardList size={11} />, prompt: 'Create an interactive form with multiple field types: text, dropdowns, ratings, sliders, and conditional sections. Then analyze my responses.' },
+  { label: 'Multi-Model Compare', icon: <GitCompare size={11} />, prompt: '/compare Tell me how to approach building a SaaS product from scratch' },
+  { label: 'Image Generation', icon: <Image size={11} />, prompt: 'Generate an image: a futuristic cityscape at sunset with flying vehicles and holographic billboards, in a cinematic style.' },
+  { label: 'AI Memory', icon: <Brain size={11} />, prompt: 'Remember that I prefer concise answers, code examples over explanations, and that I work primarily with TypeScript and Python.' },
 ];
 
 const QUICK_SUGGESTIONS = [
-  'Explain how async/await works',
-  'Write a REST API with FastAPI',
-  'Debug a stack trace',
-  'Convert JSON to CSV',
-  'Create a React component',
-  'Write unit tests',
+  'Analyze a CSV and create interactive charts',
+  'Build a React dashboard with live preview',
+  'Create a feedback survey with ratings and conditional questions',
+  'Compare GPT vs Claude on a code review task',
+  'Search the web and summarize with citations',
+  'Debug a repo and explain the root cause',
 ];
 
 const RETURNING_STARTERS = [
-  { icon: <BarChart3 size={16} />, text: 'Analyze a dataset and create visualizations' },
-  { icon: <Zap size={16} />, text: 'Build a REST API with FastAPI' },
-  { icon: <Code2 size={16} />, text: 'Debug code and explain the issue' },
-  { icon: <Sparkles size={16} />, text: 'Refactor and optimize existing code' },
+  { icon: <Terminal size={16} />, text: 'Run code in a sandbox, inspect files, and generate artifacts', color: 'text-emerald-400' },
+  { icon: <Code2 size={16} />, text: 'Build a web app with live preview and hot-reload', color: 'text-blue-400' },
+  { icon: <ClipboardList size={16} />, text: 'Create an interactive form to collect structured input', color: 'text-amber-400' },
+  { icon: <BarChart3 size={16} />, text: 'Analyze data with SQL, Python, and interactive charts', color: 'text-cyan-400' },
+  { icon: <Search size={16} />, text: 'Research a topic with web search and cited sources', color: 'text-purple-400' },
+  { icon: <GitCompare size={16} />, text: 'Compare multiple models side-by-side on the same prompt', color: 'text-orange-400' },
 ];
 
 export default function EmptyState() {
@@ -84,38 +105,39 @@ function WelcomeScreen() {
           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-accent to-transparent opacity-60 animate-pulse" />
         </div>
 
-        <p className="text-text-secondary text-sm text-center max-w-sm">
-          Your AI workspace with sandboxed code execution.
-          <br />
-          <span className="text-text-tertiary text-xs">Pick a starting point or type anything below.</span>
+        <p className="text-text-secondary text-sm text-center max-w-md">
+          Your AI workspace — agents, sandboxed execution, interactive tools, and grounded knowledge.
         </p>
       </div>
 
-      {/* Action Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full max-w-2xl stagger-children">
+      {/* Action Cards — 2x2 grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-2xl stagger-children">
         {ACTION_CARDS.map((card) => (
           <button
             key={card.title}
             onClick={() => setPendingPrompt(card.prompt)}
-            className={`relative flex flex-col items-start gap-2.5 p-4 ${card.bg} border ${card.border} rounded-lg text-left cursor-pointer transition-all group overflow-hidden`}
+            className={`relative flex items-start gap-3 p-4 ${card.bg} border ${card.border} rounded-lg text-left cursor-pointer transition-all group overflow-hidden`}
           >
             <span className="absolute left-0 top-0 bottom-0 w-0.5 rounded-r bg-current scale-y-0 group-hover:scale-y-100 transition-transform origin-top" style={{ color: 'inherit' }} />
-            <span className={card.color}>{card.icon}</span>
-            <div>
-              <div className="text-sm font-medium text-text-primary">{card.title}</div>
+            <span className={`${card.color} mt-0.5 shrink-0`}>{card.icon}</span>
+            <div className="min-w-0">
+              <div className="text-sm font-medium text-text-primary flex items-center gap-1.5">
+                {card.title}
+                <ArrowRight size={12} className="opacity-0 -translate-x-1 group-hover:opacity-50 group-hover:translate-x-0 transition-all" />
+              </div>
               <div className="text-[11px] text-text-tertiary mt-0.5 leading-relaxed">{card.description}</div>
             </div>
           </button>
         ))}
       </div>
 
-      {/* Templates */}
-      <div className="flex flex-wrap justify-center gap-1.5 stagger-children">
-        {TEMPLATES.map((t) => (
+      {/* Capabilities */}
+      <div className="flex flex-wrap justify-center gap-1.5 max-w-2xl stagger-children">
+        {CAPABILITIES.map((t) => (
           <button
             key={t.label}
             onClick={() => setPendingPrompt(t.prompt)}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 text-[11px] tracking-wide uppercase bg-surface-1 border border-border-default rounded-lg text-text-tertiary hover:text-accent hover:border-accent/30 transition-all cursor-pointer glow-hover"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] tracking-wide uppercase bg-surface-1 border border-border-default rounded-lg text-text-tertiary hover:text-accent hover:border-accent/30 transition-all cursor-pointer glow-hover"
           >
             {t.icon}
             {t.label}
@@ -160,17 +182,17 @@ function ReturningUserScreen() {
         </div>
 
         <p className="text-text-tertiary text-xs tracking-[0.2em] uppercase">
-          AI workspace with sandboxed execution
+          Agents, tools, and sandboxed execution
         </p>
       </div>
 
-      {/* Templates */}
-      <div className="flex flex-wrap justify-center gap-1.5 stagger-children">
-        {TEMPLATES.map((t) => (
+      {/* Capabilities */}
+      <div className="flex flex-wrap justify-center gap-1.5 max-w-xl stagger-children">
+        {CAPABILITIES.map((t) => (
           <button
             key={t.label}
             onClick={() => setPendingPrompt(t.prompt)}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 text-[11px] tracking-wide uppercase bg-surface-1 border border-border-default rounded-lg text-text-tertiary hover:text-accent hover:border-accent/30 transition-all cursor-pointer glow-hover"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] tracking-wide uppercase bg-surface-1 border border-border-default rounded-lg text-text-tertiary hover:text-accent hover:border-accent/30 transition-all cursor-pointer glow-hover"
           >
             {t.icon}
             {t.label}
@@ -187,7 +209,7 @@ function ReturningUserScreen() {
             className="relative flex items-center gap-3 px-4 py-3 bg-surface-0/80 border border-border-default rounded-lg text-sm text-text-secondary hover:text-text-primary hover:border-accent/20 hover:bg-surface-1 transition-all text-left cursor-pointer group overflow-hidden"
           >
             <span className="absolute left-0 top-0 bottom-0 w-0.5 rounded-r bg-accent scale-y-0 group-hover:scale-y-100 transition-transform origin-top" />
-            <span className="text-text-tertiary group-hover:text-accent transition-colors">{s.icon}</span>
+            <span className={`${s.color} group-hover:text-accent transition-colors shrink-0`}>{s.icon}</span>
             <span>{s.text}</span>
           </button>
         ))}
