@@ -1,3 +1,4 @@
+'use client';
 /**
  * Standardized API request hook with loading, error, retry, and degraded states.
  *

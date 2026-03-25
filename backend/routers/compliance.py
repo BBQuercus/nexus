@@ -69,7 +69,7 @@ async def get_audit_log(
 async def export_data(
     user_id: uuid.UUID = Depends(require_role(Role.ORG_ADMIN)),
     db: AsyncSession = Depends(get_db),
-    format: str = Query("json", regex="^(json|csv)$"),
+    format: str = Query("json", pattern="^(json|csv)$"),
 ):
     """Export all data for compliance. Org admin only."""
     from backend.models import Conversation, Message
