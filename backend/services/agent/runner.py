@@ -67,7 +67,9 @@ async def run_agent_loop(
     tools = get_tools_for_mode(mode, tools_enabled, has_knowledge=has_knowledge)
 
     # Build message history for LLM
-    system_prompt = build_system_prompt(mode, persona, has_knowledge=has_knowledge, tools=tools, verbosity=verbosity, tone=tone)
+    system_prompt = build_system_prompt(
+        mode, persona, has_knowledge=has_knowledge, tools=tools, verbosity=verbosity, tone=tone
+    )
 
     # Inject relevant memories into the system prompt
     try:
@@ -134,7 +136,9 @@ async def run_agent_loop(
         output_tokens = 0
 
         try:
-            async for chunk in llm_service.stream_chat(llm_messages, model, tools=tools if tools else None, temperature=temperature):
+            async for chunk in llm_service.stream_chat(
+                llm_messages, model, tools=tools if tools else None, temperature=temperature
+            ):
                 if not chunk.choices and hasattr(chunk, "usage") and chunk.usage:
                     input_tokens = chunk.usage.prompt_tokens or 0
                     output_tokens = chunk.usage.completion_tokens or 0
