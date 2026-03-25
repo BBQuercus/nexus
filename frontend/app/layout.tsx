@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { SkipNav } from '@/components/accessibility';
 import AuthProvider from '@/components/auth-provider';
+import { ServiceWorkerRegister } from '@/components/sw-register';
 
 export const metadata: Metadata = {
   title: 'Nexus',
@@ -28,6 +29,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body className="min-h-screen overflow-hidden">
         <SkipNav />
+        <ServiceWorkerRegister />
         <AuthProvider>
           {children}
         </AuthProvider>
