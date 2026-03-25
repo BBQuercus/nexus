@@ -80,7 +80,7 @@ export default function UserDropdown({ compact = false }: { compact?: boolean })
 
       {open && (
         <div
-          className="absolute right-0 top-full mt-1.5 w-56 bg-surface-0 border border-border-default rounded-lg shadow-2xl shadow-black/30 overflow-hidden animate-fade-in-up z-50"
+          className="absolute right-0 top-full mt-1.5 w-56 max-w-[calc(100vw-16px)] bg-surface-0 border border-border-default rounded-lg shadow-2xl shadow-black/30 overflow-hidden animate-fade-in-up z-50"
           style={{ animationDuration: '0.1s' }}
         >
           {/* User info */}

@@ -1,6 +1,6 @@
-import { driver, type DriveStep } from 'driver.js';
-import 'driver.js/dist/driver.css';
 import { useStore } from '@/lib/store';
+
+type DriveStep = import('driver.js').DriveStep;
 
 const STORAGE_KEY = 'nexus-tour-completed';
 
@@ -98,9 +98,14 @@ export function startTour(): void {
   }
 
   // Small delay to let sidebar animation finish and DOM update
-  setTimeout(() => {
+  setTimeout(async () => {
     const steps = getVisibleSteps();
     if (steps.length === 0) return;
+
+    const [{ driver }] = await Promise.all([
+      import('driver.js'),
+      import('driver.js/dist/driver.css'),
+    ]);
 
     const tourDriver = driver({
       showProgress: true,

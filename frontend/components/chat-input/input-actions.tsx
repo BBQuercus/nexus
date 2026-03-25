@@ -96,7 +96,7 @@ function ChatSettings({ numResponses, setNumResponses, verbosity, setVerbosity, 
   }, [open]);
 
   return (
-    <div ref={ref} className="relative ml-auto hidden sm:block">
+    <div ref={ref} className="relative ml-auto hidden md:block">
       <button
         onClick={() => setOpen(!open)}
         className={`flex items-center justify-center w-7 h-7 rounded-lg border transition-all cursor-pointer ${
@@ -110,7 +110,7 @@ function ChatSettings({ numResponses, setNumResponses, verbosity, setVerbosity, 
       </button>
 
       {open && (
-        <div className="absolute bottom-full right-0 mb-1.5 w-60 bg-surface-0 border border-border-default rounded-lg shadow-2xl shadow-black/40 z-50 p-3 space-y-3">
+        <div className="absolute bottom-full right-0 mb-1.5 w-[min(240px,calc(100vw-24px))] bg-surface-0 border border-border-default rounded-lg shadow-2xl shadow-black/40 z-50 p-3 space-y-3">
           <div>
             <div className="text-[10px] font-medium text-text-tertiary uppercase tracking-wider mb-1.5">Responses per turn</div>
             <div className="flex items-center gap-1">

@@ -1,7 +1,10 @@
 'use client';
 
 import { useRef, useEffect, useState, useMemo, memo } from 'react';
-import { enhanceRenderedMarkdown, renderMarkdown, splitMarkdownSegments } from '@/lib/markdown';
+import { enhanceRenderedMarkdown, renderMarkdown, splitMarkdownSegments, initMarkdown } from '@/lib/markdown';
+
+let markdownReady = false;
+let markdownInitPromise: Promise<void> | null = null;
 
 const MERMAID_THEME = {
   startOnLoad: false,
@@ -84,11 +87,24 @@ export default function MarkdownContent({
   className?: string;
   postProcess?: (html: string) => string;
 }) {
+  const [ready, setReady] = useState(markdownReady);
+
+  useEffect(() => {
+    if (markdownReady) return;
+    if (!markdownInitPromise) {
+      markdownInitPromise = initMarkdown();
+    }
+    markdownInitPromise.then(() => {
+      markdownReady = true;
+      setReady(true);
+    });
+  }, []);
+
   const { segments } = useMemo(() => {
     const { html, mermaidBlocks } = renderMarkdown(text);
     const finalHtml = postProcess ? postProcess(html) : html;
     return { segments: splitMarkdownSegments(finalHtml, mermaidBlocks) };
-  }, [text, postProcess]);
+  }, [text, postProcess, ready]);
 
   // Fast path: no mermaid, single HTML segment
   if (segments.length === 1 && segments[0].type === 'html') {

@@ -92,7 +92,7 @@ export default function SearchPanel() {
     : [];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[12vh] sm:pt-[15vh] px-3 sm:px-0">
+    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[12vh] md:pt-[15vh] px-3 md:px-0">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={close} />
       <div className="relative w-full max-w-xl bg-surface-0 border border-border-default rounded-lg shadow-2xl overflow-hidden animate-fade-in-up" style={{ animationDuration: '0.15s' }}>
         {/* Search input */}

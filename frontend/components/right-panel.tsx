@@ -210,7 +210,7 @@ export default function RightPanel() {
               }`}
             >
               {tab.icon}
-              <span className="hidden sm:inline whitespace-nowrap">{tab.label}</span>
+              <span className="hidden md:inline whitespace-nowrap">{tab.label}</span>
             </button>
           ))}
         </div>

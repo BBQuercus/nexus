@@ -83,6 +83,38 @@ export function mapRawMessages(raw: Array<Record<string, unknown>>, conversation
   });
 }
 
+/**
+ * Batches streaming content appends per-conversation using requestAnimationFrame.
+ * Instead of updating Zustand on every token (50+ times/sec), this accumulates
+ * tokens and flushes once per frame (~16ms).
+ */
+const contentBuffers = new Map<string, string>();
+let contentFlushRaf = 0;
+
+function flushContentBuffers() {
+  contentFlushRaf = 0;
+  const store = useStore.getState();
+  for (const [conversationId, buffer] of contentBuffers) {
+    store.appendConversationStreamingContent(conversationId, buffer);
+  }
+  contentBuffers.clear();
+}
+
+function bufferStreamingContent(conversationId: string, text: string) {
+  const current = contentBuffers.get(conversationId) || '';
+  contentBuffers.set(conversationId, current + text);
+  if (!contentFlushRaf) {
+    contentFlushRaf = requestAnimationFrame(flushContentBuffers);
+  }
+}
+
+export function flushStreamingBuffers() {
+  if (contentFlushRaf) {
+    cancelAnimationFrame(contentFlushRaf);
+    flushContentBuffers();
+  }
+}
+
 /** Process a single SSE event into the appropriate store state */
 export function processSseEvent(
   event: Record<string, unknown>,
@@ -103,7 +135,7 @@ export function processSseEvent(
       if (opts.isMulti) {
         opts.updateBranch(bi, (b) => ({ content: b.content + ((event.content as string) || '') }));
       } else {
-        store.appendConversationStreamingContent(opts.conversationId, (event.content as string) || '');
+        bufferStreamingContent(opts.conversationId, (event.content as string) || '');
       }
       break;
 
@@ -307,6 +339,8 @@ export function processSseEvent(
     }
 
     case 'done': {
+      // Flush any buffered content before finalizing
+      flushStreamingBuffers();
       const newSandboxId = (event.sandbox_id as string) || null;
       if (newSandboxId && isActiveConversation) {
         store.setSandboxId(newSandboxId);
@@ -341,6 +375,7 @@ export function processSseEvent(
     }
 
     case 'error':
+      flushStreamingBuffers();
       if (opts.isMulti) {
         opts.updateBranch(bi, (b) => ({ content: b.content + `\n\n**Error:** ${(event.message as string) || 'Unknown error'}` }));
       } else {

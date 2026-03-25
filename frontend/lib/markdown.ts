@@ -1,8 +1,7 @@
 import { marked, Renderer } from 'marked';
-import katex from 'katex';
 
 let shikiHighlighter: Awaited<ReturnType<typeof import('shiki')['createHighlighter']>> | null = null;
-let shikiLoading: Promise<void> | null = null;
+let katexModule: typeof import('katex')['default'] | null = null;
 
 function escapeHtml(text: string): string {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -28,25 +27,41 @@ function sanitizeUrl(url: string, { allowData = false }: { allowData?: boolean }
   return '#';
 }
 
+let markdownLoading: Promise<void> | null = null;
+
 export async function initMarkdown(): Promise<void> {
-  if (shikiHighlighter || shikiLoading) return;
-  shikiLoading = (async () => {
-    try {
-      const shiki = await import('shiki');
-      shikiHighlighter = await shiki.createHighlighter({
-        themes: ['vitesse-dark'],
-        langs: [
-          'javascript', 'typescript', 'python', 'bash', 'shell', 'json',
-          'html', 'css', 'sql', 'yaml', 'toml', 'markdown', 'rust',
-          'go', 'java', 'c', 'cpp', 'ruby', 'php', 'swift', 'kotlin',
-          'dockerfile', 'xml', 'r', 'lua', 'perl', 'scala',
-        ],
-      });
-    } catch (e) {
-      console.warn('Shiki init failed:', e);
+  if (markdownLoading) return markdownLoading;
+  markdownLoading = (async () => {
+    const results = await Promise.allSettled([
+      // Load shiki highlighter
+      (async () => {
+        if (shikiHighlighter) return;
+        const shiki = await import('shiki');
+        shikiHighlighter = await shiki.createHighlighter({
+          themes: ['vitesse-dark'],
+          langs: [
+            'javascript', 'typescript', 'python', 'bash', 'shell', 'json',
+            'html', 'css', 'sql', 'yaml', 'toml', 'markdown', 'rust',
+            'go', 'java', 'c', 'cpp', 'ruby', 'php', 'swift', 'kotlin',
+            'dockerfile', 'xml', 'r', 'lua', 'perl', 'scala',
+          ],
+        });
+      })(),
+      // Load katex
+      (async () => {
+        if (katexModule) return;
+        const [katex] = await Promise.all([
+          import('katex'),
+          import('katex/dist/katex.min.css'),
+        ]);
+        katexModule = katex.default;
+      })(),
+    ]);
+    for (const r of results) {
+      if (r.status === 'rejected') console.warn('Markdown init partial failure:', r.reason);
     }
   })();
-  await shikiLoading;
+  await markdownLoading;
 }
 
 export function highlightCode(code: string, language: string): string {
@@ -63,8 +78,9 @@ export function highlightCode(code: string, language: string): string {
 }
 
 function renderKatex(tex: string, displayMode: boolean): string {
+  if (!katexModule) return `<code>${escapeHtml(tex)}</code>`;
   try {
-    return katex.renderToString(tex, { displayMode, throwOnError: false, trust: false });
+    return katexModule.renderToString(tex, { displayMode, throwOnError: false, trust: false });
   } catch {
     return `<code>${escapeHtml(tex)}</code>`;
   }

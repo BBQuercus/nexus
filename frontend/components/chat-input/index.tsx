@@ -28,7 +28,7 @@ export default function ChatInput() {
   const voice = useVoiceInput({ content: submit.content, setContent: submit.setContent, textareaRef });
 
   return (
-    <div data-tour="chat-input" className="shrink-0 bg-surface-0 px-3 sm:px-6 pt-4 sm:pt-5 safe-bottom"
+    <div data-tour="chat-input" className="shrink-0 bg-surface-0 px-3 md:px-6 pt-4 md:pt-5 safe-bottom"
       style={{ '--safe-bottom-pad': '1.25rem' } as React.CSSProperties}
     >
     <div className="max-w-4xl mx-auto w-full">

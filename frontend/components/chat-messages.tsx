@@ -9,6 +9,8 @@ import MessageBubble from './message-bubble';
 import StreamingBubble from './streaming-bubble';
 import { MessageSkeleton } from './skeleton';
 
+const PAGE_SIZE = 50;
+
 export default function ChatMessages() {
   const activeConversationId = useStore((s) => s.activeConversationId);
   const messages = useStore((s) => s.messages);
@@ -25,6 +27,28 @@ export default function ChatMessages() {
   const previousMessageCountRef = useRef(messages.length);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+
+  // Reset visible count when conversation changes
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [activeConversationId]);
+
+  const hasMore = messages.length > visibleCount;
+  const visibleMessages = hasMore ? messages.slice(messages.length - visibleCount) : messages;
+
+  const loadMore = useCallback(() => {
+    const container = containerRef.current;
+    const prevHeight = container?.scrollHeight ?? 0;
+    setVisibleCount((prev) => prev + PAGE_SIZE);
+    // Preserve scroll position after loading older messages
+    requestAnimationFrame(() => {
+      if (container) {
+        const newHeight = container.scrollHeight;
+        container.scrollTop += newHeight - prevHeight;
+      }
+    });
+  }, []);
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
     const container = containerRef.current;
@@ -98,6 +122,9 @@ export default function ChatMessages() {
     const nextCount = messages.length;
 
     if (nextCount > previousCount) {
+      // Keep new messages visible by expanding the window
+      const added = nextCount - previousCount;
+      setVisibleCount((prev) => prev + added);
       scrollToBottomIfPinned('smooth');
     }
 
@@ -166,12 +193,22 @@ export default function ChatMessages() {
 
   return (
     <div className="relative flex-1 min-h-0">
-      <div ref={containerRef} className="absolute inset-0 overflow-y-auto px-3 sm:px-6 py-4 sm:py-6 scrollbar-gutter-stable">
+      <div ref={containerRef} className="absolute inset-0 overflow-y-auto px-3 md:px-6 py-4 md:py-6 scrollbar-gutter-stable">
         {loading && messages.length === 0 ? (
           <MessageSkeleton />
         ) : (
           <div className="space-y-4 max-w-4xl mx-auto">
-            {messages.map((msg) => (
+            {hasMore && (
+              <div className="flex justify-center py-2">
+                <button
+                  onClick={loadMore}
+                  className="px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary bg-surface-1 border border-border-default rounded-lg hover:border-border-focus transition-colors cursor-pointer"
+                >
+                  Load {Math.min(PAGE_SIZE, messages.length - visibleCount)} earlier messages
+                </button>
+              </div>
+            )}
+            {visibleMessages.map((msg) => (
               <MessageBubble key={msg.id} message={msg} />
             ))}
             <StreamingBubble />
