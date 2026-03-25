@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.auth import get_current_user
 from backend.db import get_db
-from backend.rate_limit import sandbox_limiter
+from backend.rate_limit import check_rate_limit
 from backend.services import sandbox as sandbox_service
 from backend.services.audit import AuditAction, record_audit_event
 
@@ -35,7 +35,7 @@ async def create_sandbox(
     user_id: uuid.UUID = Depends(get_current_user),
 ):
     # Rate limit: 10 sandbox creations per minute per user
-    sandbox_limiter.check(str(user_id), limit=10, window_seconds=60)
+    await check_rate_limit(str(user_id), limit=10, window_seconds=60, category="sandbox")
     try:
         labels = body.labels or {}
         labels["user_id"] = str(user_id)

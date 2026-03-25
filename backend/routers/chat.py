@@ -16,7 +16,7 @@ from backend.config import settings
 from backend.db import get_db
 from backend.logging_config import get_logger
 from backend.models import AgentPersona, Artifact, Conversation, Message, UsageLog
-from backend.rate_limit import chat_limiter
+from backend.rate_limit import check_rate_limit
 from backend.services import llm as llm_service
 from backend.services import sandbox as sandbox_service
 from backend.services.agent import run_agent_loop, run_multi_agent_loop
@@ -434,7 +434,7 @@ async def send_message(
     db: AsyncSession = Depends(get_db),
 ):
     # Rate limit: 60 requests per minute per user
-    chat_limiter.check(str(user_id), limit=60, window_seconds=60)
+    await check_rate_limit(str(user_id), limit=60, window_seconds=60, category="chat")
 
     # Verify conversation belongs to user
     result = await db.execute(
