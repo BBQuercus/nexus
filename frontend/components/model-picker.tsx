@@ -16,6 +16,7 @@ const PROVIDER_LABELS: Record<ModelProvider, string> = {
   xai: 'xAI via Foundry',
   moonshot: 'Moonshot via Foundry',
   deepseek: 'DeepSeek via Foundry',
+  mistral: 'Mistral via Foundry',
 };
 
 export default function ModelPicker({
@@ -64,7 +65,7 @@ export default function ModelPicker({
   const grouped = groupByProvider(primaryModels);
   const legacyGrouped = groupByProvider(legacyModels);
 
-  const providerOrder: ModelProvider[] = ['anthropic', 'openai', 'meta', 'microsoft', 'xai', 'moonshot', 'deepseek'];
+  const providerOrder: ModelProvider[] = ['anthropic', 'openai', 'meta', 'microsoft', 'mistral', 'xai', 'moonshot', 'deepseek'];
 
   return (
     <div ref={ref} className="relative">

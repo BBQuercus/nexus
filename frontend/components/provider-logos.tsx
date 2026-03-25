@@ -56,6 +56,14 @@ function DeepSeekLogo({ size = 16, className = '' }: { size?: number; className?
   );
 }
 
+function MistralLogo({ size = 16, className = '' }: { size?: number; className?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className}>
+      <path d="M3 3h4v4H3zm14 0h4v4h-4zM3 9h4v4H3zm4 0h4v4H7zm4 0h4v4h-4zm4 0h4v4h-4zm4 0h4v4h-4zM3 15h4v4H3zm8 0h4v4h-4zm8 0h4v4h-4zM3 21h4v-2H3zm14 0h4v-2h-4z" />
+    </svg>
+  );
+}
+
 export function ProviderLogo({ provider, size = 16, className = '' }: { provider: ModelProvider; size?: number; className?: string }) {
   switch (provider) {
     case 'anthropic':
@@ -72,5 +80,7 @@ export function ProviderLogo({ provider, size = 16, className = '' }: { provider
       return <MoonshotLogo size={size} className={className} />;
     case 'deepseek':
       return <DeepSeekLogo size={size} className={className} />;
+    case 'mistral':
+      return <MistralLogo size={size} className={className} />;
   }
 }
