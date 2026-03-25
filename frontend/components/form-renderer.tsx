@@ -8,14 +8,16 @@
  * Handles: validation, conditional fields, default values, submission.
  */
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { Check, Star, ChevronDown, Plus, Minus, ClipboardList } from 'lucide-react';
-import type { FormSpec, FormField } from '@/lib/types';
+import type { FormSpec, FormField, Message } from '@/lib/types';
+import { useStore } from '@/lib/store';
 
 interface FormRendererProps {
   spec: FormSpec;
   onSubmit?: (data: Record<string, unknown>) => void;
   compact?: boolean;
+  alreadySubmitted?: boolean;
 }
 
 function getDefaultValue(field: FormField): unknown {
@@ -314,7 +316,8 @@ function FieldRenderer({
   );
 }
 
-export default function FormRenderer({ spec, onSubmit, compact }: FormRendererProps) {
+export default function FormRenderer({ spec, onSubmit, compact, alreadySubmitted }: FormRendererProps) {
+  const formRef = useRef<HTMLElement>(null);
   const [values, setValues] = useState<Record<string, unknown>>(() => {
     const init: Record<string, unknown> = {};
     for (const field of spec.fields) {
@@ -323,8 +326,34 @@ export default function FormRenderer({ spec, onSubmit, compact }: FormRendererPr
     return init;
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [submitted, setSubmitted] = useState(false);
+  const [submitted, setSubmitted] = useState(!!alreadySubmitted);
   const [submittedData, setSubmittedData] = useState<Record<string, unknown> | null>(null);
+  const [editing, setEditing] = useState(false);
+  const savedMessagesRef = useRef<unknown[] | null>(null);
+
+  // Listen for reopen events to reset and scroll back to this form
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      const title = detail?.title;
+      if (title === spec.title) {
+        const prefill = detail?.data as Record<string, unknown> | undefined;
+        if (prefill) {
+          setValues((prev) => ({ ...prev, ...prefill }));
+        }
+        savedMessagesRef.current = detail?.savedMessages ?? null;
+        setSubmitted(false);
+        setSubmittedData(null);
+        setEditing(true);
+        setErrors({});
+        setTimeout(() => {
+          formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 100);
+      }
+    };
+    window.addEventListener('nexus:reopen-form', handler);
+    return () => window.removeEventListener('nexus:reopen-form', handler);
+  }, [spec.title]);
 
   const visibleFields = useMemo(() => {
     return spec.fields.filter((field) => {
@@ -404,36 +433,20 @@ export default function FormRenderer({ spec, onSubmit, compact }: FormRendererPr
     setErrors({});
   }, []);
 
-  if (submitted && submittedData) {
+  if (submitted) {
     return (
-      <div className="rounded-xl border border-accent/20 bg-accent/5 p-4 space-y-3 animate-fade-in-up">
+      <div ref={formRef as React.RefObject<HTMLDivElement | null>} className="rounded-xl border border-accent/20 bg-accent/5 px-4 py-2.5 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-full bg-accent/20 flex items-center justify-center">
-            <Check size={14} className="text-accent" />
+          <div className="w-5 h-5 rounded-full bg-accent/20 flex items-center justify-center flex-shrink-0">
+            <Check size={12} className="text-accent" />
           </div>
-          <span className="text-sm font-medium text-text-primary">Response submitted</span>
-        </div>
-        <div className="space-y-1 pl-8">
-          {visibleFields.map((field) => (
-            <div key={field.id} className="text-xs">
-              <span className="text-text-tertiary">{field.label}: </span>
-              <span className="text-text-secondary">
-                {Array.isArray(submittedData[field.id])
-                  ? (submittedData[field.id] as string[]).join(', ')
-                  : field.type === 'checkbox'
-                  ? submittedData[field.id] ? 'Yes' : 'No'
-                  : field.type === 'rating'
-                  ? `${submittedData[field.id]}/${field.validation?.max ?? 5} stars`
-                  : String(submittedData[field.id] ?? '')}
-              </span>
-            </div>
-          ))}
+          <span className="text-xs text-text-secondary">{spec.title} — submitted</span>
         </div>
         {spec.allow_multiple && (
           <button
             type="button"
             onClick={handleResubmit}
-            className="ml-8 px-3 py-1.5 text-[11px] font-medium rounded-lg border border-border-default bg-surface-1 text-text-secondary hover:text-text-primary hover:border-border-focus cursor-pointer transition-colors"
+            className="px-2.5 py-1 text-[11px] font-medium rounded-lg border border-border-default bg-surface-1 text-text-secondary hover:text-text-primary hover:border-border-focus cursor-pointer transition-colors"
           >
             Submit again
           </button>
@@ -444,6 +457,7 @@ export default function FormRenderer({ spec, onSubmit, compact }: FormRendererPr
 
   return (
     <form
+      ref={formRef as React.RefObject<HTMLFormElement | null>}
       onSubmit={handleSubmit}
       className={`rounded-xl border border-border-default bg-surface-0 overflow-hidden animate-fade-in-up ${compact ? '' : 'my-3'}`}
     >
@@ -472,13 +486,33 @@ export default function FormRenderer({ spec, onSubmit, compact }: FormRendererPr
       </div>
 
       {/* Submit */}
-      <div className="px-4 py-3 bg-surface-1 border-t border-border-default">
+      <div className="px-4 py-3 bg-surface-1 border-t border-border-default flex items-center gap-2">
         <button
           type="submit"
           className="px-4 py-2 bg-accent hover:bg-accent/90 text-white text-xs font-medium rounded-lg transition-colors cursor-pointer"
         >
           {spec.submit_label || 'Submit'}
         </button>
+        {editing && (
+          <button
+            type="button"
+            onClick={() => {
+              // Restore the messages that were truncated when editing started
+              if (savedMessagesRef.current) {
+                const convId = useStore.getState().activeConversationId;
+                if (convId) {
+                  useStore.getState().setConversationMessages(convId, savedMessagesRef.current as Message[]);
+                }
+                savedMessagesRef.current = null;
+              }
+              setEditing(false);
+              setSubmitted(true);
+            }}
+            className="px-4 py-2 text-xs text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer"
+          >
+            Cancel
+          </button>
+        )}
       </div>
     </form>
   );

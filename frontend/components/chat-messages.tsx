@@ -3,7 +3,7 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { useStore } from '@/lib/store';
 import * as api from '@/lib/api';
-import { mapRawMessages } from '@/lib/useStreaming';
+import { mapRawMessages, loadAndAttachArtifacts } from '@/lib/useStreaming';
 import { ArrowDown } from 'lucide-react';
 import MessageBubble from './message-bubble';
 import StreamingBubble from './streaming-bubble';
@@ -15,7 +15,6 @@ export default function ChatMessages() {
   const setConversationMessages = useStore((s) => s.setConversationMessages);
   const setSandboxId = useStore((s) => s.setSandboxId);
   const setSandboxStatus = useStore((s) => s.setSandboxStatus);
-  const setArtifacts = useStore((s) => s.setArtifacts);
   const setActiveLeafId = useStore((s) => s.setActiveLeafId);
   const setConversationTree = useStore((s) => s.setConversationTree);
   const isStreaming = useStore((s) => s.isStreaming);
@@ -142,11 +141,9 @@ export default function ChatMessages() {
           useStore.getState().setActivePersona(null);
         }
 
-        try {
-          const artifacts = await api.getArtifacts(conversationId);
-          if (cancelled || useStore.getState().activeConversationId !== conversationId) return;
-          setArtifacts(artifacts);
-        } catch {}
+        if (!cancelled) {
+          await loadAndAttachArtifacts(conversationId);
+        }
 
         // Load tree structure
         try {
@@ -165,7 +162,7 @@ export default function ChatMessages() {
     return () => {
       cancelled = true;
     };
-  }, [activeConversationId, setConversationMessages, setSandboxId, setSandboxStatus, setArtifacts, setActiveLeafId, setConversationTree]);
+  }, [activeConversationId, setConversationMessages, setSandboxId, setSandboxStatus, setActiveLeafId, setConversationTree]);
 
   return (
     <div className="relative flex-1 min-h-0">

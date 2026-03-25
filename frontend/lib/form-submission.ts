@@ -21,3 +21,15 @@ export function stripFormSubmissionPayload(content: string): string {
     )
     .trim();
 }
+
+export function parseFormSubmission(content: string): FormSubmissionEnvelope | null {
+  const match = content.match(
+    new RegExp(`\\\`\\\`\\\`${FORM_RESPONSE_FENCE}\\n([\\s\\S]*?)\\n\\\`\\\`\\\``),
+  );
+  if (!match) return null;
+  try {
+    return JSON.parse(match[1]) as FormSubmissionEnvelope;
+  } catch {
+    return null;
+  }
+}
