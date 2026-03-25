@@ -128,9 +128,9 @@ function WelcomeScreen() {
   };
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 gap-6 sm:gap-8 overflow-y-auto py-6 sm:py-8 animate-fade-in">
+    <div className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 gap-6 sm:gap-8 overflow-y-auto py-6 sm:py-8 cascade-sections">
       {/* Hero */}
-      <div className="relative flex flex-col items-center gap-4 animate-fade-in">
+      <div className="relative flex flex-col items-center gap-4">
         <div className="relative">
           <div className="absolute inset-0 w-16 h-16 -m-3 rounded-lg bg-accent/8 animate-pulse" />
           <div className="relative flex items-center gap-2.5 z-10">
@@ -150,7 +150,7 @@ function WelcomeScreen() {
       </div>
 
       {/* Action Cards — 2x2 grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-2xl stagger-children">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-2xl">
         {ACTION_CARDS.map((card) => (
           <button
             key={card.title}
@@ -171,7 +171,7 @@ function WelcomeScreen() {
       </div>
 
       {/* Capabilities */}
-      <div className="flex flex-wrap justify-center gap-1.5 max-w-2xl stagger-children">
+      <div className="flex flex-wrap justify-center gap-1.5 max-w-2xl">
         {capabilities.map((t) => (
           <button
             key={t.label}
@@ -185,7 +185,7 @@ function WelcomeScreen() {
       </div>
 
       {/* Quick suggestion chips */}
-      <div className="flex flex-wrap justify-center gap-1.5 max-w-lg stagger-children">
+      <div className="flex flex-wrap justify-center gap-1.5 max-w-lg">
         {QUICK_SUGGESTIONS.map((s) => (
           <button
             key={s}
@@ -213,9 +213,9 @@ function ReturningUserScreen() {
   };
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 gap-6 sm:gap-10 overflow-y-auto py-6 sm:py-8 animate-fade-in">
+    <div className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 gap-6 sm:gap-10 overflow-y-auto py-6 sm:py-8 cascade-sections">
       {/* Logo */}
-      <div className="relative flex flex-col items-center gap-4 animate-fade-in">
+      <div className="relative flex flex-col items-center gap-4">
         <div className="relative">
           <div className="absolute inset-0 w-14 h-14 -m-2 rounded-lg bg-accent/5 animate-pulse" />
           <div className="relative flex items-center gap-2 z-10">
@@ -235,7 +235,7 @@ function ReturningUserScreen() {
       </div>
 
       {/* Capabilities */}
-      <div className="flex flex-wrap justify-center gap-1.5 max-w-xl stagger-children">
+      <div className="flex flex-wrap justify-center gap-1.5 max-w-xl">
         {capabilities.map((t) => (
           <button
             key={t.label}
@@ -249,7 +249,7 @@ function ReturningUserScreen() {
       </div>
 
       {/* Starters */}
-      <div className="flex flex-col gap-2 w-full max-w-md stagger-children">
+      <div className="flex flex-col gap-2 w-full max-w-md">
         {RETURNING_STARTERS.map((s) => (
           <button
             key={s.text}

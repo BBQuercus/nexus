@@ -224,6 +224,17 @@ pre code {
   animation: fadeIn 0.35s ease-out both;
 }
 
+/* Cascading section fade — each direct child of the container fades in
+   with increasing delay. No translateY, no per-item stagger, no layout shift. */
+.cascade-sections {
+  & > *:nth-child(1) { opacity: 0; animation: fadeIn 0.35s ease-out 0.0s forwards; }
+  & > *:nth-child(2) { opacity: 0; animation: fadeIn 0.35s ease-out 0.08s forwards; }
+  & > *:nth-child(3) { opacity: 0; animation: fadeIn 0.35s ease-out 0.16s forwards; }
+  & > *:nth-child(4) { opacity: 0; animation: fadeIn 0.35s ease-out 0.24s forwards; }
+  & > *:nth-child(5) { opacity: 0; animation: fadeIn 0.35s ease-out 0.32s forwards; }
+  & > *:nth-child(6) { opacity: 0; animation: fadeIn 0.35s ease-out 0.40s forwards; }
+}
+
 /* Fade in up — for page-level entrances */
 @keyframes fadeInUp {
   from { opacity: 0; transform: translateY(8px); }
