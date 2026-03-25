@@ -55,6 +55,9 @@ class SendMessageRequest(BaseModel):
     context_conversation_ids: list[uuid.UUID] | None = None  # @mentioned conversations
     agent_persona_id: uuid.UUID | None = None  # Override persona for this message
     knowledge_base_ids: list[uuid.UUID] | None = None  # Attach KBs for RAG
+    temperature: float | None = None  # 0.0-1.0 creativity control
+    verbosity: str | None = None  # concise | detailed (omit for balanced)
+    tone: str | None = None  # casual | technical (omit for professional)
 
 
 class GenerateImageRequest(BaseModel):
@@ -455,6 +458,9 @@ async def send_message(
                 leaf_message_id=user_msg.id,
                 num_responses=num_responses,
                 compare_models=compare_models,
+                temperature=body.temperature,
+                verbosity=body.verbosity,
+                tone=body.tone,
             ):
                 # Capture active_leaf_id from all_done event
                 if event.get("event") == "all_done":
@@ -476,6 +482,9 @@ async def send_message(
                     sandbox_id=conv.sandbox_id,
                     db=db,
                     leaf_message_id=user_msg.id,
+                    temperature=body.temperature,
+                    verbosity=body.verbosity,
+                    tone=body.tone,
                 ):
                     if event.get("event") == "done":
                         try:

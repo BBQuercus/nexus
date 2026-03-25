@@ -80,6 +80,7 @@ async def stream_chat(
     messages: list[dict],
     model: str,
     tools: list[dict] | None = None,
+    temperature: float | None = None,
 ) -> AsyncGenerator[Any, None]:
     """Async generator yielding chunks from the LLM streaming response.
 
@@ -91,6 +92,8 @@ async def stream_chat(
         "stream": True,
         "stream_options": {"include_usage": True},
     }
+    if temperature is not None:
+        kwargs["temperature"] = max(0.0, min(2.0, temperature))
     if tools:
         kwargs["tools"] = tools
         if _supports_tool_choice(model):

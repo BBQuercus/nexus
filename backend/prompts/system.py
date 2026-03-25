@@ -144,11 +144,24 @@ def build_tool_catalog_addendum(tools: list[dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
+VERBOSITY_INSTRUCTIONS = {
+    "concise": "Be extremely concise. Use short sentences, bullet points, and minimal explanation. Skip pleasantries and filler. Get straight to the point.",
+    "detailed": "Be thorough and detailed. Provide comprehensive explanations, examples, and context. Break down complex topics step by step.",
+}
+
+TONE_INSTRUCTIONS = {
+    "casual": "Use a casual, conversational tone. Be friendly and approachable, like talking to a colleague.",
+    "technical": "Use a precise, technical tone. Favor exact terminology, specifications, and formal language. Assume the reader has deep domain expertise.",
+}
+
+
 def build_system_prompt(
     mode: str,
     persona: object | None = None,
     has_knowledge: bool = False,
     tools: list[dict[str, Any]] | None = None,
+    verbosity: str | None = None,
+    tone: str | None = None,
 ) -> str:
     """Build the system prompt based on mode and optional persona.
 
@@ -157,6 +170,8 @@ def build_system_prompt(
         persona: Optional AgentPersona ORM object with system_prompt attribute
         has_knowledge: Whether knowledge bases/documents are available
         tools: Tool definitions available to the model
+        verbosity: Optional 'concise' or 'detailed' (omit for balanced)
+        tone: Optional 'casual' or 'technical' (omit for professional)
 
     Returns:
         Combined system prompt string
@@ -182,5 +197,14 @@ def build_system_prompt(
     tool_catalog = build_tool_catalog_addendum(tools or [])
     if tool_catalog:
         base = f"{base}\n\n{tool_catalog}"
+
+    # Apply user behavior preferences
+    behavior_parts = []
+    if verbosity and verbosity in VERBOSITY_INSTRUCTIONS:
+        behavior_parts.append(VERBOSITY_INSTRUCTIONS[verbosity])
+    if tone and tone in TONE_INSTRUCTIONS:
+        behavior_parts.append(TONE_INSTRUCTIONS[tone])
+    if behavior_parts:
+        base = f"{base}\n\n## Response Style\n" + " ".join(behavior_parts)
 
     return base
