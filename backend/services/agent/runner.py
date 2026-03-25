@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.logging_config import get_logger
-from backend.models import Artifact, Conversation
+from backend.models import Artifact, Conversation, KnowledgeBase
 from backend.prompts.system import build_system_prompt
 from backend.prompts.tools import get_tools_for_mode
 from backend.services import llm as llm_service
@@ -24,6 +24,23 @@ from .tool_executor import ToolExecutionContext, execute_tool_call
 from .usage import link_retrieval_logs, log_usage, save_artifacts, save_assistant_message
 
 logger = get_logger("agent")
+
+
+async def _load_selected_knowledge_bases(
+    db: AsyncSession, knowledge_base_ids: list[uuid.UUID]
+) -> list[dict[str, str]]:
+    if not knowledge_base_ids:
+        return []
+
+    result = await db.execute(select(KnowledgeBase).where(KnowledgeBase.id.in_(knowledge_base_ids)))
+    bases = {kb.id: kb for kb in result.scalars().all()}
+    selected: list[dict[str, str]] = []
+    for kb_id in knowledge_base_ids:
+        kb = bases.get(kb_id)
+        if not kb:
+            continue
+        selected.append({"name": kb.name, "description": kb.description or ""})
+    return selected
 
 
 async def run_agent_loop(
@@ -60,6 +77,8 @@ async def run_agent_loop(
     # Determine knowledge availability
     has_knowledge, knowledge_base_ids = await detect_knowledge(db, conversation, conversation_id, persona)
 
+    selected_knowledge_bases = await _load_selected_knowledge_bases(db, knowledge_base_ids)
+
     # Get tools
     tools_enabled = None
     if persona and hasattr(persona, "tools_enabled"):
@@ -68,7 +87,13 @@ async def run_agent_loop(
 
     # Build message history for LLM
     system_prompt = build_system_prompt(
-        mode, persona, has_knowledge=has_knowledge, tools=tools, verbosity=verbosity, tone=tone
+        mode,
+        persona,
+        has_knowledge=has_knowledge,
+        tools=tools,
+        verbosity=verbosity,
+        tone=tone,
+        selected_knowledge_bases=selected_knowledge_bases,
     )
 
     # Inject relevant memories into the system prompt

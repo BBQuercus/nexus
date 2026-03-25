@@ -91,28 +91,6 @@ ARCHITECT_SYSTEM_PROMPT = """You are Nexus in Architect mode — a senior softwa
 - Pre-installed packages: pandas, numpy, matplotlib, seaborn, plotly, scipy, scikit-learn, openpyxl, python-pptx, reportlab, Pillow, requests"""
 
 
-RAG_SYSTEM_ADDENDUM = """
-## Knowledge Base Access
-You have access to uploaded documents and knowledge bases via the `knowledge_search` tool.
-
-### When to use knowledge_search:
-- When the user asks about data, facts, or content from uploaded documents
-- When you need specific numbers, quotes, or details that may be in the documents
-- When the user references "the file", "the report", "the data", etc.
-
-### Citation Rules:
-- ALWAYS cite your sources using [Source N] notation matching the search results
-- Include the filename and page/section when available
-- If evidence is weak or contradictory, say so explicitly
-- NEVER fabricate data that wasn't in the retrieved context
-- If the search returns low-confidence results, tell the user you're not sure and suggest they rephrase
-
-### For data analysis with knowledge bases:
-- First use knowledge_search to understand what data is available
-- Then use execute_code to load and analyze the actual files in the sandbox
-- Combine retrieved context with computed results for the richest answers
-"""
-
 SQL_SYSTEM_ADDENDUM = """
 ## SQL Queries
 - Use `run_sql` for fast data analysis on CSV, Excel, and Parquet files in the sandbox
@@ -162,6 +140,7 @@ def build_system_prompt(
     tools: list[dict[str, Any]] | None = None,
     verbosity: str | None = None,
     tone: str | None = None,
+    selected_knowledge_bases: list[dict[str, str]] | None = None,
 ) -> str:
     """Build the system prompt based on mode and optional persona.
 
@@ -188,7 +167,45 @@ def build_system_prompt(
         base = f"{base}\n\n## Custom Persona Instructions\n{persona.system_prompt}"
 
     if has_knowledge:
-        base = f"{base}\n{RAG_SYSTEM_ADDENDUM}"
+        kb_lines = []
+        for kb in selected_knowledge_bases or []:
+            name = (kb.get("name") or "").strip()
+            description = (kb.get("description") or "").strip()
+            if not name:
+                continue
+            kb_lines.append(f"- {name}" + (f": {description}" if description else ""))
+
+        rag_addendum = """
+## Selected Knowledge Base Access
+The user explicitly selected knowledge base context for this turn. You have access to it via the `knowledge_search` tool.
+
+Treat the selected knowledge bases as a primary source of truth for this request. If the question may depend on those materials, use `knowledge_search` early instead of guessing from general knowledge.
+
+### When to use knowledge_search:
+- When the user asks about data, facts, or content that may be in the selected knowledge bases
+- When you need specific numbers, quotes, definitions, or details from those materials
+- When the user references "the file", "the doc", "the report", "the knowledge base", or similar shorthand
+
+### Citation Rules:
+- ALWAYS cite your sources using [Source N] notation matching the search results
+- Include the filename and page/section when available
+- If evidence is weak or contradictory, say so explicitly
+- NEVER fabricate data that wasn't in the retrieved context
+- If the search returns low-confidence results, tell the user you're not sure and suggest they rephrase
+
+### Retrieval behavior:
+- Prefer retrieved evidence over unstated assumptions
+- Stay scoped to the selected knowledge bases unless the user clearly asks for something else
+- If the answer should come from the selected knowledge bases, search before answering
+
+### For data analysis with knowledge bases:
+- First use knowledge_search to understand what data is available
+- Then use execute_code to load and analyze the actual files in the sandbox
+- Combine retrieved context with computed results for the richest answers
+"""
+        if kb_lines:
+            rag_addendum += "\n\n### Selected Knowledge Bases:\n" + "\n".join(kb_lines)
+        base = f"{base}\n{rag_addendum}"
 
     if mode in {"code", "architect"}:
         base = f"{base}\n{SQL_SYSTEM_ADDENDUM}"

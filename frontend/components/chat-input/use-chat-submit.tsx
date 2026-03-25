@@ -589,7 +589,7 @@ export function useChatSubmit({ textareaRef }: UseChatSubmitOptions): UseChatSub
       numResponses,
       contextIds: contextIds.length > 0 ? contextIds : undefined,
       agentPersonaId: activePersona?.id,
-      knowledgeBaseIds: currentKBIds.length > 0 ? currentKBIds : undefined,
+      knowledgeBaseIds: currentKBIds,
       compareModels: compareModels.length > 1 ? compareModels : undefined,
       temperature: CREATIVITY_TEMPERATURE[creativity],
       verbosity: verbosity !== 'balanced' ? verbosity : undefined,

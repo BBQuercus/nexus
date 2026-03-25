@@ -210,5 +210,25 @@ describe('API module', () => {
         body: JSON.stringify({ title: 'Updated' }),
       }))
     })
+
+    it('sendMessage includes empty knowledge base selections so RAG can be cleared', async () => {
+      const fetchMock = mockFetchResponse(200, {})
+      globalThis.fetch = fetchMock
+
+      const { sendMessage } = await import('@/lib/api')
+      await sendMessage('conv-1', 'Hello', undefined, undefined, undefined, undefined, undefined, undefined, undefined, [])
+
+      expectPath(fetchMock.mock.calls[0][0], '/api/conversations/conv-1/messages')
+      expect(fetchMock).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          content: 'Hello',
+          attachments: undefined,
+          model: undefined,
+          parent_id: undefined,
+          knowledge_base_ids: [],
+        }),
+      }))
+    })
   })
 })

@@ -200,7 +200,7 @@ export async function sendMessage(
       ...(compareModels && compareModels.length > 1 ? { compare_models: compareModels } : {}),
       ...(contextIds && contextIds.length > 0 ? { context_conversation_ids: contextIds } : {}),
       ...(agentPersonaId ? { agent_persona_id: agentPersonaId } : {}),
-      ...(knowledgeBaseIds && knowledgeBaseIds.length > 0 ? { knowledge_base_ids: knowledgeBaseIds } : {}),
+      ...(knowledgeBaseIds !== undefined ? { knowledge_base_ids: knowledgeBaseIds } : {}),
       ...(temperature !== undefined ? { temperature } : {}),
       ...(verbosity ? { verbosity } : {}),
       ...(tone ? { tone } : {}),
