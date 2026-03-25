@@ -4,7 +4,7 @@ import uuid
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy import text as sa_text
 from sqlalchemy.exc import DBAPIError, ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,7 +15,7 @@ from backend.auth import get_current_user
 from backend.config import settings
 from backend.db import get_db
 from backend.logging_config import get_logger
-from backend.models import AgentPersona, Artifact, Conversation, Message
+from backend.models import AgentPersona, Artifact, Conversation, Message, UsageLog
 from backend.rate_limit import chat_limiter
 from backend.services import llm as llm_service
 from backend.services import sandbox as sandbox_service
@@ -390,12 +390,31 @@ async def delete_conversation(
         except Exception:
             pass
 
-    # Null out active_leaf_id before deleting to avoid FK cycle
-    # (active_leaf_id -> messages -> conversation cascade conflict)
+    message_ids = (
+        await db.execute(select(Message.id).where(Message.conversation_id == conversation_id))
+    ).scalars().all()
+
+    # Break any conversation/message references before deleting child rows.
     conv.active_leaf_id = None
     conv.forked_from_message_id = None
     await db.flush()
 
+    if message_ids:
+        await db.execute(
+            update(Conversation)
+            .where(Conversation.forked_from_message_id.in_(message_ids))
+            .values(forked_from_message_id=None)
+        )
+        await db.execute(
+            update(Message)
+            .where(Message.conversation_id == conversation_id, Message.parent_id.in_(message_ids))
+            .values(parent_id=None)
+        )
+        await db.execute(delete(Artifact).where(Artifact.message_id.in_(message_ids)))
+
+    await db.execute(delete(Artifact).where(Artifact.conversation_id == conversation_id))
+    await db.execute(delete(UsageLog).where(UsageLog.conversation_id == conversation_id))
+    await db.execute(delete(Message).where(Message.conversation_id == conversation_id))
     await db.delete(conv)
     await db.commit()
     await record_audit_event(
