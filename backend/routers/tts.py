@@ -1,5 +1,4 @@
 import uuid
-from typing import Optional
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
@@ -14,7 +13,7 @@ router = APIRouter(prefix="/api/tts", tags=["tts"])
 
 class TTSRequest(BaseModel):
     text: str
-    voice: Optional[str] = "en-US-AvaMultilingualNeural"
+    voice: str | None = "en-US-AvaMultilingualNeural"
 
 
 @router.post("")
@@ -53,6 +52,6 @@ async def text_to_speech(
         raise HTTPException(
             status_code=e.response.status_code,
             detail=f"Azure TTS error: {e.response.text}",
-        )
+        ) from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"TTS error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"TTS error: {str(e)}") from e

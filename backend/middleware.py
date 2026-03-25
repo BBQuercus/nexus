@@ -8,11 +8,9 @@ import json
 import time
 import traceback
 import uuid
-from typing import Any
 
 import structlog
 from starlette.requests import Request
-from starlette.responses import Response
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from backend.logging_config import get_logger

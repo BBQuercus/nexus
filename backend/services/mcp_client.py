@@ -3,11 +3,13 @@
 Allows Nexus to discover and use tools from MCP-compatible servers.
 """
 
-import httpx
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any
+
+import httpx
+
 from backend.logging_config import get_logger
-from backend.services.tool_contracts import ToolContract, register_tool, RetryPolicy, TimeoutPolicy
+from backend.services.tool_contracts import RetryPolicy, TimeoutPolicy, ToolContract, register_tool
 
 logger = get_logger("mcp")
 
@@ -18,10 +20,10 @@ class MCPServer:
     id: str
     name: str
     url: str
-    api_key: Optional[str] = None
+    api_key: str | None = None
     enabled: bool = True
     tools: list[dict] = field(default_factory=list)
-    last_discovered: Optional[str] = None
+    last_discovered: str | None = None
 
 
 # Registry of connected MCP servers
@@ -63,7 +65,7 @@ async def _discover_tools(server: MCPServer) -> list[dict]:
         resp = await client.get(f"{server.url}/tools", headers=headers)
         resp.raise_for_status()
         data = resp.json()
-        return data.get("tools", [])
+        return data.get("tools", [])  # type: ignore[no-any-return]
 
 
 async def call_mcp_tool(server_id: str, tool_name: str, arguments: dict) -> Any:
@@ -93,7 +95,7 @@ def list_mcp_servers() -> list[MCPServer]:
     return list(_mcp_servers.values())
 
 
-def get_mcp_server(server_id: str) -> Optional[MCPServer]:
+def get_mcp_server(server_id: str) -> MCPServer | None:
     """Get an MCP server by ID."""
     return _mcp_servers.get(server_id)
 

@@ -1,13 +1,14 @@
 """Admin analytics API endpoints."""
 
-from datetime import datetime, timezone, timedelta
 import uuid
+from datetime import UTC, datetime, timedelta
+
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from backend.auth import get_current_user
+
 from backend.db import get_db
-from backend.services.rbac import require_role, Role
+from backend.services.rbac import Role, require_role
 
 router = APIRouter(prefix="/api/admin/analytics", tags=["admin-analytics"])
 
@@ -19,9 +20,9 @@ async def get_usage_stats(
     days: int = Query(30, le=365),
 ):
     """Get usage statistics. Admin only."""
-    from backend.models import UsageLog, Message, Conversation, User
+    from backend.models import Conversation, Message, UsageLog, User
 
-    since = datetime.now(timezone.utc) - timedelta(days=days)
+    since = datetime.now(UTC) - timedelta(days=days)
 
     # Total messages
     msg_count = await db.execute(
@@ -80,7 +81,7 @@ async def get_user_stats(
     limit: int = Query(50, le=200),
 ):
     """Get per-user usage statistics. Admin only."""
-    from backend.models import User, UsageLog
+    from backend.models import UsageLog, User
 
     user_stats = await db.execute(
         select(

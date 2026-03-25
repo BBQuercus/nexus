@@ -4,12 +4,12 @@ from decimal import Decimal
 from typing import Any, Optional
 
 from sqlalchemy import (
+    JSON,
     Boolean,
     Computed,
     DateTime,
     ForeignKey,
     Integer,
-    JSON,
     LargeBinary,
     Numeric,
     String,
@@ -45,11 +45,11 @@ class User(Base):
     workos_id: Mapped[str] = mapped_column(String, unique=True)
     email: Mapped[str] = mapped_column(String)
     name: Mapped[str] = mapped_column(String)
-    avatar_url: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    avatar_url: Mapped[str | None] = mapped_column(String, nullable=True)
     is_admin: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=text("false")
     )
-    role: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # viewer, editor, admin, org_admin
+    role: Mapped[str | None] = mapped_column(String, nullable=True)  # viewer, editor, admin, org_admin
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -76,16 +76,16 @@ class Project(Base):
         UUID(as_uuid=True), ForeignKey("users.id")
     )
     name: Mapped[str] = mapped_column(String)
-    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    icon: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    color: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    default_model: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    default_persona_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    icon: Mapped[str | None] = mapped_column(String, nullable=True)
+    color: Mapped[str | None] = mapped_column(String, nullable=True)
+    default_model: Mapped[str | None] = mapped_column(String, nullable=True)
+    default_persona_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("agent_personas.id"), nullable=True
     )
-    knowledge_base_ids: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
-    pinned_conversation_ids: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
-    settings: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
+    knowledge_base_ids: Mapped[Any | None] = mapped_column(JSON, nullable=True)
+    pinned_conversation_ids: Mapped[Any | None] = mapped_column(JSON, nullable=True)
+    settings: Mapped[Any | None] = mapped_column(JSON, nullable=True)
     archived: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=text("false")
     )
@@ -112,22 +112,22 @@ class Conversation(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id")
     )
-    project_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    project_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("projects.id", ondelete="SET NULL"), nullable=True, index=True
     )
-    title: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    model: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    title: Mapped[str | None] = mapped_column(String, nullable=True)
+    model: Mapped[str | None] = mapped_column(String, nullable=True)
     agent_mode: Mapped[str] = mapped_column(String, default="code")
-    agent_persona_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    agent_persona_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("agent_personas.id"), nullable=True
     )
-    sandbox_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    sandbox_template: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    knowledge_base_ids: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
-    forked_from_message_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    sandbox_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    sandbox_template: Mapped[str | None] = mapped_column(String, nullable=True)
+    knowledge_base_ids: Mapped[Any | None] = mapped_column(JSON, nullable=True)
+    forked_from_message_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("messages.id"), nullable=True
     )
-    active_leaf_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    active_leaf_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("messages.id", use_alter=True, name="fk_conversations_active_leaf_id"),
         nullable=True,
@@ -166,19 +166,19 @@ class Message(Base):
     )
     role: Mapped[str] = mapped_column(String)
     content: Mapped[str] = mapped_column(Text, default="")
-    reasoning: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    tool_calls: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
-    tool_result: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
-    images: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
-    charts: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
-    attachments: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
-    citations: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
-    feedback: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    token_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    cost_usd: Mapped[Optional[Decimal]] = mapped_column(
+    reasoning: Mapped[str | None] = mapped_column(Text, nullable=True)
+    tool_calls: Mapped[Any | None] = mapped_column(JSON, nullable=True)
+    tool_result: Mapped[Any | None] = mapped_column(JSON, nullable=True)
+    images: Mapped[Any | None] = mapped_column(JSON, nullable=True)
+    charts: Mapped[Any | None] = mapped_column(JSON, nullable=True)
+    attachments: Mapped[Any | None] = mapped_column(JSON, nullable=True)
+    citations: Mapped[Any | None] = mapped_column(JSON, nullable=True)
+    feedback: Mapped[str | None] = mapped_column(String, nullable=True)
+    token_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    cost_usd: Mapped[Decimal | None] = mapped_column(
         Numeric(10, 6), nullable=True
     )
-    parent_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    parent_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("messages.id"), nullable=True, index=True
     )
     branch_index: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
@@ -213,7 +213,7 @@ class Artifact(Base):
     type: Mapped[str] = mapped_column(String)
     label: Mapped[str] = mapped_column(String)
     content: Mapped[str] = mapped_column(Text)
-    metadata_: Mapped[Optional[Any]] = mapped_column(
+    metadata_: Mapped[Any | None] = mapped_column(
         "metadata", JSON, nullable=True
     )
     pinned: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -238,13 +238,13 @@ class AgentPersona(Base):
         UUID(as_uuid=True), ForeignKey("users.id")
     )
     name: Mapped[str] = mapped_column(String)
-    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
     system_prompt: Mapped[str] = mapped_column(Text)
-    default_model: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    default_model: Mapped[str | None] = mapped_column(String, nullable=True)
     default_mode: Mapped[str] = mapped_column(String, default="code")
     icon: Mapped[str] = mapped_column(String, default="🤖")
-    tools_enabled: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
-    knowledge_base_ids: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
+    tools_enabled: Mapped[Any | None] = mapped_column(JSON, nullable=True)
+    knowledge_base_ids: Mapped[Any | None] = mapped_column(JSON, nullable=True)
     is_public: Mapped[bool] = mapped_column(Boolean, default=False)
     usage_count: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(
@@ -270,12 +270,12 @@ class FrontendError(Base):
         UUID(as_uuid=True), ForeignKey("users.id")
     )
     message: Mapped[str] = mapped_column(Text)
-    stack: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    url: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    user_agent: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    component: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    request_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    extra: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
+    stack: Mapped[str | None] = mapped_column(Text, nullable=True)
+    url: Mapped[str | None] = mapped_column(String, nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(String, nullable=True)
+    component: Mapped[str | None] = mapped_column(String, nullable=True)
+    request_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    extra: Mapped[Any | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -300,7 +300,7 @@ class UsageLog(Base):
     input_tokens: Mapped[int] = mapped_column(Integer)
     output_tokens: Mapped[int] = mapped_column(Integer)
     cost_usd: Mapped[Decimal] = mapped_column(Numeric(10, 6))
-    sandbox_seconds: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    sandbox_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -328,9 +328,9 @@ class Feedback(Base):
         UUID(as_uuid=True), ForeignKey("conversations.id", ondelete="CASCADE")
     )
     rating: Mapped[str] = mapped_column(String)  # "up" or "down"
-    tags: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
-    comment: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    model: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    tags: Mapped[Any | None] = mapped_column(JSON, nullable=True)
+    comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    model: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -353,7 +353,7 @@ class AnalyticsEvent(Base):
         UUID(as_uuid=True), ForeignKey("users.id")
     )
     event_type: Mapped[str] = mapped_column(String)
-    event_data: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
+    event_data: Mapped[Any | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -375,7 +375,7 @@ class KnowledgeBase(Base):
         UUID(as_uuid=True), ForeignKey("users.id")
     )
     name: Mapped[str] = mapped_column(String)
-    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
     embedding_model: Mapped[str] = mapped_column(
         String, default="text-embedding-3-small"
     )
@@ -407,23 +407,23 @@ class Document(Base):
         default=uuid.uuid4,
         server_default=text("gen_random_uuid()"),
     )
-    knowledge_base_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    knowledge_base_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("knowledge_bases.id", ondelete="CASCADE"), nullable=True, index=True
     )
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id")
     )
-    conversation_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    conversation_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("conversations.id", ondelete="CASCADE"), nullable=True, index=True
     )
     filename: Mapped[str] = mapped_column(String)
     content_type: Mapped[str] = mapped_column(String)
     file_size_bytes: Mapped[int] = mapped_column(Integer)
-    page_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    raw_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    metadata_: Mapped[Optional[Any]] = mapped_column("metadata", JSON, nullable=True)
+    page_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    raw_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    metadata_: Mapped[Any | None] = mapped_column("metadata", JSON, nullable=True)
     status: Mapped[str] = mapped_column(String, default="processing")
-    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -447,23 +447,23 @@ class Chunk(Base):
     document_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE"), index=True
     )
-    knowledge_base_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    knowledge_base_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("knowledge_bases.id", ondelete="CASCADE"), nullable=True, index=True
     )
-    conversation_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    conversation_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("conversations.id", ondelete="CASCADE"), nullable=True, index=True
     )
     content: Mapped[str] = mapped_column(Text)
-    context_prefix: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    context_prefix: Mapped[str | None] = mapped_column(Text, nullable=True)
     chunk_index: Mapped[int] = mapped_column(Integer)
-    page_number: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    section_title: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    page_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    section_title: Mapped[str | None] = mapped_column(String, nullable=True)
     if _has_pgvector_python:
         embedding = mapped_column(_PgVector(1536), nullable=True)
     else:
         embedding = mapped_column(LargeBinary, nullable=True)
     token_count: Mapped[int] = mapped_column(Integer, default=0)
-    metadata_: Mapped[Optional[Any]] = mapped_column("metadata", JSON, nullable=True)
+    metadata_: Mapped[Any | None] = mapped_column("metadata", JSON, nullable=True)
     tsv = mapped_column(
         TSVECTOR,
         Computed("to_tsvector('english', content)", persisted=True),
@@ -488,16 +488,16 @@ class Memory(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id")
     )
-    project_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    project_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("projects.id", ondelete="SET NULL"), nullable=True
     )
     scope: Mapped[str] = mapped_column(String, default="global")
     category: Mapped[str] = mapped_column(String, default="preference")
     content: Mapped[str] = mapped_column(Text)
-    source_conversation_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    source_conversation_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), nullable=True
     )
-    source_message_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    source_message_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), nullable=True
     )
     relevance_count: Mapped[int] = mapped_column(Integer, default=0)
@@ -523,17 +523,17 @@ class AuditEventLog(Base):
         DateTime(timezone=True), nullable=False, index=True
     )
     action: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
-    actor_id: Mapped[Optional[str]] = mapped_column(
+    actor_id: Mapped[str | None] = mapped_column(
         String(36), nullable=True, index=True
     )
-    resource_type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
-    resource_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
-    details: Mapped[Optional[Any]] = mapped_column(
+    resource_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    resource_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    details: Mapped[Any | None] = mapped_column(
         JSONB, server_default=text("'{}'::jsonb"), nullable=True
     )
-    ip_address: Mapped[Optional[str]] = mapped_column(String(45), nullable=True)
-    user_agent: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    request_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
+    ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(Text, nullable=True)
+    request_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
 
 
 class KnowledgeBaseAgent(Base):
@@ -565,15 +565,15 @@ class RetrievalLog(Base):
         default=uuid.uuid4,
         server_default=text("gen_random_uuid()"),
     )
-    message_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    message_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("messages.id", ondelete="CASCADE"), nullable=True, index=True
     )
     query: Mapped[str] = mapped_column(Text)
-    rewritten_queries: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
-    chunks_retrieved: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
+    rewritten_queries: Mapped[Any | None] = mapped_column(JSON, nullable=True)
+    chunks_retrieved: Mapped[Any | None] = mapped_column(JSON, nullable=True)
     total_candidates: Mapped[int] = mapped_column(Integer, default=0)
     retrieval_time_ms: Mapped[int] = mapped_column(Integer, default=0)
-    rerank_time_ms: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    rerank_time_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

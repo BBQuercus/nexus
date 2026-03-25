@@ -1,18 +1,20 @@
 """Knowledge base and document management endpoints."""
 
 import uuid
-from typing import Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel
-from sqlalchemy import delete, or_, select, text as sa_text
+from sqlalchemy import or_, select
+from sqlalchemy import text as sa_text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.auth import get_current_user
 from backend.db import get_db
 from backend.logging_config import get_logger
-from backend.models import Chunk, Document, KnowledgeBase, KnowledgeBaseAgent
+from backend.models import Chunk, Document, KnowledgeBase
+from backend.services.audit import AuditAction, record_audit_event
 from backend.services.rag.ingestion import SUPPORTED_EXTENSIONS
+from backend.services.rbac import require_permission
 
 logger = get_logger("routers.knowledge")
 
@@ -26,16 +28,16 @@ retrieval_router = APIRouter(prefix="/api/messages", tags=["knowledge"])
 
 class CreateKBRequest(BaseModel):
     name: str
-    description: Optional[str] = None
+    description: str | None = None
     embedding_model: str = "text-embedding-3-small"
     chunk_strategy: str = "contextual"
     is_public: bool = False
 
 
 class UpdateKBRequest(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
-    is_public: Optional[bool] = None
+    name: str | None = None
+    description: str | None = None
+    is_public: bool | None = None
 
 
 class SearchRequest(BaseModel):
@@ -97,6 +99,7 @@ async def create_knowledge_base(
     db.add(kb)
     await db.flush()
     await db.commit()
+    await record_audit_event(AuditAction.KB_CREATED, actor_id=str(user_id), resource_type="knowledge_base", resource_id=str(kb.id))
     return _serialize_kb(kb)
 
 
@@ -149,7 +152,7 @@ async def update_knowledge_base(
 @router.delete("/{kb_id}")
 async def delete_knowledge_base(
     kb_id: uuid.UUID,
-    user_id: uuid.UUID = Depends(get_current_user),
+    user_id: uuid.UUID = Depends(require_permission("kb.delete")),
     db: AsyncSession = Depends(get_db),
 ):
     # Verify ownership without keeping the ORM object in session
@@ -162,6 +165,7 @@ async def delete_knowledge_base(
     await db.execute(sa_text("DELETE FROM knowledge_base_agents WHERE knowledge_base_id = :kid"), {"kid": str(kb_id)})
     await db.execute(sa_text("DELETE FROM knowledge_bases WHERE id = :kid"), {"kid": str(kb_id)})
     await db.commit()
+    await record_audit_event(AuditAction.KB_DELETED, actor_id=str(user_id), resource_type="knowledge_base", resource_id=str(kb_id))
     return {"ok": True}
 
 
@@ -215,6 +219,8 @@ async def upload_documents(
         )
 
     logger.info("documents_queued", kb_id=str(kb_id), count=len(documents))
+    for doc in documents:
+        await record_audit_event(AuditAction.KB_DOCUMENT_UPLOADED, actor_id=str(user_id), resource_type="document", resource_id=str(doc.id), details={"knowledge_base_id": str(kb_id), "filename": doc.filename})
     return {"documents": [_serialize_document(d) for d in documents]}
 
 
@@ -404,12 +410,12 @@ async def list_conversation_documents(
     if not result.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Conversation not found")
 
-    result = await db.execute(
+    doc_result = await db.execute(
         select(Document)
         .where(Document.conversation_id == conv_id)
         .order_by(Document.created_at.desc())
     )
-    return [_serialize_document(d) for d in result.scalars().all()]
+    return [_serialize_document(d) for d in doc_result.scalars().all()]
 
 
 # ── Retrieval Log ──

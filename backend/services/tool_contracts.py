@@ -15,10 +15,9 @@ import asyncio
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel
-
 
 # ── Timeout Policy ──
 
@@ -102,7 +101,7 @@ class RetryPolicy:
     def delay_seconds(self, attempt: int) -> float:
         """Exponential backoff delay for the given attempt (0-indexed)."""
         delay = self.backoff_base * (2**attempt)
-        return min(delay, self.backoff_max)
+        return float(min(delay, self.backoff_max))
 
 
 # ── Result Envelope ──
@@ -114,9 +113,9 @@ class ToolResult(BaseModel):
     tool_name: str
     status: ToolStatus
     result: Any = None
-    error: Optional[str] = None
-    error_category: Optional[ToolErrorCategory] = None
-    duration_ms: Optional[float] = None
+    error: str | None = None
+    error_category: ToolErrorCategory | None = None
+    duration_ms: float | None = None
     truncated: bool = False
     metadata: dict[str, Any] = {}
 
@@ -178,10 +177,10 @@ class ToolContract:
         self,
         *,
         result: Any = None,
-        error: Optional[Exception] = None,
-        started_at: Optional[float] = None,
+        error: Exception | None = None,
+        started_at: float | None = None,
         truncated: bool = False,
-        metadata: Optional[dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
     ) -> ToolResult:
         """Build a standardised ToolResult for this contract."""
         duration_ms = (
@@ -225,7 +224,7 @@ def register_tool(contract: ToolContract) -> ToolContract:
     return contract
 
 
-def get_contract(tool_name: str) -> Optional[ToolContract]:
+def get_contract(tool_name: str) -> ToolContract | None:
     """Get the contract for a tool, or None if unregistered."""
     return TOOL_CONTRACTS.get(tool_name)
 

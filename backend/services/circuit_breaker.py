@@ -6,7 +6,7 @@ States: CLOSED (normal) -> OPEN (failing, reject calls) -> HALF_OPEN (test one c
 import asyncio
 import time
 from enum import Enum
-from typing import Optional
+
 from backend.logging_config import get_logger
 
 logger = get_logger("circuit_breaker")
@@ -35,15 +35,14 @@ class CircuitBreaker:
 
         self._state = CircuitState.CLOSED
         self._failure_count = 0
-        self._last_failure_time: Optional[float] = None
+        self._last_failure_time: float | None = None
         self._half_open_calls = 0
         self._lock = asyncio.Lock()
 
     @property
     def state(self) -> CircuitState:
-        if self._state == CircuitState.OPEN:
-            if time.monotonic() - (self._last_failure_time or 0) >= self.recovery_timeout:
-                return CircuitState.HALF_OPEN
+        if self._state == CircuitState.OPEN and time.monotonic() - (self._last_failure_time or 0) >= self.recovery_timeout:
+            return CircuitState.HALF_OPEN
         return self._state
 
     async def __aenter__(self):

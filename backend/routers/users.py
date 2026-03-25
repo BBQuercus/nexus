@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
@@ -37,7 +37,7 @@ async def get_usage(
     db: AsyncSession = Depends(get_db),
 ):
     """Usage stats for the current month."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
     result = await db.execute(
@@ -75,7 +75,7 @@ async def get_usage_history(
     db: AsyncSession = Depends(get_db),
 ):
     """Daily usage for the last 30 days."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     thirty_days_ago = now - timedelta(days=30)
 
     result = await db.execute(

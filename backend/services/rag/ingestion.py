@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import io
-import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -325,9 +324,10 @@ def parse_pdf(file_bytes: bytes, filename: str) -> ParsedDocument:
 
 def _parse_pdf_docling(file_bytes: bytes, filename: str) -> ParsedDocument:
     """Parse PDF using Docling for high-accuracy table extraction."""
-    from docling.document_converter import DocumentConverter
-    import tempfile
     import os
+    import tempfile
+
+    from docling.document_converter import DocumentConverter
 
     # Docling needs a file path
     with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
@@ -414,8 +414,8 @@ def _parse_pdf_fallback(file_bytes: bytes, filename: str) -> ParsedDocument:
     """Simple PDF parsing using pypdf as fallback."""
     try:
         from pypdf import PdfReader
-    except ImportError:
-        raise ImportError("Neither docling nor pypdf is installed for PDF parsing")
+    except ImportError as e:
+        raise ImportError("Neither docling nor pypdf is installed for PDF parsing") from e
 
     reader = PdfReader(io.BytesIO(file_bytes))
     pages_text: list[str] = []
@@ -458,8 +458,10 @@ def _parse_pdf_fallback(file_bytes: bytes, filename: str) -> ParsedDocument:
 def parse_docx(file_bytes: bytes, filename: str) -> ParsedDocument:
     """Parse DOCX files. Try Docling first, fall back to python-docx."""
     try:
+        import os
+        import tempfile
+
         from docling.document_converter import DocumentConverter
-        import tempfile, os
 
         with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tmp:
             tmp.write(file_bytes)
@@ -474,8 +476,8 @@ def parse_docx(file_bytes: bytes, filename: str) -> ParsedDocument:
         # Fallback: simple paragraph extraction
         try:
             from docx import Document as DocxDocument
-        except ImportError:
-            raise ImportError("Neither docling nor python-docx is installed")
+        except ImportError as e:
+            raise ImportError("Neither docling nor python-docx is installed") from e
         doc = DocxDocument(io.BytesIO(file_bytes))
         text = "\n\n".join(p.text for p in doc.paragraphs if p.text.strip())
 
@@ -486,14 +488,12 @@ def parse_docx(file_bytes: bytes, filename: str) -> ParsedDocument:
         )
 
     chunks: list[ParsedChunk] = []
-    idx = 0
-    for sub in _chunk_text(text):
+    for idx, sub in enumerate(_chunk_text(text)):
         chunks.append(ParsedChunk(
             content=sub,
             chunk_index=idx,
             token_count=count_tokens(sub),
         ))
-        idx += 1
 
     return ParsedDocument(
         filename=filename,

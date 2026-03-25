@@ -9,8 +9,10 @@ Users can define custom tools via the UI by specifying:
 
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any
+
 import httpx
+
 from backend.logging_config import get_logger
 
 logger = get_logger("plugins")
@@ -27,12 +29,12 @@ class PluginTool:
     method: str = "POST"
     headers: dict[str, str] = field(default_factory=dict)
     auth_type: str = "none"  # none, bearer, basic, api_key
-    auth_value: Optional[str] = None
-    input_schema: Optional[dict] = None
-    output_schema: Optional[dict] = None
+    auth_value: str | None = None
+    input_schema: dict | None = None
+    output_schema: dict | None = None
     enabled: bool = True
     timeout_seconds: int = 30
-    created_at: Optional[str] = None
+    created_at: str | None = None
 
 
 # In-memory registry (will be DB-backed later)
@@ -48,7 +50,7 @@ def register_plugin(plugin: PluginTool) -> PluginTool:
     return plugin
 
 
-def list_plugins(user_id: Optional[str] = None) -> list[PluginTool]:
+def list_plugins(user_id: str | None = None) -> list[PluginTool]:
     """List plugins, optionally filtered by user."""
     plugins = list(_plugins.values())
     if user_id:
@@ -56,7 +58,7 @@ def list_plugins(user_id: Optional[str] = None) -> list[PluginTool]:
     return plugins
 
 
-def get_plugin(plugin_id: str) -> Optional[PluginTool]:
+def get_plugin(plugin_id: str) -> PluginTool | None:
     """Get a plugin by ID."""
     return _plugins.get(plugin_id)
 

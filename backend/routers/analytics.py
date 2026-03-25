@@ -1,6 +1,5 @@
 import uuid
-from datetime import datetime, timedelta, timezone
-from typing import Optional, Union
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
@@ -22,7 +21,7 @@ router = APIRouter(prefix="/api/analytics", tags=["analytics"])
 
 class AnalyticsEventRequest(BaseModel):
     event_type: str
-    event_data: Optional[dict] = None
+    event_data: dict | None = None
 
 
 class AnalyticsEventResponse(BaseModel):
@@ -36,7 +35,7 @@ class AnalyticsEventResponse(BaseModel):
 
 @router.post("/events")
 async def track_events(
-    body: Union[AnalyticsEventRequest, list[AnalyticsEventRequest]],
+    body: AnalyticsEventRequest | list[AnalyticsEventRequest],
     user_id: uuid.UUID = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -73,7 +72,7 @@ async def my_usage_stats(
     db: AsyncSession = Depends(get_db),
 ):
     """Get the current user's own usage statistics."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     week_ago = now - timedelta(days=7)
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 

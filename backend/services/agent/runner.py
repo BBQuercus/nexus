@@ -4,7 +4,8 @@ import asyncio
 import json
 import time
 import uuid
-from typing import Any, AsyncGenerator, Optional
+from collections.abc import AsyncGenerator
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,6 +16,7 @@ from backend.prompts.system import build_system_prompt
 from backend.prompts.tools import get_tools_for_mode
 from backend.services import llm as llm_service
 from backend.services import sandbox as sandbox_service
+from backend.services.memory import format_memories_for_prompt, get_relevant_memories
 
 from .history import build_llm_messages, detect_knowledge, load_conversation_messages
 from .stream_mapper import sse_event
@@ -29,10 +31,10 @@ async def run_agent_loop(
     user_message: str,
     model: str,
     mode: str,
-    persona: Optional[object],
-    sandbox_id: Optional[str],
+    persona: object | None,
+    sandbox_id: str | None,
     db: AsyncSession,
-    leaf_message_id: Optional[uuid.UUID] = None,
+    leaf_message_id: uuid.UUID | None = None,
 ) -> AsyncGenerator[dict, None]:
     """Run the agent loop, yielding SSE events.
 
@@ -67,6 +69,16 @@ async def run_agent_loop(
 
     # Build message history for LLM
     system_prompt = build_system_prompt(mode, persona, has_knowledge=has_knowledge, tools=tools)
+
+    # Inject relevant memories into the system prompt
+    try:
+        memories = await get_relevant_memories(db, conversation.user_id, user_message, project_id=getattr(conversation, "project_id", None))
+        if memories:
+            memory_context = format_memories_for_prompt(memories)
+            system_prompt = system_prompt + "\n\n" + memory_context
+    except Exception as e:
+        logger.warning("memory_retrieval_failed", error=str(e))
+
     llm_messages = build_llm_messages(existing_messages, system_prompt, user_message, leaf_message_id)
 
     logger.info("agent_loop_start", mode=mode, model=model, tool_count=len(tools) if tools else 0, conversation_id=str(conversation_id))
@@ -262,17 +274,17 @@ async def run_multi_agent_loop(
     user_message: str,
     model: str,
     mode: str,
-    persona: Optional[object],
-    sandbox_id: Optional[str],
+    persona: object | None,
+    sandbox_id: str | None,
     leaf_message_id: uuid.UUID,
     num_responses: int,
-    compare_models: Optional[list[str]] = None,
+    compare_models: list[str] | None = None,
 ) -> AsyncGenerator[dict, None]:
     """Run N agent loops in parallel, yielding multiplexed SSE events tagged with branch_index."""
     from backend.db import async_session
 
     queue: asyncio.Queue = asyncio.Queue()
-    message_ids: list[Optional[str]] = [None] * num_responses
+    message_ids: list[str | None] = [None] * num_responses
 
     async def run_branch(branch_idx: int):
         branch_model = compare_models[branch_idx] if compare_models else model

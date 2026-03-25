@@ -1,5 +1,5 @@
 import uuid
-from typing import Optional
+from datetime import UTC
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -32,7 +32,7 @@ router = APIRouter(prefix="/api/integrations", tags=["integrations"])
 class RegisterMCPRequest(BaseModel):
     name: str
     url: str
-    api_key: Optional[str] = None
+    api_key: str | None = None
 
 
 class MCPServerResponse(BaseModel):
@@ -41,7 +41,7 @@ class MCPServerResponse(BaseModel):
     url: str
     enabled: bool
     tools: list[dict]
-    last_discovered: Optional[str] = None
+    last_discovered: str | None = None
 
 
 def _mcp_to_dict(server: MCPServer) -> dict:
@@ -65,24 +65,24 @@ class CreatePluginRequest(BaseModel):
     method: str = "POST"
     headers: dict[str, str] = {}
     auth_type: str = "none"
-    auth_value: Optional[str] = None
-    input_schema: Optional[dict] = None
-    output_schema: Optional[dict] = None
+    auth_value: str | None = None
+    input_schema: dict | None = None
+    output_schema: dict | None = None
     timeout_seconds: int = 30
 
 
 class UpdatePluginRequest(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
-    url: Optional[str] = None
-    method: Optional[str] = None
-    headers: Optional[dict[str, str]] = None
-    auth_type: Optional[str] = None
-    auth_value: Optional[str] = None
-    input_schema: Optional[dict] = None
-    output_schema: Optional[dict] = None
-    enabled: Optional[bool] = None
-    timeout_seconds: Optional[int] = None
+    name: str | None = None
+    description: str | None = None
+    url: str | None = None
+    method: str | None = None
+    headers: dict[str, str] | None = None
+    auth_type: str | None = None
+    auth_value: str | None = None
+    input_schema: dict | None = None
+    output_schema: dict | None = None
+    enabled: bool | None = None
+    timeout_seconds: int | None = None
 
 
 def _plugin_to_dict(plugin: PluginTool) -> dict:
@@ -132,7 +132,7 @@ async def register_mcp(
         raise HTTPException(
             status_code=502,
             detail=f"Failed to connect to MCP server: {str(e)}",
-        )
+        ) from e
 
 
 @router.delete("/mcp/{server_id}")
@@ -166,7 +166,7 @@ async def create_plugin(
     user_id: uuid.UUID = Depends(get_current_user),
 ):
     """Create a new user-defined plugin."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     plugin = PluginTool(
         id=str(uuid.uuid4()),
@@ -181,7 +181,7 @@ async def create_plugin(
         input_schema=body.input_schema,
         output_schema=body.output_schema,
         timeout_seconds=body.timeout_seconds,
-        created_at=datetime.now(timezone.utc).isoformat(),
+        created_at=datetime.now(UTC).isoformat(),
     )
     registered = register_plugin(plugin)
     return _plugin_to_dict(registered)

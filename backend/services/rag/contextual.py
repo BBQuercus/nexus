@@ -90,7 +90,7 @@ async def generate_context_prefixes(
             return_exceptions=True,
         )
         for r in results:
-            if isinstance(r, Exception):
+            if isinstance(r, BaseException):
                 logger.warning("context_prefix_batch_error", error=str(r))
                 prefixes.append("")
             else:

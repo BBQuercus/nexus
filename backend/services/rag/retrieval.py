@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import time
-import uuid
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import select, text
-from sqlalchemy.ext.asyncio import AsyncSession
+
+if TYPE_CHECKING:
+    import uuid
+
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
 from backend.logging_config import get_logger

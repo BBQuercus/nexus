@@ -53,4 +53,4 @@ class Settings(BaseSettings):
     AUTO_APPLY_DB_SCHEMA: bool = False
 
 
-settings = Settings()
+settings = Settings()  # type: ignore[call-arg]

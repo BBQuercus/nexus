@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 interface VegaViewHandle {
   toImageURL: (type: string) => Promise<string>;
   finalize?: () => void;
-  resize?: () => Promise<unknown>;
+  resize?: () => unknown;
   width?: (w: number) => unknown;
   run?: () => unknown;
 }

@@ -4,7 +4,8 @@ These run periodically to clean up orphaned resources.
 """
 
 import asyncio
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
+
 from backend.db import async_session
 from backend.logging_config import get_logger
 
@@ -21,7 +22,7 @@ _active_streams: dict[str, datetime] = {}
 
 def register_stream(stream_id: str):
     """Register an active SSE stream."""
-    _active_streams[stream_id] = datetime.now(timezone.utc)
+    _active_streams[stream_id] = datetime.now(UTC)
 
 
 def unregister_stream(stream_id: str):
@@ -36,7 +37,7 @@ def get_active_stream_count() -> int:
 
 async def cleanup_orphaned_streams():
     """Find and clean up streams that have been active too long (likely orphaned)."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     orphaned = []
     for stream_id, started_at in list(_active_streams.items()):
         if (now - started_at).total_seconds() > ORPHANED_STREAM_TIMEOUT_SECONDS:
@@ -55,12 +56,12 @@ async def cleanup_expired_analytics(days_to_keep: int = 90):
     from sqlalchemy import text
     try:
         async with async_session() as session:
-            cutoff = datetime.now(timezone.utc) - timedelta(days=days_to_keep)
+            cutoff = datetime.now(UTC) - timedelta(days=days_to_keep)
             result = await session.execute(
                 text("DELETE FROM analytics_events WHERE created_at < :cutoff"),
                 {"cutoff": cutoff},
             )
-            deleted = result.rowcount
+            deleted = result.rowcount  # type: ignore[attr-defined]
             await session.commit()
             if deleted:
                 logger.info("analytics_cleanup", deleted=deleted, days_kept=days_to_keep)

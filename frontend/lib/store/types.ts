@@ -51,7 +51,7 @@ export interface AppState {
   activePersona: AgentPersona | null;
   sandboxStatus: 'none' | 'creating' | 'running' | 'stopped';
   sandboxId: string | null;
-  rightPanelTab: 'terminal' | 'files' | 'preview' | 'artifacts' | 'tree' | 'sources';
+  rightPanelTab: 'terminal' | 'files' | 'preview' | 'artifacts' | 'tree' | 'sources' | 'memory';
   activeLeafId: string | null;
   conversationTree: ConversationTree | null;
   branchingFromId: string | null;

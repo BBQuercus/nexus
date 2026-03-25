@@ -1,5 +1,4 @@
 import uuid
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -21,16 +20,16 @@ router = APIRouter(prefix="/api/conversations", tags=["feedback"])
 
 class CreateFeedbackRequest(BaseModel):
     rating: str  # "up" or "down"
-    tags: Optional[list[str]] = None
-    comment: Optional[str] = None
+    tags: list[str] | None = None
+    comment: str | None = None
 
 
 class FeedbackResponse(BaseModel):
     id: str
     message_id: str
     rating: str
-    tags: Optional[list[str]] = None
-    comment: Optional[str] = None
+    tags: list[str] | None = None
+    comment: str | None = None
     created_at: str
 
 
@@ -70,12 +69,12 @@ async def create_feedback(
         raise HTTPException(status_code=404, detail="Message not found")
 
     # Check for existing feedback on this message by this user
-    result = await db.execute(
+    fb_result = await db.execute(
         select(Feedback).where(
             Feedback.message_id == msg_id, Feedback.user_id == user_id
         )
     )
-    existing = result.scalar_one_or_none()
+    existing = fb_result.scalar_one_or_none()
 
     if existing:
         # Update existing feedback
@@ -141,12 +140,12 @@ async def list_conversation_feedback(
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
 
-    result = await db.execute(
+    fb_result = await db.execute(
         select(Feedback)
         .where(Feedback.conversation_id == conv_id)
         .order_by(Feedback.created_at.desc())
     )
-    feedbacks = result.scalars().all()
+    feedbacks = fb_result.scalars().all()
 
     return [
         {

@@ -6,16 +6,18 @@ Events are stored in the database and are immutable once created.
 
 import json
 import uuid
-from datetime import datetime, timezone
-from enum import Enum
-from typing import Any, Optional
+from datetime import UTC, datetime
+from enum import StrEnum
+from typing import Any
+
 from pydantic import BaseModel
+
 from backend.logging_config import get_logger
 
 logger = get_logger("audit")
 
 
-class AuditAction(str, Enum):
+class AuditAction(StrEnum):
     """Auditable actions in the system."""
     # Auth
     USER_LOGIN = "user.login"
@@ -71,14 +73,14 @@ class AuditEvent(BaseModel):
     id: str
     timestamp: datetime
     action: AuditAction
-    actor_id: Optional[str] = None      # User who performed the action
-    actor_email: Optional[str] = None   # For human-readable logs
-    resource_type: Optional[str] = None # What was acted on (conversation, agent, etc.)
-    resource_id: Optional[str] = None   # ID of the resource
+    actor_id: str | None = None      # User who performed the action
+    actor_email: str | None = None   # For human-readable logs
+    resource_type: str | None = None # What was acted on (conversation, agent, etc.)
+    resource_id: str | None = None   # ID of the resource
     details: dict[str, Any] = {}        # Action-specific details
-    ip_address: Optional[str] = None
-    user_agent: Optional[str] = None
-    request_id: Optional[str] = None
+    ip_address: str | None = None
+    user_agent: str | None = None
+    request_id: str | None = None
 
     class Config:
         extra = "forbid"  # Strict — no extra fields allowed
@@ -91,18 +93,18 @@ _BUFFER_FLUSH_THRESHOLD = 50
 
 async def record_audit_event(
     action: AuditAction,
-    actor_id: Optional[str] = None,
-    resource_type: Optional[str] = None,
-    resource_id: Optional[str] = None,
-    details: Optional[dict] = None,
-    ip_address: Optional[str] = None,
-    user_agent: Optional[str] = None,
-    request_id: Optional[str] = None,
+    actor_id: str | None = None,
+    resource_type: str | None = None,
+    resource_id: str | None = None,
+    details: dict | None = None,
+    ip_address: str | None = None,
+    user_agent: str | None = None,
+    request_id: str | None = None,
 ):
     """Record an audit event. Events are buffered and flushed to the database."""
     event = AuditEvent(
         id=str(uuid.uuid4()),
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(UTC),
         action=action,
         actor_id=actor_id,
         resource_type=resource_type,
@@ -138,8 +140,9 @@ async def flush_audit_buffer():
     _audit_buffer.clear()
 
     try:
-        from backend.db import async_session
         from sqlalchemy import text
+
+        from backend.db import async_session
 
         async with async_session() as session:
             for event in events_to_flush:

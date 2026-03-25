@@ -1,14 +1,14 @@
 """Compliance and audit API endpoints."""
 
-from datetime import datetime, timezone, timedelta
-from typing import Optional
 import uuid
+from datetime import UTC, datetime
+
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select, func, text
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from backend.auth import get_current_user
+
 from backend.db import get_db
-from backend.services.rbac import require_role, Role
+from backend.services.rbac import Role, require_role
 
 router = APIRouter(prefix="/api/compliance", tags=["compliance"])
 
@@ -17,10 +17,10 @@ router = APIRouter(prefix="/api/compliance", tags=["compliance"])
 async def get_audit_log(
     user_id: uuid.UUID = Depends(require_role(Role.ADMIN)),
     db: AsyncSession = Depends(get_db),
-    action: Optional[str] = None,
-    actor_id: Optional[str] = None,
-    resource_type: Optional[str] = None,
-    since: Optional[str] = None,
+    action: str | None = None,
+    actor_id: str | None = None,
+    resource_type: str | None = None,
+    since: str | None = None,
     limit: int = Query(50, le=200),
     offset: int = 0,
 ):
@@ -69,10 +69,10 @@ async def get_audit_log(
 async def export_data(
     user_id: uuid.UUID = Depends(require_role(Role.ORG_ADMIN)),
     db: AsyncSession = Depends(get_db),
-    format: str = Query("json", pattern="^(json|csv)$"),
+    export_format: str = Query("json", pattern="^(json|csv)$", alias="format"),
 ):
     """Export all data for compliance. Org admin only."""
-    from backend.models import Conversation, Message
+    from backend.models import Conversation
 
     # Get all conversations
     result = await db.execute(
@@ -81,7 +81,7 @@ async def export_data(
     conversations = result.scalars().all()
 
     export_data = {
-        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "exported_at": datetime.now(UTC).isoformat(),
         "user_id": str(user_id),
         "conversations": [
             {

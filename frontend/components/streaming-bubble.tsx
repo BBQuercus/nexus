@@ -8,6 +8,7 @@ import type { ToolCall } from '@/lib/types';
 import VegaChart from './vega-chart';
 import FormRenderer from './form-renderer';
 import MarkdownContent from './markdown-content';
+import RunComparison from './run-comparison';
 
 function StreamingExecBlock({ tool }: { tool: ToolCall }) {
   const lang = tool.language || tool.name || 'code';
@@ -327,6 +328,25 @@ export default function StreamingBubble() {
           state={activeState}
           showCursor={isMulti ? !multi.completedBranches.includes(multi.activeBranchIndex) : true}
         />
+
+        {/* Show RunComparison when all multi-model branches are complete */}
+        {isMulti && multi.completedBranches.length === multi.branchCount && multi.branchCount >= 2 && (
+          <div className="mt-4">
+            <RunComparison
+              runs={multi.branches.map((branch, i) => ({
+                id: String(i),
+                model: multi.branchModels?.[i] || `Response ${i + 1}`,
+                status: 'complete',
+                result: branch.content || '',
+                tokens: 0,
+                cost: 0,
+                durationMs: 0,
+                score: null,
+                selected: i === multi.activeBranchIndex,
+              }))}
+            />
+          </div>
+        )}
 
         <div ref={bottomRef} />
       </div>

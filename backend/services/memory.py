@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import re
-import uuid
-from typing import Optional
+from typing import TYPE_CHECKING
 
 from sqlalchemy import select, update
-from sqlalchemy.ext.asyncio import AsyncSession
+
+if TYPE_CHECKING:
+    import uuid
+
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.logging_config import get_logger
 from backend.models import Memory
@@ -28,7 +31,7 @@ async def get_relevant_memories(
     db: AsyncSession,
     user_id: uuid.UUID,
     context: str,
-    project_id: Optional[uuid.UUID] = None,
+    project_id: uuid.UUID | None = None,
     limit: int = 10,
 ) -> list[Memory]:
     """Find memories relevant to a conversation context using keyword matching.
@@ -106,9 +109,9 @@ async def get_relevant_memories(
 def extract_memories_from_message(
     user_id: uuid.UUID,
     message_content: str,
-    conversation_id: Optional[uuid.UUID] = None,
-    message_id: Optional[uuid.UUID] = None,
-    project_id: Optional[uuid.UUID] = None,
+    conversation_id: uuid.UUID | None = None,
+    message_id: uuid.UUID | None = None,
+    project_id: uuid.UUID | None = None,
 ) -> list[Memory]:
     """Extract memorable facts from a user message using pattern matching.
 

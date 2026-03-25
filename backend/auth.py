@@ -1,8 +1,7 @@
 import hashlib
 import os
-import secrets
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
@@ -14,6 +13,7 @@ from backend.config import settings
 from backend.db import get_db
 from backend.logging_config import get_logger
 from backend.models import User
+from backend.services.audit import AuditAction, record_audit_event
 
 logger = get_logger("auth")
 
@@ -47,7 +47,7 @@ def _get_frontend_url() -> str:
 def get_auth_url() -> str:
     """Returns WorkOS authorization URL."""
     client = _get_workos_client()
-    return client.user_management.get_authorization_url(
+    return client.user_management.get_authorization_url(  # type: ignore[no-any-return]
         redirect_uri=settings.WORKOS_REDIRECT_URI,
         provider="authkit",
     )
@@ -61,7 +61,7 @@ def exchange_code(code: str):
 
 def create_access_token(user_id: str, email: str) -> str:
     """Creates a short-lived JWT access token (1 hour)."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     payload = {
         "sub": user_id,
         "email": email,
@@ -76,7 +76,7 @@ def create_access_token(user_id: str, email: str) -> str:
 
 def create_refresh_token(user_id: str, email: str) -> str:
     """Creates a long-lived JWT refresh token (7 days)."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     payload = {
         "sub": user_id,
         "email": email,
@@ -126,9 +126,9 @@ async def get_current_user(request: Request) -> uuid.UUID:
 
         return uuid.UUID(user_id)
     except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Token expired")
+        raise HTTPException(status_code=401, detail="Token expired") from None
     except (jwt.InvalidTokenError, ValueError):
-        raise HTTPException(status_code=401, detail="Invalid token")
+        raise HTTPException(status_code=401, detail="Invalid token") from None
 
 
 # ── CSRF Validation ──
@@ -195,7 +195,7 @@ async def callback(code: str, db: AsyncSession = Depends(get_db)):
         await db.flush()
         logger.info("user_created", user_id=str(user.id), email=user.email)
     else:
-        user.last_seen_at = datetime.now(timezone.utc)
+        user.last_seen_at = datetime.now(UTC)
         user.email = workos_user.email
         user.name = workos_user.first_name or user.name
         if getattr(workos_user, "profile_picture_url", None):
@@ -203,6 +203,8 @@ async def callback(code: str, db: AsyncSession = Depends(get_db)):
         logger.info("user_login", user_id=str(user.id), email=user.email)
 
     await db.commit()
+
+    await record_audit_event(AuditAction.USER_LOGIN, actor_id=str(user.id), details={"email": user.email})
 
     access_token = create_access_token(str(user.id), user.email)
     refresh_token = create_refresh_token(str(user.id), user.email)
@@ -261,9 +263,9 @@ async def refresh_token(request: Request, response: Response, body: RefreshReque
             algorithms=[settings.JWT_ENCODING_ALGORITHM],
         )
     except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Refresh token expired")
+        raise HTTPException(status_code=401, detail="Refresh token expired") from None
     except jwt.InvalidTokenError:
-        raise HTTPException(status_code=401, detail="Invalid refresh token")
+        raise HTTPException(status_code=401, detail="Invalid refresh token") from None
 
     if payload.get("type") != "refresh":
         raise HTTPException(status_code=401, detail="Not a refresh token")

@@ -25,7 +25,7 @@ BROWSER_USER_AGENT = (
 try:
     import trafilatura
 except ImportError:  # pragma: no cover - fallback tested instead
-    trafilatura = None
+    trafilatura = None  # type: ignore[assignment]
 
 
 class UnsafeUrlError(ValueError):
@@ -204,7 +204,7 @@ async def call_api(
             "duration_ms": int((time.monotonic() - started_at) * 1000),
         }
     finally:
-        if owns_client:
+        if owns_client and client is not None:
             await client.aclose()
 
 
@@ -231,14 +231,14 @@ async def web_browse(
         extracted: dict[str, Any] = {}
         text = ""
         if trafilatura is not None:
-            extracted = trafilatura.extract(
+            extracted_raw = trafilatura.extract(
                 html,
                 output_format="json",
                 include_links=extract_links,
                 with_metadata=True,
             )
-            if extracted:
-                extracted = json.loads(extracted)
+            if extracted_raw:
+                extracted = json.loads(extracted_raw)
                 text = (extracted.get("text") or "").strip()
 
         if not text:
@@ -264,5 +264,5 @@ async def web_browse(
 
         return result
     finally:
-        if owns_client:
+        if owns_client and client is not None:
             await client.aclose()

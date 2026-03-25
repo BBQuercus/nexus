@@ -1,6 +1,7 @@
 import asyncio
+from collections.abc import AsyncGenerator
 from decimal import Decimal
-from typing import Any, AsyncGenerator, Optional
+from typing import Any
 
 import openai
 
@@ -77,7 +78,7 @@ def _supports_tool_choice(model: str) -> bool:
 async def stream_chat(
     messages: list[dict],
     model: str,
-    tools: Optional[list[dict]] = None,
+    tools: list[dict] | None = None,
 ) -> AsyncGenerator[Any, None]:
     """Async generator yielding chunks from the LLM streaming response.
 

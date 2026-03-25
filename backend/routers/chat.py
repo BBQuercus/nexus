@@ -1,24 +1,26 @@
 import json
 import uuid
-from typing import Optional
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy import delete, func, select, text as sa_text
+from sqlalchemy import func, select
+from sqlalchemy import text as sa_text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sse_starlette.sse import EventSourceResponse
 
 from backend.auth import get_current_user
-from backend.db import get_db
-from backend.models import Artifact, Conversation, AgentPersona, Message
-from backend.rate_limit import chat_limiter
-from backend.services.agent import run_agent_loop, run_multi_agent_loop
-from backend.services import sandbox as sandbox_service
-from backend.services import llm as llm_service
-from backend.services.messages import extract_message_files
 from backend.config import settings
+from backend.db import get_db
+from backend.models import AgentPersona, Artifact, Conversation, Message
+from backend.rate_limit import chat_limiter
+from backend.services import llm as llm_service
+from backend.services import sandbox as sandbox_service
+from backend.services.agent import run_agent_loop, run_multi_agent_loop
+from backend.services.audit import AuditAction, record_audit_event
+from backend.services.messages import extract_message_files
+from backend.services.rbac import require_permission
 
 router = APIRouter(prefix="/api/conversations", tags=["conversations"])
 
@@ -26,32 +28,32 @@ router = APIRouter(prefix="/api/conversations", tags=["conversations"])
 # ----- Schemas -----
 
 class CreateConversationRequest(BaseModel):
-    title: Optional[str] = None
-    model: Optional[str] = "gpt-4.1-chn"
+    title: str | None = None
+    model: str | None = "gpt-4.1-chn"
     agent_mode: str = "code"
-    agent_persona_id: Optional[uuid.UUID] = None
-    sandbox_template: Optional[str] = None
-    knowledge_base_ids: Optional[list[uuid.UUID]] = None
+    agent_persona_id: uuid.UUID | None = None
+    sandbox_template: str | None = None
+    knowledge_base_ids: list[uuid.UUID] | None = None
 
 
 class UpdateConversationRequest(BaseModel):
-    title: Optional[str] = None
-    model: Optional[str] = None
-    agent_mode: Optional[str] = None
-    agent_persona_id: Optional[uuid.UUID] = None
+    title: str | None = None
+    model: str | None = None
+    agent_mode: str | None = None
+    agent_persona_id: uuid.UUID | None = None
 
 
 class SendMessageRequest(BaseModel):
     content: str
-    attachments: Optional[list] = None
-    model: Optional[str] = None
-    mode: Optional[str] = None
-    parent_id: Optional[uuid.UUID] = None
-    num_responses: Optional[int] = 1  # 1-5 parallel responses
-    compare_models: Optional[list[str]] = None  # Run same prompt against multiple models
-    context_conversation_ids: Optional[list[uuid.UUID]] = None  # @mentioned conversations
-    agent_persona_id: Optional[uuid.UUID] = None  # Override persona for this message
-    knowledge_base_ids: Optional[list[uuid.UUID]] = None  # Attach KBs for RAG
+    attachments: list | None = None
+    model: str | None = None
+    mode: str | None = None
+    parent_id: uuid.UUID | None = None
+    num_responses: int | None = 1  # 1-5 parallel responses
+    compare_models: list[str] | None = None  # Run same prompt against multiple models
+    context_conversation_ids: list[uuid.UUID] | None = None  # @mentioned conversations
+    agent_persona_id: uuid.UUID | None = None  # Override persona for this message
+    knowledge_base_ids: list[uuid.UUID] | None = None  # Attach KBs for RAG
 
 
 class GenerateImageRequest(BaseModel):
@@ -131,6 +133,7 @@ async def create_conversation(
     db.add(conv)
     await db.flush()
     await db.commit()
+    await record_audit_event(AuditAction.CONVERSATION_CREATED, actor_id=str(user_id), resource_type="conversation", resource_id=str(conv.id))
     return {
         "id": str(conv.id),
         "title": conv.title,
@@ -143,8 +146,8 @@ async def create_conversation(
 
 @router.get("")
 async def list_conversations(
-    search: Optional[str] = Query(None),
-    project_id: Optional[uuid.UUID] = Query(None),
+    search: str | None = Query(None),
+    project_id: uuid.UUID | None = Query(None),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     user_id: uuid.UUID = Depends(get_current_user),
@@ -262,7 +265,7 @@ async def update_conversation(
 @router.delete("/{conversation_id}")
 async def delete_conversation(
     conversation_id: uuid.UUID,
-    user_id: uuid.UUID = Depends(get_current_user),
+    user_id: uuid.UUID = Depends(require_permission("conversation.delete")),
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
@@ -290,6 +293,7 @@ async def delete_conversation(
 
     await db.delete(conv)
     await db.commit()
+    await record_audit_event(AuditAction.CONVERSATION_DELETED, actor_id=str(user_id), resource_type="conversation", resource_id=str(conversation_id))
     return {"ok": True}
 
 
@@ -508,7 +512,7 @@ async def send_message(
                     conv.title = title
                     await db.commit()
                     yield {"event": "title", "data": json.dumps({"title": title})}
-                except Exception as e:
+                except Exception:
                     conv.title = body.content[:50] + ("..." if len(body.content) > 50 else "")
                     await db.commit()
                     yield {"event": "title", "data": json.dumps({"title": conv.title})}
@@ -583,10 +587,7 @@ async def generate_image(
 
     try:
         first = image_data["data"][0]
-        if "b64_json" in first:
-            image_url = f"data:image/png;base64,{first['b64_json']}"
-        else:
-            image_url = first["url"]
+        image_url = f"data:image/png;base64,{first['b64_json']}" if "b64_json" in first else first["url"]
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Invalid image response: {e}") from e
 
@@ -962,8 +963,8 @@ async def delete_artifact(
 
 
 class UpdateArtifactRequest(BaseModel):
-    pinned: Optional[bool] = None
-    label: Optional[str] = None
+    pinned: bool | None = None
+    label: str | None = None
 
 
 @artifact_router.patch("/{artifact_id}")

@@ -2,19 +2,20 @@
 
 import json
 import uuid
-from typing import Any, AsyncGenerator, Optional
+from collections.abc import AsyncGenerator
+from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.logging_config import get_logger
 from backend.services import sandbox as sandbox_service
 from backend.services.chart_tool import normalize_chart_spec
+from backend.services.search import web_search
 from backend.services.sql_tool import build_run_sql_script
 from backend.services.tables import detect_table, rows_to_csv
 from backend.services.web import call_api, web_browse
-from backend.services.search import web_search
 
-from .stream_mapper import sse_event, sanitize_tool_arguments
+from .stream_mapper import sanitize_tool_arguments, sse_event
 
 logger = get_logger("agent.tool_executor")
 
@@ -57,9 +58,9 @@ class ToolExecutionContext:
         conversation_id: uuid.UUID,
         db: AsyncSession,
         sandbox=None,
-        sandbox_id: Optional[str] = None,
-        known_output_files: Optional[set[str]] = None,
-        knowledge_base_ids: Optional[list[uuid.UUID]] = None,
+        sandbox_id: str | None = None,
+        known_output_files: set[str] | None = None,
+        knowledge_base_ids: list[uuid.UUID] | None = None,
         has_knowledge: bool = False,
         user_message: str = "",
     ):
@@ -428,12 +429,12 @@ async def _knowledge_search(
     func_name: str, args: dict, tool_call_id: str, ctx: ToolExecutionContext
 ) -> AsyncGenerator[dict, None]:
     """Handle knowledge_search tool."""
+    from backend.models import RetrievalLog
     from backend.services.rag.citations import (
         build_citations_json,
         build_retrieval_sse_event,
         format_retrieval_context,
     )
-    from backend.models import RetrievalLog
 
     _rag_sse_event = None
     try:
