@@ -5,7 +5,6 @@ import { useStore } from '@/lib/store';
 import * as api from '@/lib/api';
 import type { Conversation } from '@/lib/types';
 import { toast } from '../toast';
-import UserDropdown from '../user-dropdown';
 import ProjectSwitcher from '../project-switcher';
 import ContextWindowViz from '../context-window-viz';
 import SidebarActions from './sidebar-actions';
@@ -299,10 +298,6 @@ export default function Sidebar() {
       {/* Context window visualization */}
       <ContextWindowViz />
 
-      {/* User dropdown */}
-      <div className="px-3 pb-3 border-t border-border-default pt-2.5">
-        <UserDropdown />
-      </div>
 
       {/* Preview tooltip */}
       {hoveredConv && !bulkMode && (
