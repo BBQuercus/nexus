@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import EmptyState from '@/components/empty-state'
 import { useStore } from '@/lib/store'
@@ -28,6 +28,14 @@ vi.mock('lucide-react', () => {
   }
 })
 
+// Helper: render and wait for the 50ms loading gate to pass
+async function renderReady(ui: React.ReactElement) {
+  const result = render(ui)
+  // Wait for the setTimeout(50) inside EmptyState to fire
+  await act(async () => { await new Promise((r) => setTimeout(r, 60)) })
+  return result
+}
+
 describe('EmptyState', () => {
   beforeEach(() => {
     useStore.getState().reset()
@@ -38,26 +46,26 @@ describe('EmptyState', () => {
       useStore.getState().setConversations([])
     })
 
-    it('renders without crashing', () => {
-      render(<EmptyState />)
+    it('renders without crashing', async () => {
+      await renderReady(<EmptyState />)
       expect(screen.getByText('Nexus')).toBeInTheDocument()
     })
 
-    it('displays the welcome tagline', () => {
-      render(<EmptyState />)
+    it('displays the welcome tagline', async () => {
+      await renderReady(<EmptyState />)
       expect(screen.getByText(/Your AI workspace/)).toBeInTheDocument()
     })
 
-    it('displays action cards', () => {
-      render(<EmptyState />)
+    it('displays action cards', async () => {
+      await renderReady(<EmptyState />)
       expect(screen.getByText('Sandbox & Execute')).toBeInTheDocument()
       expect(screen.getByText('Build & Preview')).toBeInTheDocument()
       expect(screen.getByText('Research & Ground')).toBeInTheDocument()
       expect(screen.getByText('Forms & Workflows')).toBeInTheDocument()
     })
 
-    it('displays capability buttons', () => {
-      render(<EmptyState />)
+    it('displays capability buttons', async () => {
+      await renderReady(<EmptyState />)
       expect(screen.getByText('Python Sandbox')).toBeInTheDocument()
       expect(screen.getByText('Knowledge Base')).toBeInTheDocument()
       expect(screen.getByText('Charts')).toBeInTheDocument()
@@ -67,36 +75,30 @@ describe('EmptyState', () => {
       expect(screen.getByText('AI Memory')).toBeInTheDocument()
     })
 
-    it('displays quick suggestion chips', () => {
-      render(<EmptyState />)
+    it('displays quick suggestion chips', async () => {
+      await renderReady(<EmptyState />)
       expect(screen.getByText('Analyze a CSV and create interactive charts')).toBeInTheDocument()
       expect(screen.getByText('Build a React dashboard with live preview')).toBeInTheDocument()
     })
 
     it('sets pending prompt when clicking an action card', async () => {
       const user = userEvent.setup()
-      render(<EmptyState />)
-
+      await renderReady(<EmptyState />)
       await user.click(screen.getByText('Sandbox & Execute'))
-
       expect(useStore.getState().pendingPrompt).toContain('Spin up a sandbox')
     })
 
     it('sets pending prompt when clicking a capability button', async () => {
       const user = userEvent.setup()
-      render(<EmptyState />)
-
+      await renderReady(<EmptyState />)
       await user.click(screen.getByText('Python Sandbox'))
-
       expect(useStore.getState().pendingPrompt).toContain('Python sandbox workflow')
     })
 
     it('sets pending prompt when clicking a quick suggestion', async () => {
       const user = userEvent.setup()
-      render(<EmptyState />)
-
+      await renderReady(<EmptyState />)
       await user.click(screen.getByText('Analyze a CSV and create interactive charts'))
-
       expect(useStore.getState().pendingPrompt).toBe('Analyze a CSV and create interactive charts')
     })
   })
@@ -108,30 +110,28 @@ describe('EmptyState', () => {
       ] as Conversation[])
     })
 
-    it('renders the returning user screen', () => {
-      render(<EmptyState />)
+    it('renders the returning user screen', async () => {
+      await renderReady(<EmptyState />)
       expect(screen.getByText('Nexus')).toBeInTheDocument()
     })
 
-    it('shows starter suggestions', () => {
-      render(<EmptyState />)
+    it('shows starter suggestions', async () => {
+      await renderReady(<EmptyState />)
       expect(screen.getByText('Run code in a sandbox, inspect files, and generate artifacts')).toBeInTheDocument()
       expect(screen.getByText('Build a web app with live preview and hot-reload')).toBeInTheDocument()
       expect(screen.getByText('Analyze data with SQL, Python, and interactive charts')).toBeInTheDocument()
       expect(screen.getByText('Research a topic with web search and cited sources')).toBeInTheDocument()
     })
 
-    it('does not show the welcome action cards', () => {
-      render(<EmptyState />)
+    it('does not show the welcome action cards', async () => {
+      await renderReady(<EmptyState />)
       expect(screen.queryByText('Sandbox & Execute')).not.toBeInTheDocument()
     })
 
     it('sets pending prompt when clicking a starter', async () => {
       const user = userEvent.setup()
-      render(<EmptyState />)
-
+      await renderReady(<EmptyState />)
       await user.click(screen.getByText('Run code in a sandbox, inspect files, and generate artifacts'))
-
       expect(useStore.getState().pendingPrompt).toBe('Run code in a sandbox, inspect files, and generate artifacts')
     })
   })
