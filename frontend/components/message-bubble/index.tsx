@@ -24,6 +24,7 @@ import { ConfidenceDot } from '../confidence-indicator';
 import { ProvenanceRow } from '../provenance-indicator';
 import type { ExecutionStep } from '@/lib/execution-types';
 import type { RunSummary as RunSummaryType } from '@/lib/execution-types';
+import { buildFormSubmissionMessage } from '@/lib/form-submission';
 
 export default function MessageBubble({ message }: { message: Message }) {
 
@@ -160,9 +161,9 @@ export default function MessageBubble({ message }: { message: Message }) {
         <ChartDisplay charts={message.charts} />
         {message.forms?.map((form, i) => (
           <FormRenderer key={i} spec={form} onSubmit={(data) => {
-            // Send form response as a user message
-            const formattedResponse = `Form response for "${form.title}":\n\`\`\`json\n${JSON.stringify(data, null, 2)}\n\`\`\``;
-            window.dispatchEvent(new CustomEvent('nexus:send-message', { detail: { text: formattedResponse } }));
+            window.dispatchEvent(new CustomEvent('nexus:send-message', {
+              detail: { text: buildFormSubmissionMessage(form.title, data) },
+            }));
           }} />
         ))}
         <MessageContent content={message.content} />
