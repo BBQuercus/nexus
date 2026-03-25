@@ -1,7 +1,27 @@
 import { toApiUrl } from './runtime';
 
-export function getLoginUrl(): string {
+export type OAuthProvider = 'microsoft' | 'github';
+export type AuthProvider = OAuthProvider | 'password';
+
+export function getLoginUrl(provider?: OAuthProvider): string {
+  if (provider) {
+    return toApiUrl(`/auth/login?provider=${provider}`);
+  }
   return toApiUrl('/auth/login');
+}
+
+export function getLastProvider(): AuthProvider | null {
+  if (typeof document === 'undefined') return null;
+  const match = document.cookie.match(/nexus_provider=([^;]+)/);
+  const value = match?.[1];
+  if (value === 'microsoft' || value === 'github' || value === 'password') return value;
+  return null;
+}
+
+export function setLastProvider(provider: AuthProvider): void {
+  if (typeof document === 'undefined') return;
+  // 1 year expiry
+  document.cookie = `nexus_provider=${provider};path=/;max-age=${365 * 86400};samesite=lax`;
 }
 
 export function getCsrfToken(): string | null {

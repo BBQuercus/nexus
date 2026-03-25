@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     WORKOS_API_KEY: str = ""
     WORKOS_CLIENT_ID: str = ""
     WORKOS_REDIRECT_URI: str = "http://localhost:8000/auth/callback"
+    WORKOS_ORG_ID: str = ""  # WorkOS Organization ID for SSO (e.g. Microsoft Entra ID)
     FRONTEND_URL: str = "http://localhost:5173"
     CORS_ORIGINS: str = ""
 

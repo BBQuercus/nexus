@@ -4,7 +4,13 @@ import { useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useStore } from '@/lib/store';
 import { getCurrentUser } from '@/lib/api';
-import { startTokenRefreshTimer, stopTokenRefreshTimer } from '@/lib/auth';
+import {
+  refreshAccessToken,
+  startTokenRefreshTimer,
+  stopTokenRefreshTimer,
+  getLastProvider,
+  getLoginUrl,
+} from '@/lib/auth';
 import { toast } from '@/components/toast';
 import { Zap } from 'lucide-react';
 
@@ -21,25 +27,50 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     let cancelled = false;
 
     async function checkAuth() {
+      // 1. Try the current session
       try {
         const user = await getCurrentUser();
         if (cancelled) return;
         setUser(user);
         setAuthStatus('authenticated');
+        return;
       } catch {
-        if (cancelled) return;
-        setUser(null);
-        setAuthStatus('unauthenticated');
+        // Session expired or missing — try silent refresh
       }
+
+      // 2. Attempt silent refresh (valid refresh token cookie may exist)
+      const refreshed = await refreshAccessToken();
+      if (refreshed) {
+        try {
+          const user = await getCurrentUser();
+          if (cancelled) return;
+          setUser(user);
+          setAuthStatus('authenticated');
+          return;
+        } catch {
+          // Refresh succeeded but /me failed — fall through
+        }
+      }
+
+      // 3. Fully unauthenticated
+      if (cancelled) return;
+      setUser(null);
+      setAuthStatus('unauthenticated');
     }
 
     checkAuth();
     return () => { cancelled = true; };
   }, [setUser, setAuthStatus]);
 
-  // Redirect unauthenticated users away from protected pages
+  // Redirect unauthenticated users — auto-redirect to last OAuth provider if known
   useEffect(() => {
-    if (authStatus === 'unauthenticated' && !PUBLIC_PATHS.includes(pathname)) {
+    if (authStatus !== 'unauthenticated' || PUBLIC_PATHS.includes(pathname)) return;
+
+    const lastProvider = getLastProvider();
+    if (lastProvider && lastProvider !== 'password') {
+      // Skip login page entirely — go straight to the OAuth provider
+      window.location.href = getLoginUrl(lastProvider);
+    } else {
       router.replace('/login');
     }
   }, [authStatus, pathname, router]);
