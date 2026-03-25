@@ -1,7 +1,7 @@
 """Add audit_events table.
 
 Revision ID: a001_audit_events
-Revises: c3d4e5f6a7b8
+Revises: d001_projects
 Create Date: 2026-03-24
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = 'a001_audit_events'
-down_revision: Union[str, None] = 'c3d4e5f6a7b8'
+down_revision: Union[str, None] = 'd001_projects'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
