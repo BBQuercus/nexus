@@ -69,7 +69,18 @@ class Settings(BaseSettings):
 
     @property
     def cookie_domain(self) -> str | None:
-        return self.COOKIE_DOMAIN or None
+        domain = (self.COOKIE_DOMAIN or "").strip()
+        if not domain:
+            return None
+
+        # Railway-managed *.up.railway.app hosts should use host-only cookies.
+        # Browsers may reject a broad public suffix style cookie domain there,
+        # which breaks session persistence after the auth callback.
+        normalized = domain.lstrip(".")
+        if normalized == "up.railway.app" or normalized.endswith(".up.railway.app"):
+            return None
+
+        return domain
 
     @property
     def cookie_secure(self) -> bool:
