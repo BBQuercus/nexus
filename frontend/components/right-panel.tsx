@@ -39,6 +39,7 @@ export default function RightPanel() {
   const activeTab = useStore((s) => s.rightPanelTab);
   const setRightPanelTab = useStore((s) => s.setRightPanelTab);
   const sandboxStatus = useStore((s) => s.sandboxStatus);
+  const previewUrl = useStore((s) => s.previewUrl);
   const hasSandbox = sandboxStatus !== 'none';
   const artifacts = useStore((s) => s.artifacts);
   const tree = useStore((s) => s.conversationTree);
@@ -51,12 +52,14 @@ export default function RightPanel() {
   const visibleTabs = useMemo(() => {
     return ALL_TABS.filter((tab) => {
       if (tab.needsSandbox && !hasSandbox) return false;
+      if (tab.key === 'preview' && !previewUrl) return false;
+      if (tab.key === 'preview') return true;
       if (tab.key === 'artifacts' && artifacts.length === 0 && !hasSandbox) return false;
       if (tab.key === 'tree' && !hasBranches) return false;
       if (tab.key === 'sources' && !hasCitations) return false;
       return true;
     });
-  }, [hasSandbox, artifacts.length, hasBranches, hasCitations]);
+  }, [hasSandbox, previewUrl, artifacts.length, hasBranches, hasCitations]);
 
   // If the current tab is no longer visible, switch to first available
   useEffect(() => {

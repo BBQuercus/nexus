@@ -154,7 +154,7 @@ async def execute_tool_call(
                 port = args.get("port", 3000)
                 url = await sandbox_service.get_preview_url(ctx.sandbox, port)
                 tool_output = url
-                yield sse_event("preview", {"url": url, "port": port})
+                yield sse_event("preview", {"url": url, "port": port, "sandbox_id": getattr(ctx.sandbox, "id", None)})
             yield sse_event("tool_output", {"tool": func_name, "output": tool_output, "tool_call_id": tool_call_id})
 
         elif func_name == "run_sql":
