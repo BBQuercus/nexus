@@ -58,6 +58,8 @@ export default function AgentsView() {
     }
   }, []);
 
+  const isInitialLoading = agents === null && editing === null;
+
   const handleSave = async () => {
     if (!editing || !editing.name.trim()) return;
     try {
@@ -244,6 +246,42 @@ export default function AgentsView() {
                     <Trash2 size={12} />
                   </button>
                 )}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : isInitialLoading ? (
+        <div className="flex-1 overflow-y-auto">
+          <div className="max-w-xl mx-auto p-6">
+            <div className="animate-pulse">
+              <div className="flex items-center justify-between mb-6">
+                <div className="h-4 w-24 rounded bg-surface-2" />
+                <div className="h-4 w-4 rounded bg-surface-2" />
+              </div>
+              <div className="space-y-5">
+                <div className="space-y-2">
+                  <div className="h-3 w-10 rounded bg-surface-2" />
+                  <div className="h-24 rounded-xl bg-surface-1 border border-border-default" />
+                </div>
+                <div className="space-y-2">
+                  <div className="h-3 w-12 rounded bg-surface-2" />
+                  <div className="h-10 rounded-lg bg-surface-1 border border-border-default" />
+                </div>
+                <div className="space-y-2">
+                  <div className="h-3 w-20 rounded bg-surface-2" />
+                  <div className="h-10 rounded-lg bg-surface-1 border border-border-default" />
+                </div>
+                <div className="space-y-2">
+                  <div className="h-3 w-24 rounded bg-surface-2" />
+                  <div className="h-36 rounded-xl bg-surface-1 border border-border-default" />
+                </div>
+                <div className="space-y-2">
+                  <div className="h-3 w-24 rounded bg-surface-2" />
+                  <div className="h-10 rounded-lg bg-surface-1 border border-border-default" />
+                </div>
+                <div className="flex gap-2 pt-3 border-t border-border-default">
+                  <div className="h-10 flex-1 rounded-lg bg-surface-2" />
+                </div>
               </div>
             </div>
           </div>
