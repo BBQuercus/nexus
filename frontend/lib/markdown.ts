@@ -64,14 +64,33 @@ export async function initMarkdown(): Promise<void> {
   await markdownLoading;
 }
 
+// LRU-ish cache for highlighted code to avoid re-highlighting identical blocks.
+// Key: language + code hash, Value: highlighted HTML.
+const highlightCache = new Map<string, string>();
+const HIGHLIGHT_CACHE_MAX = 200;
+
 export function highlightCode(code: string, language: string): string {
+  const cacheKey = `${language}:${code.length}:${code.slice(0, 100)}:${code.slice(-50)}`;
+
+  const cached = highlightCache.get(cacheKey);
+  if (cached) return cached;
+
   if (!shikiHighlighter) {
     return `<pre class="shiki" style="background-color:#18181B"><code>${escapeHtml(code)}</code></pre>`;
   }
   try {
     const loadedLangs = shikiHighlighter.getLoadedLanguages();
     const lang = loadedLangs.includes(language as never) ? language : 'text';
-    return shikiHighlighter.codeToHtml(code, { lang: lang || 'text', theme: 'vitesse-dark' });
+    const html = shikiHighlighter.codeToHtml(code, { lang: lang || 'text', theme: 'vitesse-dark' });
+
+    // Evict oldest entries if cache is full
+    if (highlightCache.size >= HIGHLIGHT_CACHE_MAX) {
+      const firstKey = highlightCache.keys().next().value;
+      if (firstKey !== undefined) highlightCache.delete(firstKey);
+    }
+    highlightCache.set(cacheKey, html);
+
+    return html;
   } catch {
     return `<pre class="shiki" style="background-color:#18181B"><code>${escapeHtml(code)}</code></pre>`;
   }
