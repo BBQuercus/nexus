@@ -1,6 +1,6 @@
 # Nexus
 
-Nexus is a FastAPI backend plus Next.js frontend. Local workflows are standardized with `just`, and Railway deployments are split into explicit `backend` and `frontend` services with separate staging and production environments.
+Nexus is a FastAPI backend plus Next.js frontend. Local workflows are standardized with `just`, and Railway deployments are split into explicit `backend` and `frontend` services with separate dev and production environments.
 
 ## Local development
 
@@ -70,17 +70,17 @@ Recommended observability variables:
 - `RELEASE_VERSION`
 - `BUILD_SHA`
 
-Use environment-specific values for staging and production. Keep `COOKIE_SAMESITE=lax` if frontend and backend share the same site. Use `COOKIE_SAMESITE=none` and `COOKIE_SECURE=true` if they do not.
+Use environment-specific values for dev and production. Keep `COOKIE_SAMESITE=lax` if frontend and backend share the same site. Use `COOKIE_SAMESITE=none` and `COOKIE_SECURE=true` if they do not.
 
 ## GitHub Actions setup
 
 Repository variables:
 
-- `RAILWAY_PROJECT_ID_STAGING`
-- `RAILWAY_BACKEND_SERVICE_STAGING`
-- `RAILWAY_FRONTEND_SERVICE_STAGING`
-- `STAGING_FRONTEND_URL`
-- `STAGING_BACKEND_URL`
+- `RAILWAY_PROJECT_ID_DEV`
+- `RAILWAY_BACKEND_SERVICE_DEV`
+- `RAILWAY_FRONTEND_SERVICE_DEV`
+- `DEV_FRONTEND_URL`
+- `DEV_BACKEND_URL`
 - `RAILWAY_PROJECT_ID_PRODUCTION`
 - `RAILWAY_BACKEND_SERVICE_PRODUCTION`
 - `RAILWAY_FRONTEND_SERVICE_PRODUCTION`
@@ -89,17 +89,17 @@ Repository variables:
 
 Repository secrets:
 
-- `RAILWAY_TOKEN_STAGING`
+- `RAILWAY_TOKEN_DEV`
 - `RAILWAY_TOKEN_PRODUCTION`
 - `RAILWAY_CI_TOKEN`
 
 Workflows:
 
 - `.github/workflows/ci.yml`: lint, type-check, tests, image builds
-- `.github/workflows/deploy-staging.yml`: deploys `main` to Railway staging
-- `.github/workflows/deploy-production.yml`: deploys tags like `v1.2.3` to production
+- `.github/workflows/deploy-staging.yml`: deploys `dev` to Railway dev after CI succeeds
+- `.github/workflows/deploy-production.yml`: deploys `main` to production after CI succeeds
 - `.github/workflows/deploy-instance.yml`: manual deploy for another Railway instance
-- `.github/workflows/monitor.yml`: scheduled smoke checks for staging and production
+- `.github/workflows/monitor.yml`: scheduled smoke checks for dev and production
 
 ## Monitoring
 
@@ -110,20 +110,20 @@ Baseline monitoring is built around four layers:
 - Prometheus metrics via `/metrics`
 - OpenTelemetry export via `OTEL_EXPORTER_OTLP_ENDPOINT`
 
-The scheduled monitor workflow runs `scripts/smoke_check.py` against staging and production every 15 minutes. Point `OTEL_EXPORTER_OTLP_ENDPOINT` at Grafana Cloud, Honeycomb, Datadog, or another OTLP collector to capture traces outside Railway.
+The scheduled monitor workflow runs `scripts/smoke_check.py` against dev and production every 15 minutes. Point `OTEL_EXPORTER_OTLP_ENDPOINT` at Grafana Cloud, Honeycomb, Datadog, or another OTLP collector to capture traces outside Railway.
 
 ## Manual deploys
 
 Local Railway deploys use `just`:
 
 ```bash
-just railway-deploy railway/backend.toml <backend-service> <project-id> staging
-just railway-deploy railway/frontend.toml <frontend-service> <project-id> staging
+just railway-deploy railway/backend.toml <backend-service> <project-id> dev
+just railway-deploy railway/frontend.toml <frontend-service> <project-id> dev
 ```
 
 Or deploy both services with:
 
 ```bash
-just railway-deploy-staging <project-id> <backend-service> <frontend-service>
+just railway-deploy-dev <project-id> <backend-service> <frontend-service>
 just railway-deploy-production <project-id> <backend-service> <frontend-service>
 ```

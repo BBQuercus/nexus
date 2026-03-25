@@ -1,4 +1,4 @@
-name: Deploy Staging
+name: Deploy Dev
 
 on:
   workflow_run:
@@ -10,14 +10,14 @@ on:
 
 jobs:
   deploy:
-    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') }}
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'dev') }}
     uses: ./.github/workflows/railway-deploy.yml
     with:
-      deploy_environment: staging
-      railway_project_id: ${{ vars.RAILWAY_PROJECT_ID_STAGING }}
-      backend_service: ${{ vars.RAILWAY_BACKEND_SERVICE_STAGING }}
-      frontend_service: ${{ vars.RAILWAY_FRONTEND_SERVICE_STAGING }}
-      frontend_url: ${{ vars.STAGING_FRONTEND_URL }}
-      backend_url: ${{ vars.STAGING_BACKEND_URL }}
+      deploy_environment: dev
+      railway_project_id: ${{ vars.RAILWAY_PROJECT_ID_DEV }}
+      backend_service: ${{ vars.RAILWAY_BACKEND_SERVICE_DEV }}
+      frontend_service: ${{ vars.RAILWAY_FRONTEND_SERVICE_DEV }}
+      frontend_url: ${{ vars.DEV_FRONTEND_URL }}
+      backend_url: ${{ vars.DEV_BACKEND_URL }}
     secrets:
-      railway_token: ${{ secrets.RAILWAY_TOKEN_STAGING }}
+      railway_token: ${{ secrets.RAILWAY_TOKEN_DEV }}

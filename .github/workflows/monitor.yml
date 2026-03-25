@@ -6,16 +6,16 @@ on:
   workflow_dispatch:
 
 jobs:
-  staging:
-    name: Staging Smoke Check
+  dev:
+    name: Dev Smoke Check
     runs-on: ubuntu-latest
-    if: ${{ vars.STAGING_FRONTEND_URL != '' && vars.STAGING_BACKEND_URL != '' }}
+    if: ${{ vars.DEV_FRONTEND_URL != '' && vars.DEV_BACKEND_URL != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: python scripts/smoke_check.py --frontend-url "${{ vars.STAGING_FRONTEND_URL }}" --backend-url "${{ vars.STAGING_BACKEND_URL }}"
+      - run: python scripts/smoke_check.py --frontend-url "${{ vars.DEV_FRONTEND_URL }}" --backend-url "${{ vars.DEV_BACKEND_URL }}"
 
   production:
     name: Production Smoke Check

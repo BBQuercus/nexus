@@ -71,9 +71,12 @@ railway-deploy config service project environment:
   cp {{config}} railway.toml
   railway up --service {{service}} --project {{project}} --environment {{environment}} --ci
 
+railway-deploy-dev project backend_service frontend_service:
+  just railway-deploy railway/backend.toml {{backend_service}} {{project}} dev
+  just railway-deploy railway/frontend.toml {{frontend_service}} {{project}} dev
+
 railway-deploy-staging project backend_service frontend_service:
-  just railway-deploy railway/backend.toml {{backend_service}} {{project}} staging
-  just railway-deploy railway/frontend.toml {{frontend_service}} {{project}} staging
+  just railway-deploy-dev {{project}} {{backend_service}} {{frontend_service}}
 
 railway-deploy-production project backend_service frontend_service:
   just railway-deploy railway/backend.toml {{backend_service}} {{project}} production
