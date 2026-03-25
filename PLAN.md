@@ -1,7 +1,7 @@
 # Nexus — Master Plan
 
-**Last updated:** 2026-03-25
-**Status:** All 10 initiatives structurally implemented; `make ci` green (see Implementation Log below)
+**Last updated:** 2026-03-26
+**Status:** All 10 initiatives structurally implemented (see Implementation Log below). CI/CD, deploy workflows, observability, auth, and all 5 agent tools are live.
 **Goal:** Build the de-facto gold standard AI chat application.
 **Sources:** Codebase audit, competitive analysis (ChatGPT, Claude.ai, Cursor, TypingMind, OpenWebUI, LibreChat), CompanyGPT teardown, colleague review, and tool implementation specs.
 
@@ -30,18 +30,18 @@
 |------|---------|-------|
 | Architecture | Next.js 15 + FastAPI + PostgreSQL, fully async, clean separation | 9/10 |
 | Type Safety | Strict TypeScript, Pydantic everywhere, SQLAlchemy Mapped types | 9/10 |
-| Security | SSRF protection, CSRF tokens, CSP headers, auth redaction, sandbox ACL | 8/10 |
+| Security | SSRF protection, CSRF tokens, CSP headers, auth redaction, sandbox ACL, OAuth + email/password auth | 8/10 |
 | Streaming | Token-by-token SSE, artifact streaming, tool execution progress | 8/10 |
-| Feature Depth | RAG, sandboxes, agents, artifacts, branching, multi-model compare, TTS | 8/10 |
-| Error Handling | Global middleware, request IDs, structlog, frontend error reporting | 8/10 |
-| UI Polish | Dark theme, animations, command palette, keyboard shortcuts, responsive | 7/10 |
-| Code Quality | Consistent patterns, async everywhere, good DB schema | 8/10 |
-| Testing | 6 backend test files (security, tools, artifacts), 0 frontend | 3/10 |
-| CI/CD | None | 0/10 |
-| Observability | Structured logging only, no tracing or metrics | 3/10 |
-| Caching | None (in-memory rate limiter only) | 2/10 |
+| Feature Depth | RAG, sandboxes, agents, artifacts, branching, multi-model compare, TTS, Vega-Lite charts, DuckDB SQL, web browse, interactive forms | 9/10 |
+| Error Handling | Global middleware, request IDs, structlog, frontend error reporting, per-panel error boundaries | 8/10 |
+| UI Polish | Dark theme, animations, command palette, keyboard shortcuts, responsive, slash commands | 8/10 |
+| Code Quality | Modular agent package, Zustand slices, split components, ruff + eslint | 8/10 |
+| Testing | 145 backend tests, 77 frontend tests (Vitest + RTL) | 6/10 |
+| CI/CD | GitHub Actions (lint, type-check, test, build), staging + production deploy workflows | 7/10 |
+| Observability | OpenTelemetry tracing, Prometheus metrics (LLM/tools/sandbox/RAG/streaming), structured logging, smoke checks | 7/10 |
+| Caching | Redis with in-memory fallback for rate limiting and sessions | 5/10 |
 
-**Overall: 7.5/10** — Production-ready for small teams, but missing the infrastructure and polish that separates good from legendary.
+**Overall: 8/10** — Solid foundation with CI/CD, observability, and modular architecture. Main gaps: test coverage depth, production monitoring wiring, and frontend performance.
 
 ### CompanyGPT Comparison
 
@@ -66,23 +66,18 @@ CompanyGPT scores roughly **4/10**. Included here as a reference for what not to
 - Comprehensive file processing (8+ formats including audio transcription)
 - Custom exception hierarchy (21 types) — more granular than ours
 
-### Immediate Technical Debt
-
-Items that won't be noticed by users but will bite as we scale:
+### Remaining Technical Debt
 
 | Issue | Location | Risk | Fix |
 |-------|----------|------|-----|
-| In-memory rate limiter | `backend/middleware/` | Resets on deploy, not multi-instance safe | Redis-backed limiter |
-| No Python linting in CI | project root | Code quality drift | Add ruff to CI |
-| 1378-line chat-input.tsx | `frontend/components/` | Impossible to maintain/test | Split into focused components |
-| 766-line agent.py | `backend/services/` | Complex branching, hard to debug | Extract sub-modules |
-| 820-line message-bubble.tsx | `frontend/components/` | Hard to test, change is risky | Split into focused components |
-| 443-line sidebar.tsx | `frontend/components/` | Growing complexity | Extract sub-components |
-| No frontend tests | `frontend/` | UI regressions unnoticed | Vitest + RTL |
-| No CI/CD | `.github/workflows/` | Manual deploys, no safety net | GitHub Actions |
-| Manual migrations in main.py | `backend/main.py` | Fragile, won't scale | Consolidate into Alembic |
 | No connection pool tuning | `backend/database.py` | Connection exhaustion under load | Configure pool_size, max_overflow |
-| Lazy Shiki in browser | `frontend/lib/` | Heavy main-thread computation | Move to Web Worker |
+| Shiki on main thread | `frontend/lib/` | Heavy computation blocks UI | Move to Web Worker |
+| No virtual scrolling | `frontend/components/` | Long conversations get slow | Add react-window or similar |
+| Frontend tests not blocking CI | `.github/workflows/ci.yml` | Broken tests don't fail pipeline | Remove `continue-on-error: true` |
+| Plugin registry in-memory | `backend/services/plugin_registry.py` | Plugins lost on restart | DB-backed persistence |
+| No E2E / smoke test suites | project root | No end-to-end regression coverage | Add Playwright |
+
+Previously resolved: in-memory rate limiter (Redis fallback), no Python linting (ruff in CI), large monolithic files (all split), no frontend tests (77 tests), no CI/CD (GitHub Actions), no migrations (Alembic).
 
 ---
 
@@ -967,15 +962,15 @@ Sandboxed execution plus artifacts is a major advantage if the app becomes excel
 
 ## Testing & Quality Strategy
 
-### Current State
+### Current State (updated 2026-03-26)
 
 ```
-Backend:   6 test files (security, tools, artifacts)
-Frontend:  0 tests
+Backend:   145 tests across multiple files (security, tools, artifacts, health, auth, agent)
+Frontend:  77 tests (Vitest + RTL — store, streaming, components, API, forms)
 E2E:       0 tests
-Smoke:     0 tests
+Smoke:     GitHub Actions monitor workflow (15-min schedule)
 Load:      0 tests
-Coverage:  ~15% backend, 0% frontend
+Coverage:  ~40% backend (est.), ~15% frontend (est.)
 ```
 
 ### Target State
@@ -1510,7 +1505,7 @@ That is the path from "pretty decent tool" to "gold standard."
 
 ## Implementation Log
 
-All 10 initiatives were structurally implemented on 2026-03-24/25. Each produced atomic commits. A verification pass on 2026-03-25 fixed linting, type errors, unmounted components, and missing integrations — release gate is now fully green (ruff, mypy, tsc, eslint, build, 222 tests).
+All 10 initiatives were structurally implemented on 2026-03-24/25. Each produced atomic commits. A verification pass on 2026-03-25 fixed linting, type errors, unmounted components, and missing integrations. Individual checks pass (ruff, mypy, tsc, eslint, build, 222 tests). Deploy workflows for staging and production were added on 2026-03-25/26.
 
 | # | Initiative | Commit | Key Deliverables |
 |---|-----------|--------|-----------------|
