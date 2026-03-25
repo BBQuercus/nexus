@@ -7,9 +7,13 @@ from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy import text as sa_text
+from sqlalchemy.exc import DBAPIError, ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.logging_config import get_logger
 from backend.models import Conversation, Message
+
+logger = get_logger("services.agent.history")
 
 
 async def load_conversation_messages(
@@ -65,9 +69,21 @@ async def detect_knowledge(
     # Check if conversation has any scoped documents
     from backend.models import Document as DocumentModel
 
-    conv_doc_count = await db.scalar(
-        select(func.count()).select_from(DocumentModel).where(DocumentModel.conversation_id == conversation_id)
-    )
+    try:
+        conv_doc_count = await db.scalar(
+            select(func.count()).select_from(DocumentModel).where(DocumentModel.conversation_id == conversation_id)
+        )
+    except (ProgrammingError, DBAPIError) as exc:
+        message = str(getattr(exc, "orig", exc)).lower()
+        if "documents" not in message or ("undefinedtable" not in message and "does not exist" not in message):
+            raise
+        logger.warning(
+            "documents_table_missing",
+            error=str(getattr(exc, "orig", exc)),
+            conversation_id=str(conversation_id),
+        )
+        conv_doc_count = 0
+
     has_knowledge = bool(knowledge_base_ids) or (conv_doc_count or 0) > 0
     return has_knowledge, knowledge_base_ids
 

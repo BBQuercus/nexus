@@ -6,6 +6,8 @@ These run periodically to clean up orphaned resources.
 import asyncio
 from datetime import UTC, datetime, timedelta
 
+from sqlalchemy.exc import DBAPIError, ProgrammingError
+
 from backend.db import async_session
 from backend.logging_config import get_logger
 
@@ -66,6 +68,12 @@ async def cleanup_expired_analytics(days_to_keep: int = 90):
             await session.commit()
             if deleted:
                 logger.info("analytics_cleanup", deleted=deleted, days_kept=days_to_keep)
+    except (ProgrammingError, DBAPIError) as e:
+        message = str(getattr(e, "orig", e)).lower()
+        if "analytics_events" in message and ("undefinedtable" in message or "does not exist" in message):
+            logger.warning("analytics_table_missing", error=str(getattr(e, "orig", e)))
+            return
+        logger.error("analytics_cleanup_failed", error=str(e))
     except Exception as e:
         logger.error("analytics_cleanup_failed", error=str(e))
 
