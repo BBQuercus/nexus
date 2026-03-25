@@ -13,11 +13,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.logging_config import get_logger
 from backend.models import Artifact, Conversation, KnowledgeBase
 from backend.prompts.system import build_system_prompt
-from backend.telemetry import active_streams, errors_total, llm_token_usage, stream_duration
 from backend.prompts.tools import get_tools_for_mode
 from backend.services import llm as llm_service
 from backend.services import sandbox as sandbox_service
 from backend.services.memory import format_memories_for_prompt, get_relevant_memories
+from backend.telemetry import active_streams, errors_total, llm_token_usage, stream_duration
 
 from .history import build_llm_messages, detect_knowledge, load_conversation_messages
 from .stream_mapper import sse_event
@@ -27,9 +27,7 @@ from .usage import link_retrieval_logs, log_usage, save_artifacts, save_assistan
 logger = get_logger("agent")
 
 
-async def _load_selected_knowledge_bases(
-    db: AsyncSession, knowledge_base_ids: list[uuid.UUID]
-) -> list[dict[str, str]]:
+async def _load_selected_knowledge_bases(db: AsyncSession, knowledge_base_ids: list[uuid.UUID]) -> list[dict[str, str]]:
     if not knowledge_base_ids:
         return []
 

@@ -9,7 +9,6 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.logging_config import get_logger
-from backend.telemetry import errors_total, tool_execution_duration, tool_executions_total
 from backend.models import RetrievalLog
 from backend.services import sandbox as sandbox_service
 from backend.services.chart_tool import normalize_chart_spec
@@ -17,6 +16,7 @@ from backend.services.search import web_search
 from backend.services.sql_tool import build_run_sql_script
 from backend.services.tables import detect_table, rows_to_csv
 from backend.services.web import call_api, web_browse
+from backend.telemetry import errors_total, tool_execution_duration, tool_executions_total
 from backend.vector_db import vector_async_session
 
 from .stream_mapper import sanitize_tool_arguments, sse_event

@@ -271,7 +271,9 @@ async def list_conversations(
                 .where(Message.conversation_id.in_(conversation_ids))
                 .group_by(Message.conversation_id)
             )
-            message_counts = {conversation_id: int(message_count) for conversation_id, message_count in count_result.all()}
+            message_counts = {
+                conversation_id: int(message_count) for conversation_id, message_count in count_result.all()
+            }
 
         return {
             "conversations": [
@@ -391,8 +393,8 @@ async def delete_conversation(
             pass
 
     message_ids = (
-        await db.execute(select(Message.id).where(Message.conversation_id == conversation_id))
-    ).scalars().all()
+        (await db.execute(select(Message.id).where(Message.conversation_id == conversation_id))).scalars().all()
+    )
 
     # Break any conversation/message references before deleting child rows.
     conv.active_leaf_id = None
