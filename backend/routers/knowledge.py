@@ -6,6 +6,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Up
 from pydantic import BaseModel
 from sqlalchemy import or_, select
 from sqlalchemy import text as sa_text
+from sqlalchemy.exc import DBAPIError, ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.auth import get_current_user
@@ -79,6 +80,11 @@ def _serialize_document(doc: Document) -> dict:
     }
 
 
+def _is_missing_table_error(exc: Exception, table: str) -> bool:
+    message = str(getattr(exc, "orig", exc)).lower()
+    return table.lower() in message and ("undefinedtable" in message or "does not exist" in message)
+
+
 # ── Knowledge Base CRUD ──
 
 
@@ -110,17 +116,27 @@ async def list_knowledge_bases(
     user_id: uuid.UUID = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(
-        select(KnowledgeBase)
-        .where(
-            or_(
-                KnowledgeBase.user_id == user_id,
-                KnowledgeBase.is_public == True,  # noqa: E712
+    try:
+        result = await db.execute(
+            select(KnowledgeBase)
+            .where(
+                or_(
+                    KnowledgeBase.user_id == user_id,
+                    KnowledgeBase.is_public == True,  # noqa: E712
+                )
             )
+            .order_by(KnowledgeBase.updated_at.desc())
         )
-        .order_by(KnowledgeBase.updated_at.desc())
-    )
-    return [_serialize_kb(kb) for kb in result.scalars().all()]
+        return [_serialize_kb(kb) for kb in result.scalars().all()]
+    except (ProgrammingError, DBAPIError) as exc:
+        if not _is_missing_table_error(exc, "knowledge_bases"):
+            raise
+        logger.warning(
+            "knowledge_base_table_missing",
+            error=str(getattr(exc, "orig", exc)),
+            user_id=str(user_id),
+        )
+        return []
 
 
 @router.get("/{kb_id}")
