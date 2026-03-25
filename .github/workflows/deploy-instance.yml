@@ -6,7 +6,7 @@ on:
       deploy_environment:
         description: Railway environment name
         required: true
-        default: staging
+        default: dev
         type: string
       railway_project_id:
         description: Railway project ID
