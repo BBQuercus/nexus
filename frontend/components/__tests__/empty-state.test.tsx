@@ -59,7 +59,6 @@ describe('EmptyState', () => {
     it('displays capability buttons', () => {
       render(<EmptyState />)
       expect(screen.getByText('Python Sandbox')).toBeInTheDocument()
-      expect(screen.getByText('Node 22')).toBeInTheDocument()
       expect(screen.getByText('Knowledge Base')).toBeInTheDocument()
       expect(screen.getByText('Charts')).toBeInTheDocument()
       expect(screen.getByText('SQL on Files')).toBeInTheDocument()
@@ -118,7 +117,8 @@ describe('EmptyState', () => {
       render(<EmptyState />)
       expect(screen.getByText('Run code in a sandbox, inspect files, and generate artifacts')).toBeInTheDocument()
       expect(screen.getByText('Build a web app with live preview and hot-reload')).toBeInTheDocument()
-      expect(screen.getByText('Create an interactive form to collect structured input')).toBeInTheDocument()
+      expect(screen.getByText('Analyze data with SQL, Python, and interactive charts')).toBeInTheDocument()
+      expect(screen.getByText('Research a topic with web search and cited sources')).toBeInTheDocument()
     })
 
     it('does not show the welcome action cards', () => {

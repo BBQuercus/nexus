@@ -48,7 +48,6 @@ const ACTION_CARDS = [
 
 const CAPABILITIES = [
   { label: 'Python Sandbox', icon: <Terminal size={11} />, prompt: 'Start a Python sandbox workflow for data analysis, automation, or scripting. Use the terminal, create files as needed, and leave me with runnable output.' },
-  { label: 'Node 22', icon: <Cpu size={11} />, prompt: 'Set up a modern Node 22 project with a clean structure, useful scripts, and a solid development workflow I can build on immediately.' },
   { label: 'Knowledge Base', icon: <Database size={11} />, prompt: 'Help me structure a knowledge-grounded workflow. I want to work with uploaded documents, retrieve the right context, and produce answers with sources.' },
   { label: 'Live Preview', icon: <Globe size={11} />, prompt: 'Build a modern web app I can iterate on in live preview. Start with a strong foundation, implement the core experience, and keep the UI polished.' },
   { label: 'Charts', icon: <BarChart3 size={11} />, prompt: 'Create interactive data visualizations. Use Vega-Lite to build charts from data I provide or generate sample data to demonstrate different chart types.' },
@@ -71,10 +70,8 @@ const QUICK_SUGGESTIONS = [
 const RETURNING_STARTERS = [
   { icon: <Terminal size={16} />, text: 'Run code in a sandbox, inspect files, and generate artifacts', color: 'text-emerald-400' },
   { icon: <Code2 size={16} />, text: 'Build a web app with live preview and hot-reload', color: 'text-blue-400' },
-  { icon: <ClipboardList size={16} />, text: 'Create an interactive form to collect structured input', color: 'text-amber-400' },
   { icon: <BarChart3 size={16} />, text: 'Analyze data with SQL, Python, and interactive charts', color: 'text-cyan-400' },
   { icon: <Search size={16} />, text: 'Research a topic with web search and cited sources', color: 'text-purple-400' },
-  { icon: <GitCompare size={16} />, text: 'Compare multiple models side-by-side on the same prompt', color: 'text-orange-400' },
 ];
 
 export default function EmptyState() {
