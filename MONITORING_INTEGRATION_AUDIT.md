@@ -1,6 +1,6 @@
 # Monitoring Integration Audit
 
-Date checked: 2026-03-25
+Date checked: 2026-03-25 (updated 2026-03-26)
 
 ## Goal
 
@@ -28,13 +28,17 @@ What is currently usable:
 - GlitchTip is deployed and reachable.
 - Uptime Kuma is running and reachable.
 
+What is now wired up:
+
+- Prometheus is scraping `nexus.example.com/metrics` every 30s (target health: UP).
+- Nexus backend exports traces to Tempo via `OTEL_EXPORTER_OTLP_ENDPOINT` (http/protobuf to public tempo-v3 endpoint).
+- Grafana has a "Nexus Backend" dashboard with 18 panels covering HTTP, LLM, tools, sandbox, RAG, streaming, and WebSocket metrics.
+- Grafana datasources for Prometheus, Tempo, and Loki are all configured and healthy.
+
 What is not ready for `nexus` yet:
 
-- No Prometheus instance is correctly configured for `nexus`.
-- `nexus` does not currently export traces to Tempo.
 - `nexus` does not currently send errors to GlitchTip.
 - `nexus` does not currently ship logs into Loki.
-- `nexus` is in a different Railway project, so `railway.internal` hostnames in `monitoring` are not directly reachable from `nexus`.
 
 ## Railway `monitoring` Project State
 
@@ -72,15 +76,14 @@ Observed state:
 
 - Loki datasource health: OK
 - Tempo datasource exists in Grafana
-- Built-in Prometheus datasource is misconfigured
-- Existing Grafana dashboard inventory appears focused on another project (`Poll Patrol`)
+- Prometheus datasource is correctly configured (`http://prometheus.railway.internal:9090`, proxy mode)
+- Nexus Backend dashboard imported (18 panels)
 
 Implication:
 
-- Grafana itself is ready to use.
-- Loki-backed dashboards can be built.
-- Tempo-backed tracing can likely be used once traces arrive.
-- Prometheus-based metrics for `nexus` are not ready until Prometheus is fixed or added.
+- Grafana is fully operational for nexus monitoring.
+- Metrics, traces, and logs infrastructure is in place.
+- Only GlitchTip SDK integration and Loki log shipping remain as future work.
 
 ### Loki
 
@@ -154,7 +157,9 @@ Relevant implementation state:
 
 Current production `nexus` observation:
 
-- Backend Railway variables do not currently include `OTEL_EXPORTER_OTLP_ENDPOINT`.
+- `OTEL_EXPORTER_OTLP_ENDPOINT` = `https://tempo-v3-production.up.railway.app`
+- `OTEL_EXPORTER_OTLP_PROTOCOL` = `http/protobuf`
+- `RELEASE_VERSION` and `BUILD_SHA` are set.
 
 ## Main Architecture Constraint
 
@@ -233,8 +238,7 @@ Done (code side):
 
 Remaining (infrastructure side):
 
-- The internal Prometheus datasource in Grafana is malformed and unusable — needs fixing in the monitoring project.
-- Prometheus must be configured to scrape the public nexus backend URL.
+- All done. Prometheus is scraping nexus and Grafana dashboard is imported.
 
 ### 3. Error Tracking via GlitchTip
 

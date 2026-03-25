@@ -1,4 +1,4 @@
-# Nexus: From Good to World Class
+# Nexus: Product Roadmap
 
 > **Context:** Internal data analysis tool for a handful of users. Primary use case: "help me with this Excel", generate PowerPoints, diverse file processing. May go external later. Competing with internal competitor (unreliable, outdated models, terrible UX).
 
@@ -18,7 +18,7 @@ _"Drop an Excel file, get a full analysis with charts in seconds, then export to
 
 ### Artifact Cards
 - [ ] **Interactive artifact cards** — code, charts, tables render as expandable cards with actions (copy, download, re-run, edit)
-- [ ] **Chart cards** — matplotlib/plotly output renders as a zoomable, downloadable card with "regenerate with..." option
+- [ ] **Chart cards** — Vega-Lite charts render inline with download PNG/SVG and fullscreen (basic version exists via `create_chart` tool)
 - [ ] **Table cards** — dataframe output renders as a sortable, filterable table you can export to CSV/Excel
 - [ ] **PowerPoint/document cards** — generated .pptx/.docx/.pdf files render as preview cards with download button
 - [ ] **Artifact gallery** — right panel "Artifacts" tab shows all generated outputs in a clean grid, not just a list
@@ -27,28 +27,18 @@ _"Drop an Excel file, get a full analysis with charts in seconds, then export to
 - [ ] **Instant file analysis** — pre-process common file types (Excel, CSV) client-side before sending to show a preview immediately
 - [ ] **Streaming artifact rendering** — charts/tables appear as they're generated, not after the full response
 - [ ] **Smooth panel transitions** — animate sidebar/right panel open/close with spring easing
-- [ ] **Typing indicator** — show "Nexus is thinking..." with animated dots before first token arrives
 
 ---
 
-## PRIORITY 2 — Keyboard-First Power UX
+## PRIORITY 2 — Power User UX
 
 _Every action reachable without touching the mouse._
 
-### Slash Commands
-- [ ] **Slash command system** — `/model gpt-5`, `/export md`, `/clear`, `/system <prompt>`, `/help`
-- [ ] **Autocomplete dropdown** — typing `/` shows available commands with fuzzy search
+### Still To Do
 - [ ] **Custom slash commands** — users define their own (e.g. `/analyze` → "Analyze this dataset and create 5 visualizations")
-
-### Keyboard Navigation
-- [ ] **Arrow-key sidebar** — Up/Down to navigate conversations, Enter to select, Delete to remove
-- [ ] **Cmd+K everything** — search messages, run commands, switch models, open conversations — one bar to rule them all
 - [ ] **Vim-style optional mode** — `j/k` to scroll messages, `e` to edit, `r` to regenerate, `y` to copy
-- [ ] **Keyboard cheat sheet** — `?` shows all shortcuts in an overlay
-
-### Session & State
-- [ ] **Session persistence** — close the tab, come back tomorrow: same scroll position, open panels, draft message preserved
 - [ ] **Undo/redo** — Cmd+Z to undo last action (delete, edit, branch)
+- [ ] **Full session persistence** — close the tab, come back tomorrow: same scroll position, open panels, draft message preserved (pinned conversations are persisted, but full state is not)
 
 ---
 
@@ -63,7 +53,6 @@ _"Use the schema from my last conversation" should just work._
 - [ ] **Conversation insights** — end-of-session summary: tokens used, files created, key outputs
 
 ### Agent Memory & Personas
-- [ ] **Simple agent builder** — ChatGPT-style: name, description, system prompt, model, tools toggle. No visual nodes.
 - [ ] **Agent memory** — agents remember user preferences across sessions ("I prefer pandas over polars")
 - [ ] **Agent quick-switch** — switch persona mid-conversation without losing context
 - [ ] **Default agent per user** — set a personal default agent that loads on every new conversation
@@ -103,6 +92,7 @@ _The reason people open Nexus instead of ChatGPT._
 - [x] **Stop generation properly** — wire up `AbortController` to actually cancel the SSE stream
 - [x] **Retry with different model** — model picker dropdown on regenerate (frontend + backend)
 - [x] **Streaming cancel + partial save** — save what was generated so far when stopping mid-stream
+- [x] **Typing indicator** — streaming bubble with animated dots before first token arrives
 
 ### Sidebar & Navigation
 - [x] **Conversation pinning** — pin conversations to top, persisted in localStorage
@@ -117,14 +107,51 @@ _The reason people open Nexus instead of ChatGPT._
 - [x] **Toast notification system** — success/error/warning/info toasts
 - [x] **Delete confirmation in sidebar** — sidebar delete uses confirm dialog
 - [x] **Loading skeletons** — skeleton placeholders when loading conversations
-- [x] **Export conversations** — export as Markdown via sidebar download button
+- [x] **Export conversations** — export as Markdown via command palette
+
+### Keyboard & Commands
+- [x] **Slash command system** — `/model`, `/export`, `/clear`, `/system`, `/help`, `/search`, `/compare`, `/diff`, `/tokens`, `/summarize`, `/pin`, `/retry`, `/copy`
+- [x] **Autocomplete dropdown** — typing `/` shows available commands with fuzzy search
+- [x] **Cmd+K command palette** — search messages, run commands, switch models, open conversations
+- [x] **Keyboard cheat sheet** — `?` shows all shortcuts in an overlay
 
 ### Architecture
 - [x] **Extract streaming logic** — useStreaming hook + mapRawMessages + processSseEvent helpers
-- [x] **Error boundaries** — ErrorBoundary wraps sidebar, chat, and right panel
+- [x] **Error boundaries** — per-panel ErrorBoundary wraps sidebar, chat, and right panel
 - [x] **Diff view for file changes** — DiffViewer component + write_file detection in ExecBlock
 - [x] **DRY message mapping** — `mapRawMessages` helper used everywhere
-- [x] **Refactor ChatInput** — streaming logic extracted into `useStreaming` hook
+- [x] **Refactor ChatInput** — split into InputField, FileUploader, ModelPicker, AgentPicker, KBPicker, VoiceInput
+- [x] **Refactor agent.py** — split into agent/ package (runner, tool_executor, history, stream_mapper, usage)
+- [x] **Zustand store slices** — split into 8 focused slices (session, conversation, streaming, composer, workspace, artifacts, branching, types)
+- [x] **Refactor message-bubble** — split into MessageContent, ToolCallDisplay, CitationList, MessageActions, BranchIndicator
+- [x] **Refactor sidebar** — split into ConversationList, ConversationItem, SidebarActions, PinnedItems
+
+### Security & Auth
+- [x] **CSRF protection** — cookie-based JWT with CSRF tokens
+- [x] **Sanitize markdown output** — XSS prevention (escapeHtml, sanitizeUrl)
+- [x] **Content Security Policy** — CSP headers via SecurityHeadersMiddleware
+- [x] **OAuth login** — Microsoft SSO + GitHub OAuth via WorkOS
+- [x] **Email/password login** — direct registration and login with JWT
+- [x] **Health check endpoints** — `/health` (deep) and `/ready` (lightweight)
+
+### CI/CD & Quality
+- [x] **CI pipeline** — GitHub Actions with ruff, eslint, mypy, tsc, pytest, vitest, build
+- [x] **Deploy workflows** — staging (dev branch) and production (main branch) via Railway
+- [x] **Linting & formatting** — ruff (Python) + ESLint (TypeScript) in CI
+- [x] **Monitoring workflow** — scheduled smoke checks every 15 minutes
+- [x] **Dependabot** — automated dependency updates
+
+### Observability
+- [x] **OpenTelemetry tracing** — distributed tracing across API, LLM, sandbox
+- [x] **Prometheus metrics** — HTTP, LLM, tools, sandbox, RAG, streaming, WebSocket metrics
+- [x] **Grafana dashboard** — ready-to-import dashboard JSON + Prometheus scrape config
+
+### Tools
+- [x] **call_api** — HTTP requests without sandbox (SSRF protection, auth redaction)
+- [x] **web_browse** — fetch and extract readable content from URLs (trafilatura)
+- [x] **create_chart** — interactive Vega-Lite charts with dark theme and export
+- [x] **run_sql** — DuckDB queries on CSV/Excel/Parquet files in sandbox
+- [x] **create_ui** — interactive JSON-schema forms (10 field types)
 
 ---
 
@@ -157,36 +184,24 @@ _The reason people open Nexus instead of ChatGPT._
 - [ ] **Fix mermaid re-renders** — memoize mermaid initialization
 - [ ] **Lazy-load heavy deps** — mermaid (~2MB), KaTeX code-split
 - [ ] **Service worker / offline** — queue messages when offline
-- [ ] **Rate limiting** — API request limits per user
+- [ ] **Rate limiting** — Redis-backed per-user limits (basic version exists with in-memory fallback)
 - [ ] **WebSocket reconnection** — auto-reconnect terminal
 - [ ] **SSE error recovery** — retry on stream break
-- [ ] **Health check endpoint** — `/health` and `/ready`
-
-### Security & Production
-- [ ] **CSRF protection** — cookie-based JWT needs CSRF tokens
-- [ ] **Sanitize markdown output** — XSS prevention
-- [ ] **Content Security Policy** — CSP headers
-- [ ] **Audit logging** — who did what when
-- [ ] **Usage quotas with visual budget** — per-user cost limits
-- [ ] **JWT refresh flow** — graceful token expiration
 
 ### Accessibility
 - [ ] **ARIA attributes** — roles, labels, live regions throughout
-- [ ] **Keyboard navigation in sidebar** — arrow-key through conversations
 - [ ] **Focus indicators** — visible custom focus styles
 - [ ] **Reduced-motion support** — respect `prefers-reduced-motion`
 - [ ] **Color contrast audit** — verify palette meets WCAG AA
 
 ### Developer Experience
-- [ ] **Tests** — unit + integration + e2e
-- [ ] **CI/CD pipeline** — GitHub Actions
-- [ ] **Eliminate magic strings** — extract event names to constants
-- [ ] **Shared API types** — generate from backend schema
-- [ ] **Linting & formatting** — ESLint, Prettier, pre-commit hooks
+- [ ] **Tests** — expand to >80% backend / >60% frontend coverage
+- [ ] **E2E tests** — Playwright for critical user journeys
+- [ ] **Shared API types** — generate from backend OpenAPI schema
+- [ ] **Pre-commit hooks** — husky + lint-staged for frontend
 
 ### Analytics & Observability
-- [ ] **Error tracking** — Sentry or equivalent
-- [ ] **Performance monitoring** — Web Vitals, API latency
+- [ ] **Error tracking** — Sentry or GlitchTip integration
 - [ ] **User-facing cost dashboard** — usage breakdown by model, day, conversation
 - [ ] **Model comparison analytics** — compare quality, speed, cost
 
@@ -196,6 +211,5 @@ _The reason people open Nexus instead of ChatGPT._
 - [ ] **Whiteboard mode** — draw sketches, AI interprets
 - [ ] **Prompt chains** — save prompt sequences as reusable workflows
 - [ ] **Snippet library** — save code/prompts/outputs for reuse
-- [ ] **Conversation replay** — play back conversations like recordings
 - [ ] **Response comparison mode** — generate 3 responses side-by-side, pick the best
 - [ ] **Public agent marketplace** — publish and discover community agents
