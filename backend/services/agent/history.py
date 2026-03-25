@@ -5,16 +5,13 @@ import re
 import uuid
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy import text as sa_text
-from sqlalchemy.exc import DBAPIError, ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.logging_config import get_logger
 from backend.models import Conversation, Message
-from backend.vector_db import vector_async_session
 
-logger = get_logger("services.agent.history")
+_VALID_IMAGE_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
 
 
 async def load_conversation_messages(
@@ -53,44 +50,24 @@ async def detect_knowledge(
     conversation_id: uuid.UUID,
     persona: object | None,
 ) -> tuple[bool, list[uuid.UUID]]:
-    """Determine if knowledge bases/documents are available.
+    """Determine if knowledge access was explicitly selected for this request.
 
     Returns (has_knowledge, knowledge_base_ids).
     """
+    del db, conversation_id, persona
+
     knowledge_base_ids: list[uuid.UUID] = []
+    seen: set[uuid.UUID] = set()
+    for kid in conversation.knowledge_base_ids or []:
+        if not kid:
+            continue
+        kb_id = uuid.UUID(kid)
+        if kb_id in seen:
+            continue
+        seen.add(kb_id)
+        knowledge_base_ids.append(kb_id)
 
-    # Check conversation-level KB attachments
-    if conversation.knowledge_base_ids:
-        knowledge_base_ids.extend(uuid.UUID(kid) for kid in conversation.knowledge_base_ids if kid)
-
-    # Check agent persona KB attachments
-    if persona and hasattr(persona, "knowledge_base_ids") and persona.knowledge_base_ids:
-        knowledge_base_ids.extend(uuid.UUID(kid) for kid in persona.knowledge_base_ids if kid)
-
-    # Check if conversation has any scoped documents
-    from backend.models import Document as DocumentModel
-
-    try:
-        async with vector_async_session() as vector_db:
-            conv_doc_count = await vector_db.scalar(
-                select(func.count()).select_from(DocumentModel).where(DocumentModel.conversation_id == conversation_id)
-            )
-    except (ProgrammingError, DBAPIError) as exc:
-        message = str(getattr(exc, "orig", exc)).lower()
-        if "documents" not in message or ("undefinedtable" not in message and "does not exist" not in message):
-            raise
-        logger.warning(
-            "documents_table_missing",
-            error=str(getattr(exc, "orig", exc)),
-            conversation_id=str(conversation_id),
-        )
-        conv_doc_count = 0
-
-    has_knowledge = bool(knowledge_base_ids) or (conv_doc_count or 0) > 0
-    return has_knowledge, knowledge_base_ids
-
-
-_VALID_IMAGE_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
+    return bool(knowledge_base_ids), knowledge_base_ids
 
 
 def _build_multimodal_content(text: str, images: list[dict]) -> list[dict]:

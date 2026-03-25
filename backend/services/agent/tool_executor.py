@@ -474,9 +474,14 @@ async def _knowledge_search(
 
     _rag_sse_event = None
     try:
-        search_kb_ids = ctx.knowledge_base_ids
+        search_kb_ids = list(ctx.knowledge_base_ids)
         if args.get("knowledge_base_ids"):
-            search_kb_ids = [uuid.UUID(kid) for kid in args["knowledge_base_ids"]]
+            requested_kb_ids = [uuid.UUID(kid) for kid in args["knowledge_base_ids"]]
+            allowed_kb_ids = set(ctx.knowledge_base_ids)
+            search_kb_ids = [kid for kid in requested_kb_ids if kid in allowed_kb_ids]
+
+        if not search_kb_ids:
+            raise ValueError("No selected knowledge base is available for this search")
 
         result = await _run_knowledge_search(
             query=args.get("query", ctx.user_message),
