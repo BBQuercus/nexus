@@ -18,6 +18,9 @@ RUN uv sync --locked --no-dev --no-install-project
 # Copy source
 COPY backend/ backend/
 COPY migrations/ migrations/
+COPY scripts/ scripts/
+
+RUN chmod +x /app/scripts/run_backend_migrations.sh
 
 # Health check
 RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
