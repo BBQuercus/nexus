@@ -23,6 +23,7 @@ import ShellLayout from './shell-layout';
 import { useKeyboardShortcuts } from './use-keyboard-shortcuts';
 import { useFocusMode } from './use-focus-mode';
 import { Upload } from 'lucide-react';
+import { startTour, isTourCompleted } from '@/lib/onboarding-tour';
 
 export default function Workspace() {
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
@@ -65,6 +66,22 @@ export default function Workspace() {
     const handler = () => setShortcutsOpen(true);
     window.addEventListener('nexus:open-shortcuts', handler);
     return () => window.removeEventListener('nexus:open-shortcuts', handler);
+  }, []);
+
+  // Onboarding tour: auto-start for new users, listen for manual trigger
+  useEffect(() => {
+    const handleStartTour = () => startTour();
+    window.addEventListener('nexus:start-tour', handleStartTour);
+
+    if (!isTourCompleted()) {
+      const timeout = setTimeout(() => startTour(), 800);
+      return () => {
+        clearTimeout(timeout);
+        window.removeEventListener('nexus:start-tour', handleStartTour);
+      };
+    }
+
+    return () => window.removeEventListener('nexus:start-tour', handleStartTour);
   }, []);
 
   // Auto-close sidebar on mobile when selecting a conversation
@@ -120,20 +137,22 @@ export default function Workspace() {
       onDrop={handleDrop}
     >
       {!focusMode && <HealthBanner />}
-      {!focusMode && <TopBar />}
+      <div className="relative flex flex-col flex-1 min-h-0">
+        {!focusMode && <TopBar />}
 
-      <ShellLayout focusMode={focusMode}>
-        {/* Main chat area */}
-        <div className="relative flex flex-col flex-1 min-w-0">
-          <div className="absolute inset-0 dot-texture opacity-40 pointer-events-none" />
-          <div className="relative flex flex-col flex-1 min-h-0">
-            <PanelErrorBoundary panelName="Chat">
-              {hasConversation ? <ChatMessages /> : <EmptyState />}
-            </PanelErrorBoundary>
-            <ChatInput />
+        <ShellLayout focusMode={focusMode}>
+          {/* Main chat area */}
+          <div className="relative flex flex-col flex-1 min-w-0">
+            <div className="absolute inset-0 dot-texture opacity-40 pointer-events-none" />
+            <div className="relative flex flex-col flex-1 min-h-0">
+              <PanelErrorBoundary panelName="Chat">
+                {hasConversation ? <ChatMessages /> : <EmptyState />}
+              </PanelErrorBoundary>
+              <ChatInput />
+            </div>
           </div>
-        </div>
-      </ShellLayout>
+        </ShellLayout>
+      </div>
 
       {/* Focus mode hint */}
       {focusMode && (
