@@ -400,16 +400,19 @@ export function UserMessageActions({
   onCopy,
   showBranchInput,
   onToggleBranch,
+  onEdit,
 }: {
   message: Message;
   copied: boolean;
   onCopy: () => void;
   showBranchInput: boolean;
   onToggleBranch: () => void;
+  onEdit?: () => void;
 }) {
   return (
     <div className="flex justify-end gap-2 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
       <button onClick={() => {
+        if (onEdit) { onEdit(); return; }
         window.dispatchEvent(new CustomEvent('nexus:edit-message', {
           detail: {
             content: message.content,

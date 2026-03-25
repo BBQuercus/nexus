@@ -128,6 +128,7 @@ export interface CostData {
 export interface Artifact {
   id: string;
   conversationId: string;
+  messageId?: string;
   type: 'code' | 'image' | 'chart' | 'table' | 'document' | 'diagram' | 'form';
   label: string;
   content?: string;

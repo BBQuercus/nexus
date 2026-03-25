@@ -225,7 +225,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "create_ui",
-            "description": "Create an interactive form or questionnaire. The user fills it out and the response is sent back to you as structured data.",
+            "description": "Create an interactive form or questionnaire. The user fills it out and the response is sent back to you as structured data. IMPORTANT: When using this tool, do NOT include explanatory text in your response — the form is self-explanatory and renders inline. Keep any accompanying message to an absolute minimum (e.g. a single short sentence at most) or omit text entirely.",
             "parameters": {
                 "type": "object",
                 "properties": {
