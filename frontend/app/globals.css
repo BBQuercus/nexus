@@ -234,10 +234,11 @@ pre code {
 }
 
 /* Staggered fade children — supports up to 12 items.
-   Children start hidden via opacity:0 and animate in with delays. */
+   Children start hidden and fade in with staggered delays.
+   Uses opacity-only animation to avoid layout shift in flex-wrap containers. */
 .stagger-children > * {
   opacity: 0;
-  animation: fadeInUp 0.3s ease-out forwards;
+  animation: fadeIn 0.25s ease-out forwards;
 }
 .stagger-children > *:nth-child(1) { animation-delay: 0.03s; }
 .stagger-children > *:nth-child(2) { animation-delay: 0.06s; }
