@@ -171,6 +171,16 @@ async def list_conversations(
     query = query.offset((page - 1) * limit).limit(limit)
     result = await db.execute(query)
     conversations = result.scalars().all()
+    conversation_ids = [c.id for c in conversations]
+
+    message_counts: dict[uuid.UUID, int] = {}
+    if conversation_ids:
+        count_result = await db.execute(
+            select(Message.conversation_id, func.count(Message.id))
+            .where(Message.conversation_id.in_(conversation_ids))
+            .group_by(Message.conversation_id)
+        )
+        message_counts = {conversation_id: int(message_count) for conversation_id, message_count in count_result.all()}
 
     return {
         "conversations": [
@@ -181,6 +191,7 @@ async def list_conversations(
                 "agent_mode": c.agent_mode,
                 "sandbox_id": c.sandbox_id,
                 "project_id": str(c.project_id) if c.project_id else None,
+                "message_count": message_counts.get(c.id, 0),
                 "created_at": c.created_at.isoformat() if c.created_at else None,
                 "updated_at": c.updated_at.isoformat() if c.updated_at else None,
             }
