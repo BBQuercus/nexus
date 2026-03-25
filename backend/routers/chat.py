@@ -415,7 +415,7 @@ async def delete_conversation(
     await db.execute(delete(Artifact).where(Artifact.conversation_id == conversation_id))
     await db.execute(delete(UsageLog).where(UsageLog.conversation_id == conversation_id))
     await db.execute(delete(Message).where(Message.conversation_id == conversation_id))
-    await db.delete(conv)
+    await db.execute(delete(Conversation).where(Conversation.id == conversation_id, Conversation.user_id == user_id))
     await db.commit()
     await record_audit_event(
         AuditAction.CONVERSATION_DELETED,
