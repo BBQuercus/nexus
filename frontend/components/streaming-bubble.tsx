@@ -9,6 +9,7 @@ import VegaChart from './vega-chart';
 import FormRenderer from './form-renderer';
 import MarkdownContent from './markdown-content';
 import RunComparison from './run-comparison';
+import { buildFormSubmissionMessage } from '@/lib/form-submission';
 
 function StreamingExecBlock({ tool }: { tool: ToolCall }) {
   const lang = tool.language || tool.name || 'code';
@@ -263,8 +264,9 @@ function BranchContent({ state, showCursor }: { state: StreamingState; showCurso
       ))}
       {state.forms.map((form, i) => (
         <FormRenderer key={i} spec={form} onSubmit={(data) => {
-          const formattedResponse = `Form response for "${form.title}":\n\`\`\`json\n${JSON.stringify(data, null, 2)}\n\`\`\``;
-          window.dispatchEvent(new CustomEvent('nexus:send-message', { detail: { text: formattedResponse } }));
+          window.dispatchEvent(new CustomEvent('nexus:send-message', {
+            detail: { text: buildFormSubmissionMessage(form.title, data) },
+          }));
         }} />
       ))}
       {state.content && (
