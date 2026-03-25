@@ -612,6 +612,22 @@ export function useChatSubmit({ textareaRef }: UseChatSubmitOptions): UseChatSub
     return () => window.removeEventListener('nexus:edit-message', handler);
   }, [setBranchingFromId, textareaRef]);
 
+  // Handle form submissions and other programmatic message sends
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const text = (e as CustomEvent).detail?.text as string | undefined;
+      if (!text || isStreaming) return;
+      setContent(text);
+      // Trigger send on next tick after content is set
+      setTimeout(() => {
+        const sendBtn = document.querySelector('[data-send-button]') as HTMLButtonElement;
+        sendBtn?.click();
+      }, 50);
+    };
+    window.addEventListener('nexus:send-message', handler);
+    return () => window.removeEventListener('nexus:send-message', handler);
+  }, [isStreaming]);
+
   // Listen for file drops from the workspace-level drop zone
   useEffect(() => {
     const handler = (e: Event) => {
