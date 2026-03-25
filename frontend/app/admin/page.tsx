@@ -23,18 +23,10 @@ export default function AdminPage() {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>('overview');
   const user = useStore((s) => s.user);
-  const [auth, setAuth] = useState<boolean | null>(user ? !!user.isAdmin : null);
 
-  useEffect(() => {
-    if (user) { setAuth(!!user.isAdmin); return; }
-    api.getCurrentUser()
-      .then((u) => setAuth(!!u.isAdmin))
-      .catch(() => setAuth(false));
-  }, [user]);
+  const isAdmin = user?.role === 'admin' || user?.role === 'org_admin';
 
-  if (auth === null) return <div className="h-screen bg-bg flex items-center justify-center"><div className="w-5 h-5 border-2 border-accent border-t-transparent rounded-full animate-spin" /></div>;
-
-  if (!auth) return (
+  if (!isAdmin) return (
     <div className="h-screen bg-bg flex flex-col items-center justify-center gap-3">
       <Shield size={32} className="text-text-tertiary" />
       <p className="text-sm text-text-tertiary">Admin access required</p>
@@ -166,7 +158,6 @@ function UsersTab() {
   useEffect(() => {
     api.getAdminUsers()
       .then((res) => {
-        // API returns {items: [...]} or direct array
         const arr = Array.isArray(res) ? res : ((res as Record<string, unknown>).items as Record<string, unknown>[]) || [];
         setUsers(arr);
       })
@@ -174,11 +165,12 @@ function UsersTab() {
       .finally(() => setLoading(false));
   }, []);
 
-  const toggleAdmin = async (userId: string, isAdmin: boolean) => {
+  const toggleAdmin = async (userId: string, currentRole: string) => {
     setTogglingId(userId);
+    const newRole = currentRole === 'admin' ? 'editor' : 'admin';
     try {
-      await api.updateAdminUser(userId, { is_admin: !isAdmin });
-      setUsers((prev) => prev.map((u) => s(u.id) === userId ? { ...u, is_admin: !isAdmin } : u));
+      await api.updateAdminUser(userId, { role: newRole });
+      setUsers((prev) => prev.map((u) => s(u.id) === userId ? { ...u, role: newRole } : u));
     } catch {} finally { setTogglingId(null); }
   };
 
@@ -199,12 +191,12 @@ function UsersTab() {
           <div className="text-[10px] text-text-tertiary font-mono">{fmt(u.message_count)} msgs</div>
           <div className="text-[10px] text-text-tertiary">{fmtDate(u.last_seen)}</div>
           <button
-            onClick={() => toggleAdmin(s(u.id), !!u.is_admin)}
+            onClick={() => toggleAdmin(s(u.id), s(u.role))}
             disabled={togglingId === s(u.id)}
             className="cursor-pointer disabled:opacity-50"
           >
-            <div className={`relative w-8 h-[18px] rounded-full transition-colors ${u.is_admin ? 'bg-accent' : 'bg-surface-2 border border-border-default'}`}>
-              <div className={`absolute top-[3px] w-3 h-3 rounded-full bg-white transition-all ${u.is_admin ? 'left-[14px]' : 'left-[3px] opacity-50'}`} />
+            <div className={`relative w-8 h-[18px] rounded-full transition-colors ${s(u.role) === 'admin' || s(u.role) === 'org_admin' ? 'bg-accent' : 'bg-surface-2 border border-border-default'}`}>
+              <div className={`absolute top-[3px] w-3 h-3 rounded-full bg-white transition-all ${s(u.role) === 'admin' || s(u.role) === 'org_admin' ? 'left-[14px]' : 'left-[3px] opacity-50'}`} />
             </div>
           </button>
         </div>

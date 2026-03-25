@@ -32,6 +32,7 @@ function getPersistedState(): Partial<AppState> {
 
 const initialState: AppState = {
   user: null,
+  authStatus: 'loading',
   conversations: [],
   activeConversationId: null,
   messages: [],

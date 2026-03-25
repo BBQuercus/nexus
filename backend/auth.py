@@ -106,11 +106,6 @@ def create_refresh_token(user_id: str, email: str) -> str:
     return jwt.encode(payload, settings.SERVER_SECRET, algorithm=settings.JWT_ENCODING_ALGORITHM)
 
 
-# Keep backwards compat alias
-def create_session_token(user_id: str, email: str) -> str:
-    return create_access_token(user_id, email)
-
-
 def generate_csrf_token(session_id: str) -> str:
     """Generate a CSRF token tied to the user's session."""
     raw = f"{session_id}:{settings.SERVER_SECRET}"
@@ -238,6 +233,7 @@ async def callback(code: str, db: AsyncSession = Depends(get_db)):
             email=workos_user.email,
             name=workos_user.first_name or workos_user.email.split("@")[0],
             avatar_url=getattr(workos_user, "profile_picture_url", None),
+            role="editor",
         )
         db.add(user)
         await db.flush()
@@ -258,7 +254,7 @@ async def callback(code: str, db: AsyncSession = Depends(get_db)):
     refresh_token = create_refresh_token(str(user.id), user.email)
 
     frontend_url = _get_frontend_url()
-    response = RedirectResponse(url=f"{frontend_url}/auth/callback")
+    response = RedirectResponse(url=frontend_url)
     _set_auth_cookie(response, "session", access_token, settings.JWT_ACCESS_TOKEN_MINUTES * 60)
     _set_auth_cookie(response, "refresh_token", refresh_token, settings.JWT_REFRESH_TOKEN_DAYS * 86400)
 
@@ -340,8 +336,6 @@ async def me(
         "email": user.email,
         "name": user.name,
         "avatarUrl": user.avatar_url,
-        "isAdmin": user.is_admin,
         "role": user.role or ("admin" if user.is_admin else "editor"),
-        "csrfToken": generate_csrf_token(str(user.id)),
         "created_at": user.created_at.isoformat() if user.created_at else None,
     }

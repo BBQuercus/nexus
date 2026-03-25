@@ -4,7 +4,6 @@ import { useState, useRef, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useStore } from '@/lib/store';
 import { logout as apiLogout } from '@/lib/api';
-import { clearToken } from '@/lib/auth';
 import { LogOut, User, Keyboard, Shield, Users, BookOpen, Home, Compass } from 'lucide-react';
 
 export default function UserDropdown({ compact = false }: { compact?: boolean }) {
@@ -42,7 +41,6 @@ export default function UserDropdown({ compact = false }: { compact?: boolean })
     });
     if (!confirmed) return;
     try { await apiLogout(); } catch {}
-    clearToken();
     useStore.getState().reset();
     window.location.href = '/login';
   };
@@ -146,7 +144,7 @@ export default function UserDropdown({ compact = false }: { compact?: boolean })
               <BookOpen size={13} className="text-text-tertiary shrink-0" />
               <span className="flex-1 text-left">Knowledge Bases</span>
             </button>
-            {user?.isAdmin && (
+            {(user?.role === 'admin' || user?.role === 'org_admin') && (
               <button
                 type="button"
                 onClick={() => navigateTo('/admin')}

@@ -40,8 +40,6 @@ vi.mock('@/lib/api', () => ({
 
 // Mock auth module
 vi.mock('@/lib/auth', () => ({
-  clearToken: vi.fn(),
-  getToken: vi.fn(() => null),
   getCsrfToken: vi.fn(() => null),
 }))
 

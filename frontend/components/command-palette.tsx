@@ -4,7 +4,6 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { useStore } from '@/lib/store';
 import { MODELS } from '@/lib/types';
 import { logout as apiLogout } from '@/lib/api';
-import { clearToken } from '@/lib/auth';
 import { toast } from './toast';
 import { Search, Terminal, FolderOpen, Eye, Layers, LogOut, Users, Plus, MessageSquare, Cpu, Trash2, HelpCircle, Download, ClipboardCopy, RefreshCw, Pin, Hash, GitCompare, ScrollText, FileText } from 'lucide-react';
 import { ProviderLogo } from './provider-logos';
@@ -132,7 +131,7 @@ export default function CommandPalette() {
       const ta = document.querySelector('textarea') as HTMLTextAreaElement;
       if (ta) { ta.focus(); const nativeSet = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set; nativeSet?.call(ta, '/compare '); ta.dispatchEvent(new Event('input', { bubbles: true })); }
     }},
-    { id: 'logout', label: 'Log Out', icon: <LogOut size={13} />, category: 'Account', handler: async () => { try { await apiLogout(); } catch {} clearToken(); useStore.getState().reset(); window.location.href = '/login'; } },
+    { id: 'logout', label: 'Log Out', icon: <LogOut size={13} />, category: 'Account', handler: async () => { try { await apiLogout(); } catch {} useStore.getState().reset(); window.location.href = '/login'; } },
   ], [setActiveModel, setRightPanelTab, setRightPanelOpen, rightPanelOpen]);
 
   // Build conversation search results
@@ -191,7 +190,7 @@ export default function CommandPalette() {
   let globalIndex = 0;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh] sm:pt-[20vh] px-3 sm:px-0">
+    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh] md:pt-[20vh] px-3 md:px-0">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={close} />
       <div className="relative w-full max-w-lg bg-surface-0 border border-border-default rounded-lg shadow-2xl overflow-hidden animate-fade-in-up" style={{ animationDuration: '0.15s' }}>
         <div className="flex items-center gap-2 px-4 py-3 border-b border-border-default">

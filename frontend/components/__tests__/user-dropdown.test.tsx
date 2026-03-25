@@ -31,7 +31,7 @@ vi.mock('@/lib/api', () => ({
 }))
 
 vi.mock('@/lib/auth', () => ({
-  clearToken: vi.fn(),
+  getCsrfToken: vi.fn(() => null),
 }))
 
 describe('UserDropdown', () => {
@@ -43,7 +43,7 @@ describe('UserDropdown', () => {
       id: 'user-1',
       email: 'user@example.com',
       name: 'Test User',
-      isAdmin: true,
+      role: 'admin',
     })
   })
 

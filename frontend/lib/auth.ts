@@ -1,51 +1,13 @@
 import { toApiUrl } from './runtime';
 
-const TOKEN_KEY = 'nexus_session';
-const REFRESH_TOKEN_KEY = 'nexus_refresh_token';
-const CSRF_TOKEN_KEY = 'nexus_csrf_token';
-
-export function getToken(): string | null {
-  return null;
-}
-
-export function setToken(_token: string): void {
-}
-
-export function getRefreshToken(): string | null {
-  return null;
-}
-
-export function setRefreshToken(_token: string): void {
-}
-
-export function clearToken(): void {
-  if (typeof window === 'undefined') return;
-  localStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem(REFRESH_TOKEN_KEY);
-  localStorage.removeItem(CSRF_TOKEN_KEY);
-}
-
 export function getLoginUrl(): string {
   return toApiUrl('/auth/login');
 }
 
 export function getCsrfToken(): string | null {
-  if (typeof window !== 'undefined') {
-    const stored = localStorage.getItem(CSRF_TOKEN_KEY);
-    if (stored) return stored;
-  }
   if (typeof document === 'undefined') return null;
   const csrfMatch = document.cookie.match(/csrf_token=([^;]+)/);
   return csrfMatch?.[1] || null;
-}
-
-export function setCsrfToken(token: string | null): void {
-  if (typeof window === 'undefined') return;
-  if (token) {
-    localStorage.setItem(CSRF_TOKEN_KEY, token);
-    return;
-  }
-  localStorage.removeItem(CSRF_TOKEN_KEY);
 }
 
 /**
@@ -62,7 +24,6 @@ export async function refreshAccessToken(): Promise<boolean> {
     });
 
     if (!resp.ok) {
-      clearToken();
       return false;
     }
 

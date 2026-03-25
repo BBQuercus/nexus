@@ -47,7 +47,7 @@ from backend.routers.tts import router as tts_router
 from backend.routers.users import router as users_router
 from backend.services import sandbox as sandbox_service
 from backend.services.audit import flush_audit_buffer
-from backend.telemetry import setup_telemetry
+from backend.telemetry import active_websockets, errors_total, setup_telemetry
 from backend.vector_db import ensure_vector_schema
 
 try:
@@ -133,6 +133,19 @@ async def lifespan(app: FastAPI):
                 await conn.execute(sa_text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {col_type}"))
         except Exception:
             pass  # table might not exist yet either — harmless
+
+    # Backfill role from is_admin for users that don't have a role set yet
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(
+                sa_text("UPDATE users SET role = 'admin' WHERE is_admin = true AND (role IS NULL OR role = '')")
+            )
+            await conn.execute(
+                sa_text("UPDATE users SET role = 'editor' WHERE (is_admin = false OR is_admin IS NULL) AND (role IS NULL OR role = '')")
+            )
+        logger.info("role_backfill_complete")
+    except Exception as e:
+        logger.warning("role_backfill_failed", error=str(e))
 
     logger.info("database_tables_ensured", pgvector=pgvector_ok)
     await get_redis()
@@ -492,14 +505,17 @@ def _validate_ws_session(cookie_header: str | None) -> uuid.UUID | None:
     """Extract and validate user_id from session cookie in WebSocket headers."""
     if not cookie_header:
         return None
-    cookies = {}
-    for item in cookie_header.split(";"):
-        item = item.strip()
-        if "=" in item:
-            key, value = item.split("=", 1)
-            cookies[key.strip()] = value.strip()
 
-    token = cookies.get("session")
+    from http.cookies import SimpleCookie
+
+    sc = SimpleCookie()
+    try:
+        sc.load(cookie_header)
+    except Exception:
+        return None
+
+    morsel = sc.get("session")
+    token = morsel.value if morsel else None
     if not token:
         return None
     try:
@@ -540,6 +556,7 @@ async def sandbox_terminal(websocket: WebSocket, sandbox_id: str, token: str | N
         return
 
     await websocket.accept()
+    active_websockets.inc()
     logger.info("ws_connected", sandbox_id=sandbox_id, user_id=str(user_id))
 
     try:
@@ -581,8 +598,11 @@ async def sandbox_terminal(websocket: WebSocket, sandbox_id: str, token: str | N
             elif message.get("type") == "ping":
                 await websocket.send_json({"type": "pong"})
     except WebSocketDisconnect:
+        active_websockets.dec()
         logger.info("ws_disconnected", sandbox_id=sandbox_id)
     except Exception as e:
+        active_websockets.dec()
+        errors_total.labels(error_type="websocket_error", component="ws").inc()
         logger.error("ws_error", sandbox_id=sandbox_id, error=str(e))
         with contextlib.suppress(Exception):
             await websocket.close()

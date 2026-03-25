@@ -1,11 +1,19 @@
 import type { Metadata, Viewport } from 'next';
-import 'katex/dist/katex.min.css';
 import './globals.css';
 import { SkipNav } from '@/components/accessibility';
+import AuthProvider from '@/components/auth-provider';
 
 export const metadata: Metadata = {
   title: 'Nexus',
   description: 'AI-powered workspace with sandboxed code execution',
+  icons: {
+    apple: '/apple-touch-icon.png',
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'Nexus',
+  },
 };
 
 export const viewport: Viewport = {
@@ -20,7 +28,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body className="min-h-screen overflow-hidden">
         <SkipNav />
-        {children}
+        <AuthProvider>
+          {children}
+        </AuthProvider>
       </body>
     </html>
   );
