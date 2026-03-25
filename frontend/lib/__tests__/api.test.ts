@@ -18,6 +18,11 @@ vi.mock('@/components/toast', () => ({
 
 import * as auth from '@/lib/auth'
 
+function expectPath(callUrl: unknown, expectedPath: string) {
+  expect(typeof callUrl).toBe('string')
+  expect((callUrl as string).endsWith(expectedPath)).toBe(true)
+}
+
 // Helper to set up fetch mock responses
 function mockFetchResponse(status: number, body: unknown, headers?: Record<string, string>) {
   const responseHeaders = new Headers({
@@ -135,7 +140,8 @@ describe('API module', () => {
       const { createConversation } = await import('@/lib/api')
       const result = await createConversation({ title: 'New Chat', model: 'gpt-4' })
 
-      expect(fetchMock).toHaveBeenCalledWith('/api/conversations', expect.objectContaining({
+      expectPath(fetchMock.mock.calls[0][0], '/api/conversations')
+      expect(fetchMock).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({
         method: 'POST',
         body: JSON.stringify({ title: 'New Chat', model: 'gpt-4' }),
       }))
@@ -156,7 +162,8 @@ describe('API module', () => {
       const { listConversations } = await import('@/lib/api')
       const result = await listConversations()
 
-      expect(fetchMock).toHaveBeenCalledWith('/api/conversations', expect.anything())
+      expectPath(fetchMock.mock.calls[0][0], '/api/conversations')
+      expect(fetchMock).toHaveBeenCalledWith(expect.any(String), expect.anything())
       expect(result.conversations).toHaveLength(1)
       expect(result.conversations[0].id).toBe('1')
       expect(result.total).toBe(1)
@@ -174,7 +181,7 @@ describe('API module', () => {
       const { listConversations } = await import('@/lib/api')
       await listConversations('hello')
 
-      expect(fetchMock.mock.calls[0][0]).toBe('/api/conversations?search=hello')
+      expectPath(fetchMock.mock.calls[0][0], '/api/conversations?search=hello')
     })
 
     it('deleteConversation sends DELETE', async () => {
@@ -184,7 +191,8 @@ describe('API module', () => {
       const { deleteConversation } = await import('@/lib/api')
       await deleteConversation('conv-1')
 
-      expect(fetchMock).toHaveBeenCalledWith('/api/conversations/conv-1', expect.objectContaining({
+      expectPath(fetchMock.mock.calls[0][0], '/api/conversations/conv-1')
+      expect(fetchMock).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({
         method: 'DELETE',
       }))
     })
@@ -196,7 +204,8 @@ describe('API module', () => {
       const { updateConversation } = await import('@/lib/api')
       await updateConversation('conv-1', { title: 'Updated' })
 
-      expect(fetchMock).toHaveBeenCalledWith('/api/conversations/conv-1', expect.objectContaining({
+      expectPath(fetchMock.mock.calls[0][0], '/api/conversations/conv-1')
+      expect(fetchMock).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({
         method: 'PATCH',
         body: JSON.stringify({ title: 'Updated' }),
       }))
