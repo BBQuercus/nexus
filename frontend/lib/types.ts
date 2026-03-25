@@ -3,7 +3,7 @@ export interface User {
   email: string;
   name: string;
   avatarUrl?: string;
-  isAdmin?: boolean;
+  role: 'viewer' | 'editor' | 'admin' | 'org_admin';
 }
 
 export interface Conversation {
@@ -262,7 +262,7 @@ export interface FileNode {
   children?: FileNode[];
 }
 
-export type ModelProvider = 'anthropic' | 'openai' | 'meta' | 'microsoft' | 'xai' | 'moonshot' | 'deepseek';
+export type ModelProvider = 'anthropic' | 'openai' | 'meta' | 'microsoft' | 'xai' | 'moonshot' | 'deepseek' | 'mistral';
 
 export interface ModelOption {
   name: string;
@@ -287,6 +287,8 @@ export const MODELS: ModelOption[] = [
   { name: 'Kimi K2.5', id: 'azure_ai/kimi-k2.5', provider: 'moonshot' },
   { name: 'DeepSeek V3.2', id: 'azure_ai/deepseek-v3.2', provider: 'deepseek' },
   { name: 'Grok 4 Fast Reasoning', id: 'azure_ai/grok-4-fast-reasoning', provider: 'xai' },
+  { name: 'Phi-4', id: 'azure_ai/Phi-4', provider: 'microsoft' },
+  { name: 'Mistral Large 3', id: 'azure_ai/mistral-large-3', provider: 'mistral' },
   { name: 'Claude Opus 4.1', id: 'azure_ai/claude-opus-4-1-swc', provider: 'anthropic', legacy: true },
   { name: 'GPT-5', id: 'gpt-5-gwc', provider: 'openai', legacy: true },
   { name: 'GPT-5 Mini', id: 'gpt-5-mini-gwc', provider: 'openai', legacy: true },
