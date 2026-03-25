@@ -2,51 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import {
-  Zap, BarChart3, Code2, Database, Globe, Terminal, Cpu,
-  Sparkles, ClipboardList, Brain, Search, GitCompare,
-  Image, Blocks, ArrowRight,
+  Zap, BarChart3, Code2, Database, Globe, Terminal,
+  ClipboardList, Brain, Search, GitCompare, Image, Blocks,
 } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { IMAGE_MODELS, MODELS } from '@/lib/types';
-
-const ACTION_CARDS = [
-  {
-    icon: <Terminal size={20} />,
-    title: 'Sandbox & Execute',
-    description: 'Run Python, Node, SQL — inspect outputs, generate artifacts, and iterate in a live environment',
-    prompt: 'Spin up a sandbox and help me work through a real task end to end. Use Python or Node as needed, inspect files, run code, and produce useful artifacts I can review.',
-    color: 'text-emerald-400',
-    bg: 'bg-emerald-400/5 hover:bg-emerald-400/10',
-    border: 'border-emerald-400/10 hover:border-emerald-400/20',
-  },
-  {
-    icon: <Code2 size={20} />,
-    title: 'Build & Preview',
-    description: 'Create apps with live preview, file diffs, and hot-reload — ship from chat',
-    prompt: 'Help me build a polished app prototype. Set up the project, implement the first version, and keep the app ready to preview and iterate on quickly.',
-    color: 'text-blue-400',
-    bg: 'bg-blue-400/5 hover:bg-blue-400/10',
-    border: 'border-blue-400/10 hover:border-blue-400/20',
-  },
-  {
-    icon: <Search size={20} />,
-    title: 'Research & Ground',
-    description: 'Web search, knowledge bases, and cited sources — answers you can trace back',
-    prompt: 'Help me answer a complex question using grounded sources. Search where needed, use knowledge bases if available, and clearly cite the evidence behind the answer.',
-    color: 'text-purple-400',
-    bg: 'bg-purple-400/5 hover:bg-purple-400/10',
-    border: 'border-purple-400/10 hover:border-purple-400/20',
-  },
-  {
-    icon: <ClipboardList size={20} />,
-    title: 'Forms & Workflows',
-    description: 'AI builds interactive forms, surveys, and decision frameworks — you fill them in',
-    prompt: 'Create an interactive form that helps me make a decision. Include rating scales, conditional fields, and give me a structured recommendation based on my answers.',
-    color: 'text-amber-400',
-    bg: 'bg-amber-400/5 hover:bg-amber-400/10',
-    border: 'border-amber-400/10 hover:border-amber-400/20',
-  },
-];
 
 interface Capability {
   label: string;
@@ -109,106 +69,16 @@ const RETURNING_STARTERS = [
 ];
 
 export default function EmptyState() {
-  const conversations = useStore((s) => s.conversations);
   const [loaded, setLoaded] = useState(false);
 
-  // Wait one tick for sidebar to fetch conversations before deciding which screen to show.
-  // This prevents the WelcomeScreen from flashing when the user has conversations.
+  // Wait one tick for sidebar state to settle before rendering.
   useEffect(() => {
     const timer = setTimeout(() => setLoaded(true), 50);
     return () => clearTimeout(timer);
   }, []);
 
   if (!loaded) return <div className="flex-1" />;
-
-  const isFirstTime = conversations.length === 0;
-  if (isFirstTime) return <WelcomeScreen />;
   return <ReturningUserScreen />;
-}
-
-function WelcomeScreen() {
-  const setPendingPrompt = useStore((s) => s.setPendingPrompt);
-  const capabilities = makeCapabilities();
-
-  const handleCapability = (cap: Capability) => {
-    if (cap.action) {
-      cap.action();
-    } else {
-      setPendingPrompt(cap.prompt);
-    }
-  };
-
-  return (
-    <div className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 gap-6 sm:gap-8 overflow-y-auto py-6 sm:py-8 cascade-sections">
-      {/* Hero */}
-      <div className="relative flex flex-col items-center gap-4">
-        <div className="relative">
-          <div className="absolute inset-0 w-16 h-16 -m-3 rounded-lg bg-accent/8 animate-pulse" />
-          <div className="relative flex items-center gap-2.5 z-10">
-            <Zap size={28} className="text-accent" />
-            <span className="text-2xl sm:text-3xl font-bold tracking-[0.15em] uppercase">Nexus</span>
-          </div>
-        </div>
-
-        <div className="relative w-40 h-px">
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-accent/40 to-transparent" />
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-accent to-transparent opacity-60 animate-pulse" />
-        </div>
-
-        <p className="text-text-secondary text-sm text-center max-w-md">
-          Your AI workspace — agents, sandboxed execution, interactive tools, and grounded knowledge.
-        </p>
-      </div>
-
-      {/* Action Cards — 2x2 grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-2xl">
-        {ACTION_CARDS.map((card) => (
-          <button
-            key={card.title}
-            onClick={() => setPendingPrompt(card.prompt)}
-            className={`relative flex items-start gap-3 p-4 ${card.bg} border ${card.border} rounded-lg text-left cursor-pointer transition-all group overflow-hidden`}
-          >
-            <span className="absolute left-0 top-0 bottom-0 w-0.5 rounded-r bg-current scale-y-0 group-hover:scale-y-100 transition-transform origin-top" style={{ color: 'inherit' }} />
-            <span className={`${card.color} mt-0.5 shrink-0`}>{card.icon}</span>
-            <div className="min-w-0">
-              <div className="text-sm font-medium text-text-primary flex items-center gap-1.5">
-                {card.title}
-                <ArrowRight size={12} className="opacity-0 -translate-x-1 group-hover:opacity-50 group-hover:translate-x-0 transition-all" />
-              </div>
-              <div className="text-[11px] text-text-tertiary mt-0.5 leading-relaxed">{card.description}</div>
-            </div>
-          </button>
-        ))}
-      </div>
-
-      {/* Capabilities */}
-      <div className="flex flex-wrap justify-center gap-1.5 max-w-2xl">
-        {capabilities.map((t) => (
-          <button
-            key={t.label}
-            onClick={() => handleCapability(t)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] tracking-wide uppercase bg-surface-1 border border-border-default rounded-lg text-text-tertiary hover:text-accent hover:border-accent/30 transition-all cursor-pointer glow-hover"
-          >
-            {t.icon}
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Quick suggestion chips */}
-      <div className="flex flex-wrap justify-center gap-1.5 max-w-lg">
-        {QUICK_SUGGESTIONS.map((s) => (
-          <button
-            key={s}
-            onClick={() => setPendingPrompt(s)}
-            className="px-2.5 py-1 text-[11px] bg-surface-0 border border-border-default rounded-full text-text-tertiary hover:text-text-secondary hover:border-border-focus transition-all cursor-pointer"
-          >
-            {s}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
 }
 
 function ReturningUserScreen() {
@@ -243,6 +113,18 @@ function ReturningUserScreen() {
         <p className="text-text-tertiary text-xs tracking-[0.2em] uppercase">
           Agents, tools, and sandboxed execution
         </p>
+      </div>
+
+      <div className="flex flex-wrap justify-center gap-1.5 max-w-lg">
+        {QUICK_SUGGESTIONS.map((s) => (
+          <button
+            key={s}
+            onClick={() => setPendingPrompt(s)}
+            className="px-2.5 py-1 text-[11px] bg-surface-0 border border-border-default rounded-full text-text-tertiary hover:text-text-secondary hover:border-border-focus transition-all cursor-pointer"
+          >
+            {s}
+          </button>
+        ))}
       </div>
 
       {/* Capabilities */}
