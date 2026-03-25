@@ -62,7 +62,7 @@ async def list_user_jobs(
         except ValueError as e:
             raise HTTPException(status_code=400, detail=f"Invalid status: {status}") from e
 
-    jobs = list_jobs(user_id=str(user_id), status=job_status)
+    jobs = await list_jobs(user_id=str(user_id), status=job_status)
     return [_job_to_dict(j) for j in jobs]
 
 
@@ -72,7 +72,7 @@ async def get_job_status(
     user_id: uuid.UUID = Depends(get_current_user),
 ):
     """Get status of a specific job."""
-    job = get_job(job_id)
+    job = await get_job(job_id)
     if not job or job.user_id != str(user_id):
         raise HTTPException(status_code=404, detail="Job not found")
     return _job_to_dict(job)
@@ -84,7 +84,7 @@ async def cancel_user_job(
     user_id: uuid.UUID = Depends(get_current_user),
 ):
     """Cancel a pending job."""
-    job = get_job(job_id)
+    job = await get_job(job_id)
     if not job or job.user_id != str(user_id):
         raise HTTPException(status_code=404, detail="Job not found")
 
