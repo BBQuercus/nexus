@@ -36,6 +36,9 @@ test-backend:
 test-frontend:
   cd frontend && npx vitest run --reporter=verbose --passWithNoTests
 
+test-e2e *args:
+  cd frontend && npx playwright test {{args}}
+
 ci: lint type-check test build
 
 build:
