@@ -117,6 +117,33 @@ def generate_csrf_token(session_id: str) -> str:
     return hashlib.sha256(raw.encode()).hexdigest()[:32]
 
 
+def _get_user_id_from_session_cookie(request: Request) -> uuid.UUID | None:
+    token = request.cookies.get("session")
+    if not token:
+        return None
+
+    try:
+        payload = jwt.decode(
+            token,
+            settings.SERVER_SECRET,
+            algorithms=[settings.JWT_ENCODING_ALGORITHM],
+        )
+    except (jwt.InvalidTokenError, ValueError):
+        return None
+
+    if payload.get("type", "access") != "access":
+        return None
+
+    user_id = payload.get("sub")
+    if not user_id:
+        return None
+
+    try:
+        return uuid.UUID(user_id)
+    except ValueError:
+        return None
+
+
 async def get_current_user(request: Request) -> uuid.UUID:
     """FastAPI dependency: extracts JWT from Authorization header or session cookie."""
     token = None
@@ -164,12 +191,16 @@ async def validate_csrf(request: Request) -> None:
     if request.method in ("GET", "HEAD", "OPTIONS"):
         return  # Safe methods don't need CSRF
 
-    csrf_cookie = request.cookies.get("csrf_token")
     csrf_header = request.headers.get("X-CSRF-Token", "")
-
-    if not csrf_cookie or not csrf_header:
+    if not csrf_header:
         raise HTTPException(status_code=403, detail="CSRF token missing")
-    if csrf_cookie != csrf_header:
+
+    user_id = _get_user_id_from_session_cookie(request)
+    if user_id is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    expected_csrf = generate_csrf_token(str(user_id))
+    if csrf_header != expected_csrf:
         raise HTTPException(status_code=403, detail="CSRF token mismatch")
 
 
@@ -311,5 +342,6 @@ async def me(
         "avatarUrl": user.avatar_url,
         "isAdmin": user.is_admin,
         "role": user.role or ("admin" if user.is_admin else "editor"),
+        "csrfToken": generate_csrf_token(str(user.id)),
         "created_at": user.created_at.isoformat() if user.created_at else None,
     }

@@ -1,5 +1,5 @@
 import type { Conversation, Message, Artifact, AgentPersona, User, FileNode, ConversationTree, KnowledgeBase, KBDocument, Citation, Project, SearchResult } from './types';
-import { clearToken, getCsrfToken, getToken } from './auth';
+import { clearToken, getCsrfToken, getToken, setCsrfToken } from './auth';
 import { toApiUrl } from './runtime';
 
 export class ApiError extends Error {
@@ -587,11 +587,15 @@ export async function getAdminErrors(page?: number): Promise<Record<string, unkn
 // ── User ──
 
 export async function getCurrentUser(): Promise<User> {
-  return apiFetch<User>('/auth/me');
+  const raw = await apiFetch<User & { csrfToken?: string }>('/auth/me');
+  setCsrfToken(raw.csrfToken || null);
+  return raw;
 }
 
 export async function logout(): Promise<void> {
-  return apiFetch<void>('/auth/logout', { method: 'POST' });
+  const result = await apiFetch<void>('/auth/logout', { method: 'POST' });
+  setCsrfToken(null);
+  return result;
 }
 
 // ── Knowledge Bases ──
