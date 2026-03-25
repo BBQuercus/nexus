@@ -6,6 +6,7 @@ from typing import Any
 
 from backend.config import settings
 from backend.logging_config import get_logger
+from backend.telemetry import active_sandboxes, errors_total, sandbox_operations_total
 
 logger = get_logger("sandbox")
 
@@ -84,6 +85,8 @@ async def create_sandbox(template: str = "python-data-science", labels: dict | N
 
     logger.info(f"Creating sandbox with template={template}")
     sandbox = await asyncio.to_thread(daytona.create, params)
+    sandbox_operations_total.labels(operation="create", status="success").inc()
+    active_sandboxes.inc()
     logger.info(f"Sandbox created: {sandbox.id}")
 
     # Create output directory
@@ -121,12 +124,15 @@ async def execute_code(sandbox, language: str, code: str) -> ExecutionResult:
         )
     except TimeoutError:
         logger.warning("sandbox_execution_timeout", sandbox_id=sandbox.id, language=language, code_length=len(code))
+        sandbox_operations_total.labels(operation="execute", status="timeout").inc()
+        errors_total.labels(error_type="execution_timeout", component="sandbox").inc()
         return ExecutionResult(
             stdout="",
             stderr="Execution timed out after 2 minutes. Consider breaking your code into smaller steps or optimizing long-running operations.",
             exit_code=124,
         )
 
+    sandbox_operations_total.labels(operation="execute", status="success").inc()
     exit_code = getattr(result, "exit_code", 0)
     stdout = getattr(result, "result", "") or ""
     # Also check artifacts.stdout
@@ -235,6 +241,8 @@ async def delete_sandbox(sandbox) -> None:
     if daytona is None:
         raise RuntimeError("Daytona SDK not configured")
     await asyncio.to_thread(daytona.delete, sandbox)
+    sandbox_operations_total.labels(operation="delete", status="success").inc()
+    active_sandboxes.dec()
 
 
 async def get_preview_url(sandbox, port: int) -> str:

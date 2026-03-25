@@ -1,0 +1,314 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "links": [],
+  "panels": [
+    {
+      "title": "Request Volume",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(rate(nexus_http_requests_total[5m])) by (path)",
+          "legendFormat": "{{ path }}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": { "drawStyle": "line", "fillOpacity": 10 }
+        }
+      }
+    },
+    {
+      "title": "Error Rate (4xx vs 5xx)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(rate(nexus_http_requests_total{status_code=~\"4..\"}[5m]))",
+          "legendFormat": "4xx"
+        },
+        {
+          "expr": "sum(rate(nexus_http_requests_total{status_code=~\"5..\"}[5m]))",
+          "legendFormat": "5xx"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": { "drawStyle": "line", "fillOpacity": 10 }
+        }
+      }
+    },
+    {
+      "title": "Request Latency (p50 / p95 / p99)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(nexus_http_request_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p50"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(nexus_http_request_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p95"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(nexus_http_request_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p99"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": { "drawStyle": "line", "fillOpacity": 10 }
+        }
+      }
+    },
+    {
+      "title": "Errors by Component",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "targets": [
+        {
+          "expr": "sum(rate(nexus_errors_total[5m])) by (component)",
+          "legendFormat": "{{ component }}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "errors/s",
+          "custom": { "drawStyle": "bars", "fillOpacity": 50 }
+        }
+      }
+    },
+    {
+      "title": "LLM Requests / sec",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 16 },
+      "targets": [
+        {
+          "expr": "sum(rate(nexus_llm_requests_total[5m])) by (model, status)",
+          "legendFormat": "{{ model }} ({{ status }})"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": { "drawStyle": "line", "fillOpacity": 10 }
+        }
+      }
+    },
+    {
+      "title": "LLM Latency (p50 / p95)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 16 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(nexus_llm_request_duration_seconds_bucket[5m])) by (le, model))",
+          "legendFormat": "p50 {{ model }}"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(nexus_llm_request_duration_seconds_bucket[5m])) by (le, model))",
+          "legendFormat": "p95 {{ model }}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": { "drawStyle": "line", "fillOpacity": 10 }
+        }
+      }
+    },
+    {
+      "title": "Time to First Token (p50 / p95)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 16 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(nexus_llm_time_to_first_token_seconds_bucket[5m])) by (le, model))",
+          "legendFormat": "p50 {{ model }}"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(nexus_llm_time_to_first_token_seconds_bucket[5m])) by (le, model))",
+          "legendFormat": "p95 {{ model }}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": { "drawStyle": "line", "fillOpacity": 10 }
+        }
+      }
+    },
+    {
+      "title": "Token Usage (input / output)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+      "targets": [
+        {
+          "expr": "sum(rate(nexus_llm_tokens_total{direction=\"input\"}[5m])) by (model)",
+          "legendFormat": "input {{ model }}"
+        },
+        {
+          "expr": "sum(rate(nexus_llm_tokens_total{direction=\"output\"}[5m])) by (model)",
+          "legendFormat": "output {{ model }}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "tokens/s",
+          "custom": { "drawStyle": "line", "fillOpacity": 10 }
+        }
+      }
+    },
+    {
+      "title": "Tool Executions / sec",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+      "targets": [
+        {
+          "expr": "sum(rate(nexus_tool_executions_total[5m])) by (tool_name, status)",
+          "legendFormat": "{{ tool_name }} ({{ status }})"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": { "drawStyle": "bars", "fillOpacity": 50 }
+        }
+      }
+    },
+    {
+      "title": "Tool Execution Duration (p95)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 32 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(nexus_tool_execution_duration_seconds_bucket[5m])) by (le, tool_name))",
+          "legendFormat": "p95 {{ tool_name }}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": { "drawStyle": "line", "fillOpacity": 10 }
+        }
+      }
+    },
+    {
+      "title": "Sandbox Operations",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 32 },
+      "targets": [
+        {
+          "expr": "sum(rate(nexus_sandbox_operations_total[5m])) by (operation, status)",
+          "legendFormat": "{{ operation }} ({{ status }})"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": { "drawStyle": "bars", "fillOpacity": 50 }
+        }
+      }
+    },
+    {
+      "title": "Active Sandboxes",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 40 },
+      "targets": [
+        { "expr": "nexus_active_sandboxes" }
+      ]
+    },
+    {
+      "title": "Active SSE Streams",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 40 },
+      "targets": [
+        { "expr": "nexus_active_streams" }
+      ]
+    },
+    {
+      "title": "Active WebSockets",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 40 },
+      "targets": [
+        { "expr": "nexus_active_websockets" }
+      ]
+    },
+    {
+      "title": "App Info",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 40 },
+      "targets": [
+        { "expr": "nexus_info" }
+      ]
+    },
+    {
+      "title": "Stream Duration (p50 / p95)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 44 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(nexus_stream_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p50"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(nexus_stream_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p95"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": { "drawStyle": "line", "fillOpacity": 10 }
+        }
+      }
+    },
+    {
+      "title": "RAG Queries / sec",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 44 },
+      "targets": [
+        {
+          "expr": "sum(rate(nexus_rag_queries_total[5m])) by (status)",
+          "legendFormat": "{{ status }}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": { "drawStyle": "line", "fillOpacity": 10 }
+        }
+      }
+    },
+    {
+      "title": "RAG Query Duration by Phase (p95)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 52 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(nexus_rag_query_duration_seconds_bucket[5m])) by (le, phase))",
+          "legendFormat": "p95 {{ phase }}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": { "drawStyle": "line", "fillOpacity": 10 }
+        }
+      }
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["nexus", "backend"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "title": "Nexus Backend",
+  "uid": "nexus-backend",
+  "version": 1
+}

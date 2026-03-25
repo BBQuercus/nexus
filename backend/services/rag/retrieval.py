@@ -16,6 +16,7 @@ if TYPE_CHECKING:
 from backend.config import settings
 from backend.logging_config import get_logger
 from backend.models import Chunk, Document
+from backend.telemetry import errors_total, rag_queries_total, rag_query_duration
 
 logger = get_logger("rag.retrieval")
 
@@ -217,6 +218,7 @@ async def _rerank(
         return reranked
     except Exception:
         logger.exception("rerank_failed_fallback")
+        errors_total.labels(error_type="rerank_failed", component="rag").inc()
         return chunks[:top_k]
 
 
@@ -269,6 +271,12 @@ async def retrieve(
     confidence = reranked[0].score if reranked else 0.0
 
     total_ms = int((time.monotonic() - start) * 1000)
+    rag_queries_total.labels(status="success").inc()
+    rag_query_duration.labels(phase="embedding").observe(retrieval_ms / 1000.0)
+    if rerank_ms is not None:
+        rag_query_duration.labels(phase="rerank").observe(rerank_ms / 1000.0)
+    rag_query_duration.labels(phase="total").observe(total_ms / 1000.0)
+
     logger.info(
         "retrieval_complete",
         query_len=len(query),
