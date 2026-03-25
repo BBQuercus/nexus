@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import {
   Zap, BarChart3, Code2, Database, Globe, Terminal, Cpu,
   Sparkles, ClipboardList, Brain, Search, GitCompare,
@@ -109,8 +110,18 @@ const RETURNING_STARTERS = [
 
 export default function EmptyState() {
   const conversations = useStore((s) => s.conversations);
-  const isFirstTime = conversations.length === 0;
+  const [loaded, setLoaded] = useState(false);
 
+  // Wait one tick for sidebar to fetch conversations before deciding which screen to show.
+  // This prevents the WelcomeScreen from flashing when the user has conversations.
+  useEffect(() => {
+    const timer = setTimeout(() => setLoaded(true), 50);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (!loaded) return <div className="flex-1" />;
+
+  const isFirstTime = conversations.length === 0;
   if (isFirstTime) return <WelcomeScreen />;
   return <ReturningUserScreen />;
 }
