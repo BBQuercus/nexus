@@ -164,14 +164,9 @@ app = FastAPI(
 app.add_middleware(GlobalExceptionMiddleware)
 
 # CORS
-allowed_origins = ["http://localhost:5173", "http://localhost:3000"]
-frontend_url = os.environ.get("FRONTEND_URL")
-if frontend_url:
-    allowed_origins.append(frontend_url)
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -432,10 +427,11 @@ async def health():
 
 @app.get("/ready")
 async def readiness():
-    """Readiness probe — returns 503 if any critical service is down."""
+    """Readiness probe — returns 503 only when the app cannot serve traffic."""
     from fastapi.responses import JSONResponse
 
-    result = await health()
+    db_check = await _check_db()
+    result = {"status": "ok" if db_check["status"] == "ok" else "degraded", "checks": {"db": db_check}}
     if result["status"] != "ok":
         return JSONResponse(status_code=503, content=result)
     return result

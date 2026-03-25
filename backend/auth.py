@@ -1,5 +1,4 @@
 import hashlib
-import os
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -39,7 +38,31 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 def _get_frontend_url() -> str:
     """Get the frontend URL for redirects."""
-    return os.environ.get("FRONTEND_URL", "http://localhost:5173")
+    return settings.FRONTEND_URL
+
+
+def _set_auth_cookie(response: Response, key: str, value: str, max_age: int) -> None:
+    response.set_cookie(
+        key,
+        value,
+        httponly=True,
+        samesite=settings.COOKIE_SAMESITE,  # type: ignore[arg-type]
+        secure=settings.cookie_secure,
+        max_age=max_age,
+        domain=settings.cookie_domain,
+    )
+
+
+def _set_csrf_cookie(response: Response, value: str, max_age: int) -> None:
+    response.set_cookie(
+        "csrf_token",
+        value,
+        httponly=False,
+        samesite=settings.COOKIE_SAMESITE,  # type: ignore[arg-type]
+        secure=settings.cookie_secure,
+        max_age=max_age,
+        domain=settings.cookie_domain,
+    )
 
 
 def get_auth_url() -> str:
@@ -205,35 +228,12 @@ async def callback(code: str, db: AsyncSession = Depends(get_db)):
 
     frontend_url = _get_frontend_url()
     response = RedirectResponse(url=f"{frontend_url}/auth/callback")
-    secure = frontend_url.startswith("https")
-
-    response.set_cookie(
-        "session",
-        access_token,
-        httponly=True,
-        samesite="lax",
-        secure=secure,
-        max_age=settings.JWT_ACCESS_TOKEN_MINUTES * 60,
-    )
-    response.set_cookie(
-        "refresh_token",
-        refresh_token,
-        httponly=True,
-        samesite="lax",
-        secure=secure,
-        max_age=settings.JWT_REFRESH_TOKEN_DAYS * 86400,
-    )
+    _set_auth_cookie(response, "session", access_token, settings.JWT_ACCESS_TOKEN_MINUTES * 60)
+    _set_auth_cookie(response, "refresh_token", refresh_token, settings.JWT_REFRESH_TOKEN_DAYS * 86400)
 
     # Set CSRF cookie
     csrf_token = generate_csrf_token(str(user.id))
-    response.set_cookie(
-        "csrf_token",
-        csrf_token,
-        httponly=False,  # Needs to be readable by JS
-        samesite="lax",
-        secure=secure,
-        max_age=settings.JWT_REFRESH_TOKEN_DAYS * 86400,
-    )
+    _set_csrf_cookie(response, csrf_token, settings.JWT_REFRESH_TOKEN_DAYS * 86400)
 
     return response
 
@@ -276,23 +276,8 @@ async def refresh_token(request: Request, response: Response, body: RefreshReque
     logger.info("token_refreshed", user_id=user_id)
 
     if response is not None:
-        secure = _get_frontend_url().startswith("https")
-        response.set_cookie(
-            "session",
-            new_access,
-            httponly=True,
-            samesite="lax",
-            secure=secure,
-            max_age=settings.JWT_ACCESS_TOKEN_MINUTES * 60,
-        )
-        response.set_cookie(
-            "refresh_token",
-            new_refresh,
-            httponly=True,
-            samesite="lax",
-            secure=secure,
-            max_age=settings.JWT_REFRESH_TOKEN_DAYS * 86400,
-        )
+        _set_auth_cookie(response, "session", new_access, settings.JWT_ACCESS_TOKEN_MINUTES * 60)
+        _set_auth_cookie(response, "refresh_token", new_refresh, settings.JWT_REFRESH_TOKEN_DAYS * 86400)
 
     return {
         "expires_in": settings.JWT_ACCESS_TOKEN_MINUTES * 60,
@@ -303,9 +288,9 @@ async def refresh_token(request: Request, response: Response, body: RefreshReque
 @router.post("/logout")
 async def logout_endpoint(response: Response):
     """Clear session cookie and CSRF cookie."""
-    response.delete_cookie("session")
-    response.delete_cookie("refresh_token")
-    response.delete_cookie("csrf_token")
+    response.delete_cookie("session", domain=settings.cookie_domain)
+    response.delete_cookie("refresh_token", domain=settings.cookie_domain)
+    response.delete_cookie("csrf_token", domain=settings.cookie_domain)
     return {"ok": True}
 
 

@@ -1,0 +1,72 @@
+name: Railway Deploy
+
+on:
+  workflow_call:
+    inputs:
+      deploy_environment:
+        required: true
+        type: string
+      railway_project_id:
+        required: true
+        type: string
+      backend_service:
+        required: true
+        type: string
+      frontend_service:
+        required: true
+        type: string
+      frontend_url:
+        required: true
+        type: string
+      backend_url:
+        required: true
+        type: string
+    secrets:
+      railway_token:
+        required: true
+
+jobs:
+  deploy:
+    name: Deploy to ${{ inputs.deploy_environment }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.deploy_environment }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy backend
+        env:
+          RAILWAY_TOKEN: ${{ secrets.railway_token }}
+        run: |
+          cp railway/backend.toml railway.toml
+          railway up \
+            --project "${{ inputs.railway_project_id }}" \
+            --environment "${{ inputs.deploy_environment }}" \
+            --service "${{ inputs.backend_service }}" \
+            --ci
+
+      - name: Deploy frontend
+        env:
+          RAILWAY_TOKEN: ${{ secrets.railway_token }}
+        run: |
+          cp railway/frontend.toml railway.toml
+          railway up \
+            --project "${{ inputs.railway_project_id }}" \
+            --environment "${{ inputs.deploy_environment }}" \
+            --service "${{ inputs.frontend_service }}" \
+            --ci
+
+      - name: Smoke check
+        run: python scripts/smoke_check.py --frontend-url "${{ inputs.frontend_url }}" --backend-url "${{ inputs.backend_url }}"

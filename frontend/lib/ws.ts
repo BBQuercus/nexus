@@ -1,10 +1,7 @@
+import { getWsBaseUrl } from './runtime';
+
 export type TerminalEventHandler = (data: string) => void;
 export type ConnectionEventHandler = () => void;
-
-// WebSocket must bypass Next.js (no WS proxy support in dev)
-const WS_BASE = typeof window !== 'undefined'
-  ? (window.location.port === '5173' ? 'localhost:8000' : window.location.host)
-  : '';
 
 export class TerminalSocket {
   private ws: WebSocket | null = null;
@@ -29,8 +26,7 @@ export class TerminalSocket {
     if (this.ws?.readyState === WebSocket.OPEN) return;
 
     this.shouldReconnect = true;
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const url = `${protocol}//${WS_BASE}/ws/sandbox/${this.sandboxId}/terminal`;
+    const url = `${getWsBaseUrl()}/ws/sandbox/${this.sandboxId}/terminal`;
 
     try {
       this.ws = new WebSocket(url);
