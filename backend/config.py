@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _ENV_FILE = Path(__file__).resolve().parent.parent / ".env"
@@ -57,6 +58,23 @@ class Settings(BaseSettings):
 
     PORT: int = 8000
     AUTO_APPLY_DB_SCHEMA: bool = False
+
+    @field_validator("DATABASE_URL", "PGVECTOR_DATABASE_URL", mode="before")
+    @classmethod
+    def normalize_postgres_driver(cls, value: str) -> str:
+        if not isinstance(value, str):
+            return value
+
+        if value.startswith("postgresql+asyncpg://"):
+            return value
+
+        if value.startswith("postgres://"):
+            return "postgresql+asyncpg://" + value[len("postgres://") :]
+
+        if value.startswith("postgresql://"):
+            return "postgresql+asyncpg://" + value[len("postgresql://") :]
+
+        return value
 
     @property
     def vector_database_url(self) -> str:
