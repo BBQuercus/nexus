@@ -9,8 +9,8 @@ import type { Message } from '@/lib/types';
 import ModelPicker from '../model-picker';
 import AgentPicker from '../agent-picker';
 import KBPicker from '../kb-picker';
-import type { AttachedContext, ComposeMode, SlashCommand } from './types';
-import { RESPONSE_COUNTS, CONTEXT_WINDOW, estimateTokens } from './types';
+import type { AttachedContext, ComposeMode, SlashCommand, Verbosity, Creativity, Tone } from './types';
+import { RESPONSE_COUNTS, CONTEXT_WINDOW, estimateTokens, VERBOSITY_OPTIONS, CREATIVITY_OPTIONS, TONE_OPTIONS } from './types';
 
 // ── Token indicator ──
 
@@ -46,9 +46,45 @@ function TokenIndicator({ messages }: { messages: Message[] }) {
 
 // ── Chat settings popover ──
 
-function ChatSettings({ numResponses, setNumResponses }: { numResponses: number; setNumResponses: (n: number) => void }) {
+interface ChatSettingsProps {
+  numResponses: number;
+  setNumResponses: (n: number) => void;
+  verbosity: Verbosity;
+  setVerbosity: (v: Verbosity) => void;
+  creativity: Creativity;
+  setCreativity: (c: Creativity) => void;
+  tone: Tone;
+  setTone: (t: Tone) => void;
+}
+
+function SettingRow({ label, options, value, onChange }: { label: string; options: readonly string[]; value: string; onChange: (v: string) => void }) {
+  return (
+    <div>
+      <div className="text-[10px] font-medium text-text-tertiary uppercase tracking-wider mb-1.5">{label}</div>
+      <div className="flex items-center gap-1">
+        {options.map((opt) => (
+          <button
+            key={opt}
+            onClick={() => onChange(opt)}
+            className={`flex-1 px-1.5 py-1 text-[11px] rounded-md border cursor-pointer transition-all capitalize ${
+              value === opt
+                ? 'text-accent bg-accent/10 border-accent/30'
+                : 'text-text-tertiary bg-surface-1 border-border-default hover:border-border-focus hover:text-text-secondary'
+            }`}
+          >
+            {opt}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ChatSettings({ numResponses, setNumResponses, verbosity, setVerbosity, creativity, setCreativity, tone, setTone }: ChatSettingsProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+
+  const hasCustomSettings = numResponses > 1 || verbosity !== 'balanced' || creativity !== 'balanced' || tone !== 'professional';
 
   useEffect(() => {
     if (!open) return;
@@ -64,7 +100,7 @@ function ChatSettings({ numResponses, setNumResponses }: { numResponses: number;
       <button
         onClick={() => setOpen(!open)}
         className={`flex items-center justify-center w-7 h-7 rounded-lg border transition-all cursor-pointer ${
-          open || numResponses > 1
+          open || hasCustomSettings
             ? 'text-accent bg-accent/10 border-accent/30'
             : 'text-text-tertiary bg-surface-1 border-border-default hover:border-border-focus hover:text-text-secondary'
         }`}
@@ -74,23 +110,28 @@ function ChatSettings({ numResponses, setNumResponses }: { numResponses: number;
       </button>
 
       {open && (
-        <div className="absolute bottom-full right-0 mb-1.5 w-48 bg-surface-0 border border-border-default rounded-lg shadow-2xl shadow-black/40 z-50 p-3">
-          <div className="text-[10px] font-medium text-text-tertiary uppercase tracking-wider mb-2">Responses per turn</div>
-          <div className="flex items-center gap-1.5">
-            {RESPONSE_COUNTS.map((n) => (
-              <button
-                key={n}
-                onClick={() => setNumResponses(n)}
-                className={`flex-1 px-2 py-1.5 text-xs font-mono rounded-lg border cursor-pointer transition-all ${
-                  numResponses === n
-                    ? 'text-accent bg-accent/10 border-accent/30'
-                    : 'text-text-tertiary bg-surface-1 border-border-default hover:border-border-focus hover:text-text-secondary'
-                }`}
-              >
-                {n}x
-              </button>
-            ))}
+        <div className="absolute bottom-full right-0 mb-1.5 w-60 bg-surface-0 border border-border-default rounded-lg shadow-2xl shadow-black/40 z-50 p-3 space-y-3">
+          <div>
+            <div className="text-[10px] font-medium text-text-tertiary uppercase tracking-wider mb-1.5">Responses per turn</div>
+            <div className="flex items-center gap-1">
+              {RESPONSE_COUNTS.map((n) => (
+                <button
+                  key={n}
+                  onClick={() => setNumResponses(n)}
+                  className={`flex-1 px-1.5 py-1 text-[11px] font-mono rounded-md border cursor-pointer transition-all ${
+                    numResponses === n
+                      ? 'text-accent bg-accent/10 border-accent/30'
+                      : 'text-text-tertiary bg-surface-1 border-border-default hover:border-border-focus hover:text-text-secondary'
+                  }`}
+                >
+                  {n}x
+                </button>
+              ))}
+            </div>
           </div>
+          <SettingRow label="Verbosity" options={VERBOSITY_OPTIONS} value={verbosity} onChange={(v) => setVerbosity(v as Verbosity)} />
+          <SettingRow label="Creativity" options={CREATIVITY_OPTIONS} value={creativity} onChange={(v) => setCreativity(v as Creativity)} />
+          <SettingRow label="Tone" options={TONE_OPTIONS} value={tone} onChange={(v) => setTone(v as Tone)} />
         </div>
       )}
     </div>
@@ -298,10 +339,16 @@ interface InputActionsBarProps {
   setImageModel: (model: string) => void;
   numResponses: number;
   setNumResponses: (n: number) => void;
+  verbosity: Verbosity;
+  setVerbosity: (v: Verbosity) => void;
+  creativity: Creativity;
+  setCreativity: (c: Creativity) => void;
+  tone: Tone;
+  setTone: (t: Tone) => void;
   isStreaming: boolean;
 }
 
-export function InputActionsBar({ composeMode, imageModel, setImageModel, numResponses, setNumResponses, isStreaming }: InputActionsBarProps) {
+export function InputActionsBar({ composeMode, imageModel, setImageModel, numResponses, setNumResponses, verbosity, setVerbosity, creativity, setCreativity, tone, setTone, isStreaming }: InputActionsBarProps) {
   return (
     <div className="mt-2 flex items-center gap-3 pb-0.5">
       <ModelPicker disabled={composeMode === 'image'} disabledReason="Locked while in image mode" />
@@ -312,7 +359,7 @@ export function InputActionsBar({ composeMode, imageModel, setImageModel, numRes
       )}
       <div className="flex-1" />
       {!isStreaming && (
-        <ChatSettings numResponses={numResponses} setNumResponses={setNumResponses} />
+        <ChatSettings numResponses={numResponses} setNumResponses={setNumResponses} verbosity={verbosity} setVerbosity={setVerbosity} creativity={creativity} setCreativity={setCreativity} tone={tone} setTone={setTone} />
       )}
     </div>
   );

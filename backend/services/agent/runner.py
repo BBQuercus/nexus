@@ -35,6 +35,9 @@ async def run_agent_loop(
     sandbox_id: str | None,
     db: AsyncSession,
     leaf_message_id: uuid.UUID | None = None,
+    temperature: float | None = None,
+    verbosity: str | None = None,
+    tone: str | None = None,
 ) -> AsyncGenerator[dict, None]:
     """Run the agent loop, yielding SSE events.
 
@@ -64,7 +67,7 @@ async def run_agent_loop(
     tools = get_tools_for_mode(mode, tools_enabled, has_knowledge=has_knowledge)
 
     # Build message history for LLM
-    system_prompt = build_system_prompt(mode, persona, has_knowledge=has_knowledge, tools=tools)
+    system_prompt = build_system_prompt(mode, persona, has_knowledge=has_knowledge, tools=tools, verbosity=verbosity, tone=tone)
 
     # Inject relevant memories into the system prompt
     try:
@@ -131,7 +134,7 @@ async def run_agent_loop(
         output_tokens = 0
 
         try:
-            async for chunk in llm_service.stream_chat(llm_messages, model, tools=tools if tools else None):
+            async for chunk in llm_service.stream_chat(llm_messages, model, tools=tools if tools else None, temperature=temperature):
                 if not chunk.choices and hasattr(chunk, "usage") and chunk.usage:
                     input_tokens = chunk.usage.prompt_tokens or 0
                     output_tokens = chunk.usage.completion_tokens or 0
@@ -288,6 +291,9 @@ async def run_multi_agent_loop(
     leaf_message_id: uuid.UUID,
     num_responses: int,
     compare_models: list[str] | None = None,
+    temperature: float | None = None,
+    verbosity: str | None = None,
+    tone: str | None = None,
 ) -> AsyncGenerator[dict, None]:
     """Run N agent loops in parallel, yielding multiplexed SSE events tagged with branch_index."""
     from backend.db import async_session
@@ -308,6 +314,9 @@ async def run_multi_agent_loop(
                     sandbox_id=sandbox_id,
                     db=branch_db,
                     leaf_message_id=leaf_message_id,
+                    temperature=temperature,
+                    verbosity=verbosity,
+                    tone=tone,
                 ):
                     # Tag the event with branch_index
                     tagged = dict(event)

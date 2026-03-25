@@ -7,8 +7,8 @@ import type { Message } from '@/lib/types';
 import { MODELS, IMAGE_MODELS } from '@/lib/types';
 import { useStreaming, reloadConversation } from '@/lib/useStreaming';
 import { toast } from '../toast';
-import type { SlashCommand, AttachedContext, ComposeMode } from './types';
-import { saveDraft, loadDraft } from './types';
+import type { SlashCommand, AttachedContext, ComposeMode, Verbosity, Creativity, Tone } from './types';
+import { saveDraft, loadDraft, CREATIVITY_TEMPERATURE } from './types';
 import {
   Cpu, Trash2, HelpCircle, Download, ClipboardCopy, RefreshCw,
   Pin, Hash, GitCompare, ScrollText, FileText, Search,
@@ -25,6 +25,12 @@ export interface UseChatSubmitReturn {
   setPendingFiles: React.Dispatch<React.SetStateAction<File[]>>;
   numResponses: number;
   setNumResponses: React.Dispatch<React.SetStateAction<number>>;
+  verbosity: Verbosity;
+  setVerbosity: React.Dispatch<React.SetStateAction<Verbosity>>;
+  creativity: Creativity;
+  setCreativity: React.Dispatch<React.SetStateAction<Creativity>>;
+  tone: Tone;
+  setTone: React.Dispatch<React.SetStateAction<Tone>>;
   composeMode: ComposeMode;
   setComposeMode: React.Dispatch<React.SetStateAction<ComposeMode>>;
   imageModel: string;
@@ -59,6 +65,9 @@ export function useChatSubmit({ textareaRef }: UseChatSubmitOptions): UseChatSub
   const [content, setContent] = useState('');
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [numResponses, setNumResponses] = useState<number>(1);
+  const [verbosity, setVerbosity] = useState<Verbosity>('balanced');
+  const [creativity, setCreativity] = useState<Creativity>('balanced');
+  const [tone, setTone] = useState<Tone>('professional');
   const [composeMode, setComposeMode] = useState<ComposeMode>('chat');
   const [imageModel, setImageModel] = useState(IMAGE_MODELS[0].id);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
@@ -536,11 +545,14 @@ export function useChatSubmit({ textareaRef }: UseChatSubmitOptions): UseChatSub
       agentPersonaId: activePersona?.id,
       knowledgeBaseIds: currentKBIds.length > 0 ? currentKBIds : undefined,
       compareModels: compareModels.length > 1 ? compareModels : undefined,
+      temperature: CREATIVITY_TEMPERATURE[creativity],
+      verbosity: verbosity !== 'balanced' ? verbosity : undefined,
+      tone: tone !== 'professional' ? tone : undefined,
     });
     if (compareModels.length > 0) setCompareModels([]);
   }, [content, pendingFiles, attachedContexts, isStreaming, activeConversationId, activeModel, activePersona, sandboxId, messages,
     setActiveConversationId, setMessages, setConversations, branchingFromId, setBranchingFromId,
-    numResponses, setConversationMessages, streamSend, slashCommands, compareModels]);
+    numResponses, verbosity, creativity, tone, setConversationMessages, streamSend, slashCommands, compareModels]);
 
   // Handle regenerate events from message bubbles
   useEffect(() => {
@@ -695,6 +707,12 @@ export function useChatSubmit({ textareaRef }: UseChatSubmitOptions): UseChatSub
     setPendingFiles,
     numResponses,
     setNumResponses,
+    verbosity,
+    setVerbosity,
+    creativity,
+    setCreativity,
+    tone,
+    setTone,
     composeMode,
     setComposeMode,
     imageModel,

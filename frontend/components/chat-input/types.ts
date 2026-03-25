@@ -18,6 +18,22 @@ export type ComposeMode = 'chat' | 'image';
 export const RESPONSE_COUNTS = [1, 3, 5] as const;
 export const CONTEXT_WINDOW = 128_000;
 
+// Chat behavior settings
+export const VERBOSITY_OPTIONS = ['concise', 'balanced', 'detailed'] as const;
+export type Verbosity = (typeof VERBOSITY_OPTIONS)[number];
+
+export const CREATIVITY_OPTIONS = ['precise', 'balanced', 'creative'] as const;
+export type Creativity = (typeof CREATIVITY_OPTIONS)[number];
+
+export const TONE_OPTIONS = ['professional', 'casual', 'technical'] as const;
+export type Tone = (typeof TONE_OPTIONS)[number];
+
+export const CREATIVITY_TEMPERATURE: Record<Creativity, number> = {
+  precise: 0.2,
+  balanced: 0.7,
+  creative: 1.0,
+};
+
 // ── Utility functions ──
 
 export function getDraftKey(conversationId: string | null): string {

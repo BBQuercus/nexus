@@ -6,6 +6,38 @@ import { streamSSE } from './sse';
 import type { Message, ToolCall, Citation, RetrievalResult, FormSpec } from './types';
 import { toast } from '@/components/toast';
 
+/** Load artifacts for a conversation and attach form specs to their parent messages */
+export async function loadAndAttachArtifacts(conversationId: string): Promise<void> {
+  try {
+    const artifacts = await api.getArtifacts(conversationId);
+    const store = useStore.getState();
+    if (store.activeConversationId !== conversationId) return;
+    store.setArtifacts(artifacts);
+
+    const formArtifacts = artifacts.filter(
+      (a) => a.type === 'form' && a.content && (a as unknown as Record<string, unknown>).message_id,
+    );
+    if (formArtifacts.length > 0) {
+      const currentMessages = store.messages;
+      let changed = false;
+      const updated = currentMessages.map((msg) => {
+        const msgForms = formArtifacts.filter(
+          (a) => (a as unknown as Record<string, unknown>).message_id === msg.id,
+        );
+        if (msgForms.length === 0) return msg;
+        changed = true;
+        return {
+          ...msg,
+          forms: msgForms.map((a) => JSON.parse(a.content!) as FormSpec),
+        };
+      });
+      if (changed) {
+        store.setConversationMessages(conversationId, updated);
+      }
+    }
+  } catch {}
+}
+
 /** Map raw API message objects to typed Message[] */
 export function mapRawMessages(raw: Array<Record<string, unknown>>, conversationId: string): Message[] {
   return raw.map((m) => {
@@ -352,6 +384,9 @@ export function useStreaming() {
       agentPersonaId?: string;
       knowledgeBaseIds?: string[];
       compareModels?: string[];
+      temperature?: number;
+      verbosity?: string;
+      tone?: string;
     },
   ) => {
     const store = useStore.getState();
@@ -389,7 +424,7 @@ export function useStreaming() {
         convId, text, opts.attachmentIds, opts.model,
         opts.parentId, opts.numResponses, controller.signal,
         opts.contextIds, opts.agentPersonaId, opts.knowledgeBaseIds,
-        opts.compareModels,
+        opts.compareModels, opts.temperature, opts.verbosity, opts.tone,
       );
       for await (const event of streamSSE(response)) {
         const result = processSseEvent(
@@ -453,7 +488,7 @@ export function useStreaming() {
         }
       }
       if (useStore.getState().activeConversationId === convId) {
-        api.getArtifacts(convId).then((artifacts) => useStore.getState().setArtifacts(artifacts)).catch(() => {});
+        loadAndAttachArtifacts(convId);
       }
     }
   }, []);

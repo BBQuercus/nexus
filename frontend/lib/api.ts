@@ -1,5 +1,6 @@
 import type { Conversation, Message, Artifact, AgentPersona, User, FileNode, ConversationTree, KnowledgeBase, KBDocument, Citation, Project, SearchResult } from './types';
 import { clearToken, getCsrfToken, getToken } from './auth';
+import { toApiUrl } from './runtime';
 
 export class ApiError extends Error {
   status: number;
@@ -49,7 +50,7 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
     }
   }
 
-  const response = await fetch(path, {
+  const response = await fetch(toApiUrl(path), {
     ...options,
     headers,
     credentials: 'include',
@@ -163,12 +164,6 @@ export async function deleteConversation(id: string): Promise<void> {
 
 // ── Messages ──
 
-// SSE endpoints must bypass Next.js rewrite (which buffers responses).
-// In dev, hit the backend directly. In production, use same-origin.
-const SSE_BASE = typeof window !== 'undefined' && window.location.port === '5173'
-  ? 'http://localhost:8000'
-  : '';
-
 export async function sendMessage(
   conversationId: string,
   content: string,
@@ -181,6 +176,9 @@ export async function sendMessage(
   agentPersonaId?: string,
   knowledgeBaseIds?: string[],
   compareModels?: string[],
+  temperature?: number,
+  verbosity?: string,
+  tone?: string,
 ): Promise<Response> {
   const token = getToken();
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -189,7 +187,7 @@ export async function sendMessage(
     const csrfToken = getCsrfToken();
     if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
   }
-  const response = await fetch(`${SSE_BASE}/api/conversations/${conversationId}/messages`, {
+  const response = await fetch(toApiUrl(`/api/conversations/${conversationId}/messages`), {
     method: 'POST',
     headers,
     credentials: 'include',
@@ -202,6 +200,9 @@ export async function sendMessage(
       ...(contextIds && contextIds.length > 0 ? { context_conversation_ids: contextIds } : {}),
       ...(agentPersonaId ? { agent_persona_id: agentPersonaId } : {}),
       ...(knowledgeBaseIds && knowledgeBaseIds.length > 0 ? { knowledge_base_ids: knowledgeBaseIds } : {}),
+      ...(temperature !== undefined ? { temperature } : {}),
+      ...(verbosity ? { verbosity } : {}),
+      ...(tone ? { tone } : {}),
     }),
   });
   if (!response.ok) {
@@ -242,7 +243,7 @@ export async function regenerateMessage(conversationId: string, messageId: strin
     if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
   }
   if (model) headers['Content-Type'] = 'application/json';
-  const response = await fetch(`${SSE_BASE}/api/conversations/${conversationId}/messages/${messageId}/regenerate`, {
+  const response = await fetch(toApiUrl(`/api/conversations/${conversationId}/messages/${messageId}/regenerate`), {
     method: 'POST',
     headers,
     credentials: 'include',
@@ -474,11 +475,7 @@ export interface HealthCheck {
 }
 
 export async function getHealth(): Promise<HealthCheck> {
-  // Hit backend directly (bypass Next.js rewrite)
-  const base = typeof window !== 'undefined' && window.location.port === '5173'
-    ? 'http://localhost:8000'
-    : '';
-  const resp = await fetch(`${base}/health`);
+  const resp = await fetch(toApiUrl('/health'));
   return resp.json();
 }
 
@@ -502,7 +499,7 @@ export async function synthesizeAudio(
     const csrfToken = getCsrfToken();
     if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
   }
-  const response = await fetch('/api/media/speak', {
+  const response = await fetch(toApiUrl('/api/media/speak'), {
     method: 'POST',
     headers: {
       ...headers,
@@ -671,6 +668,41 @@ export async function uploadKBDocuments(kbId: string, files: File[]): Promise<{ 
 export async function listKBDocuments(kbId: string): Promise<KBDocument[]> {
   const raw = await apiFetch<Record<string, unknown>[]>(`/api/knowledge-bases/${kbId}/documents`);
   return raw.map(kbDocFromSnake);
+}
+
+export interface KBChunk {
+  id: string;
+  chunkIndex: number;
+  content: string;
+  contextPrefix?: string;
+  pageNumber?: number;
+  sectionTitle?: string;
+  tokenCount: number;
+}
+
+export async function getKBDocumentContent(kbId: string, docId: string): Promise<{
+  id: string; filename: string; contentType: string; rawText: string;
+}> {
+  const raw = await apiFetch<Record<string, unknown>>(`/api/knowledge-bases/${kbId}/documents/${docId}/content`);
+  return {
+    id: (raw.id as string) || '',
+    filename: (raw.filename as string) || '',
+    contentType: (raw.content_type as string) || '',
+    rawText: (raw.raw_text as string) || '',
+  };
+}
+
+export async function getKBDocumentChunks(kbId: string, docId: string): Promise<KBChunk[]> {
+  const raw = await apiFetch<Record<string, unknown>[]>(`/api/knowledge-bases/${kbId}/documents/${docId}/chunks`);
+  return raw.map((c) => ({
+    id: (c.id as string) || '',
+    chunkIndex: (c.chunk_index as number) || 0,
+    content: (c.content as string) || '',
+    contextPrefix: (c.context_prefix as string) || undefined,
+    pageNumber: (c.page_number as number) || undefined,
+    sectionTitle: (c.section_title as string) || undefined,
+    tokenCount: (c.token_count as number) || 0,
+  }));
 }
 
 export async function deleteKBDocument(kbId: string, docId: string): Promise<void> {
