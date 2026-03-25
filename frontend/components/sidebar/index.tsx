@@ -2,9 +2,11 @@
 
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useStore } from '@/lib/store';
+import { useIsMobile } from '@/lib/useMediaQuery';
 import * as api from '@/lib/api';
 import type { Conversation } from '@/lib/types';
 import { toast } from '../toast';
+import { Zap, PanelLeft } from 'lucide-react';
 import ProjectSwitcher from '../project-switcher';
 import ContextWindowViz from '../context-window-viz';
 import SidebarActions from './sidebar-actions';
@@ -16,6 +18,26 @@ function getPinnedIds(): Set<string> {
     if (raw) return new Set(JSON.parse(raw) as string[]);
   } catch {}
   return new Set();
+}
+
+function MobileSidebarHeader() {
+  const isMobile = useIsMobile();
+  const setSidebarOpen = useStore((s) => s.setSidebarOpen);
+
+  if (!isMobile) return null;
+
+  return (
+    <div className="relative flex items-center h-12 px-3 border-b border-border-default shrink-0">
+      <button
+        onClick={() => setSidebarOpen(false)}
+        className="flex items-center justify-center w-8 h-8 rounded-lg cursor-pointer transition-colors text-text-tertiary hover:text-text-secondary hover:bg-surface-1 mr-2"
+      >
+        <PanelLeft size={15} />
+      </button>
+      <Zap size={15} className="text-accent shrink-0" />
+      <span className="text-sm font-bold tracking-[0.12em] uppercase whitespace-nowrap ml-2">Nexus</span>
+    </div>
+  );
 }
 
 export default function Sidebar() {
@@ -334,8 +356,11 @@ export default function Sidebar() {
   }, [filteredConversations, today, yesterday, weekAgo]);
 
   return (
-    <div data-tour="sidebar" className="relative flex flex-col w-[85vw] sm:w-[272px] max-w-[320px] bg-surface-0 border-r border-border-default shrink-0 h-full min-w-0 sm:min-w-[272px]">
+    <div data-tour="sidebar" className="relative flex flex-col w-[min(75vw,320px)] md:w-[272px] bg-surface-0 border-r border-border-default shrink-0 h-full min-w-0 md:min-w-[272px]">
       <div className="absolute inset-0 grid-texture opacity-10 pointer-events-none" />
+
+      {/* Mobile header — replaces hidden top bar */}
+      <MobileSidebarHeader />
 
       {/* Project switcher */}
       <div data-tour="project-switcher" className="px-2 pt-2 pb-0.5">

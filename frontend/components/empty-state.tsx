@@ -85,14 +85,14 @@ function ReturningUserScreen() {
   };
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 gap-6 sm:gap-10 overflow-y-auto py-6 sm:py-8 cascade-sections">
+    <div className="flex-1 flex flex-col items-center justify-center px-4 md:px-6 gap-6 md:gap-10 overflow-y-auto py-6 md:py-8 cascade-sections">
       {/* Logo */}
       <div className="relative flex flex-col items-center gap-4">
         <div className="relative">
           <div className="absolute inset-0 w-14 h-14 -m-2 rounded-lg bg-accent/5 animate-pulse" />
           <div className="relative flex items-center gap-2 z-10">
             <Zap size={24} className="text-accent" />
-            <span className="text-2xl sm:text-3xl font-bold tracking-[0.15em] uppercase">Nexus</span>
+            <span className="text-2xl md:text-3xl font-bold tracking-[0.15em] uppercase">Nexus</span>
           </div>
         </div>
 

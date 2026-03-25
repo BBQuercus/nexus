@@ -130,7 +130,7 @@ export default function PageShell({
 function SidebarChrome({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   return (
-    <div className="relative flex flex-col w-[85vw] sm:w-[272px] max-w-[320px] sm:min-w-[272px] bg-surface-0 border-r border-border-default shrink-0 h-full">
+    <div className="relative flex flex-col w-[min(75vw,320px)] md:w-[272px] md:min-w-[272px] bg-surface-0 border-r border-border-default shrink-0 h-full">
       <div className="absolute inset-0 grid-texture opacity-10 pointer-events-none" />
       <div className="relative flex-1 flex flex-col min-h-0">
         {children}

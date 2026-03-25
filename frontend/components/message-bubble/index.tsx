@@ -96,7 +96,7 @@ export default function MessageBubble({ message }: { message: Message }) {
 
     return (
       <div className="flex justify-end" data-message-id={message.id}>
-        <div className="group max-w-[95%] sm:max-w-[80%]">
+        <div className="group max-w-[95%] md:max-w-[80%]">
           <SiblingNav message={message} />
           {formSubmission ? (
             <div className="rounded-xl border border-accent/20 bg-accent/5 px-4 py-3 space-y-2">
@@ -218,7 +218,7 @@ export default function MessageBubble({ message }: { message: Message }) {
 
   return (
     <div className="flex justify-start" data-message-id={message.id}>
-      <div className="group max-w-[95%] sm:max-w-[85%]">
+      <div className="group max-w-[95%] md:max-w-[85%]">
         <SiblingNav message={message} />
         {message.reasoning && <ReasoningTrace content={message.reasoning} tokenCount={message.reasoningTokens} />}
         {message.toolCalls?.filter((tool) => tool.name !== 'create_chart' && tool.name !== 'create_ui').map((tool) => <ExecBlock key={tool.id} tool={tool} />)}
