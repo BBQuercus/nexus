@@ -1,3 +1,4 @@
+'use client';
 /**
  * Focus trap for modals, command palette, dropdowns.
  * Traps Tab focus within the container when active.

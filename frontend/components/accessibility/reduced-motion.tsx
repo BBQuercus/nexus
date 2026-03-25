@@ -1,3 +1,4 @@
+'use client';
 /**
  * Hook for respecting prefers-reduced-motion.
  */

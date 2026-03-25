@@ -1,3 +1,4 @@
+'use client';
 /**
  * Screen reader live region for announcing dynamic content.
  * Use for: streaming messages, tool execution status, errors.
