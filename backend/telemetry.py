@@ -1,7 +1,9 @@
 """Telemetry: OpenTelemetry tracing + Prometheus metrics for Nexus."""
 
 import os
+from collections.abc import Mapping
 from contextlib import contextmanager
+from urllib.parse import urlparse, urlunparse
 
 from opentelemetry import trace
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
@@ -124,6 +126,99 @@ errors_total = Counter(
 app_info = Info("nexus", "Nexus application info")
 
 
+def _parse_bool(value: str | None, default: bool = False) -> bool:
+    """Parse a boolean-like env var value."""
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _parse_otlp_headers(raw_headers: str | None) -> dict[str, str] | None:
+    """Parse OTLP headers from OTEL_EXPORTER_OTLP_HEADERS."""
+    if not raw_headers:
+        return None
+
+    headers: dict[str, str] = {}
+    for item in raw_headers.split(","):
+        key, separator, value = item.partition("=")
+        key = key.strip()
+        value = value.strip()
+        if not separator or not key or not value:
+            continue
+        headers[key] = value
+
+    return headers or None
+
+
+def _normalize_otlp_protocol(protocol: str | None, endpoint: str) -> str:
+    """Resolve the OTLP transport from env or endpoint scheme."""
+    if protocol:
+        normalized = protocol.strip().lower().replace("-", "").replace("_", "").replace("/", "")
+        aliases = {
+            "grpc": "grpc",
+            "http": "http/protobuf",
+            "httpprotobuf": "http/protobuf",
+        }
+        if normalized in aliases:
+            return aliases[normalized]
+        raise ValueError(f"Unsupported OTLP protocol: {protocol}")
+
+    parsed = urlparse(endpoint)
+    if parsed.scheme == "grpc":
+        return "grpc"
+    return "http/protobuf" if parsed.path.endswith("/v1/traces") else "grpc"
+
+
+def _normalize_grpc_endpoint(endpoint: str) -> tuple[str, bool]:
+    """Normalize an OTLP gRPC endpoint and infer TLS usage."""
+    parsed = urlparse(endpoint)
+    if parsed.scheme == "grpc":
+        return urlunparse(("http", parsed.netloc, parsed.path, "", "", "")), True
+    if parsed.scheme == "http":
+        return endpoint, True
+    if parsed.scheme == "https":
+        return endpoint, False
+    return endpoint, False
+
+
+def _normalize_http_endpoint(endpoint: str) -> str:
+    """Normalize an OTLP HTTP traces endpoint."""
+    parsed = urlparse(endpoint)
+    if parsed.scheme in {"grpc", ""}:
+        parsed = parsed._replace(scheme="http")
+
+    path = parsed.path.rstrip("/")
+    if not path or path == "/":
+        path = "/v1/traces"
+    elif not path.endswith("/v1/traces"):
+        path = f"{path}/v1/traces"
+
+    return urlunparse(parsed._replace(path=path))
+
+
+def _build_otlp_exporter(endpoint: str, protocol: str | None, headers: Mapping[str, str] | None):
+    """Build an OTLP trace exporter using gRPC or HTTP transport."""
+    resolved_protocol = _normalize_otlp_protocol(protocol, endpoint)
+
+    if resolved_protocol == "grpc":
+        from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+
+        normalized_endpoint, inferred_insecure = _normalize_grpc_endpoint(endpoint)
+        insecure = _parse_bool(os.environ.get("OTEL_EXPORTER_OTLP_INSECURE"), default=inferred_insecure)
+        return OTLPSpanExporter(
+            endpoint=normalized_endpoint,
+            headers=headers,
+            insecure=insecure,
+        )
+
+    from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+
+    return OTLPSpanExporter(
+        endpoint=_normalize_http_endpoint(endpoint),
+        headers=headers,
+    )
+
+
 def setup_telemetry(app=None, db_engine=None):
     """Initialize OpenTelemetry tracing and auto-instrumentation."""
 
@@ -141,9 +236,11 @@ def setup_telemetry(app=None, db_engine=None):
     # Use OTLP exporter if endpoint is configured, otherwise console
     otlp_endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT")
     if otlp_endpoint:
-        from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-
-        exporter = OTLPSpanExporter(endpoint=otlp_endpoint)
+        exporter = _build_otlp_exporter(
+            endpoint=otlp_endpoint,
+            protocol=os.environ.get("OTEL_EXPORTER_OTLP_PROTOCOL"),
+            headers=_parse_otlp_headers(os.environ.get("OTEL_EXPORTER_OTLP_HEADERS")),
+        )
         provider.add_span_processor(BatchSpanProcessor(exporter))
     elif os.environ.get("OTEL_CONSOLE_EXPORT"):
         provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
