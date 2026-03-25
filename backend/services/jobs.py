@@ -6,17 +6,18 @@ falls back to in-memory for development.
 
 import asyncio
 import uuid
-import json
-from datetime import datetime, timezone
-from enum import Enum
-from typing import Any, Callable, Optional
+from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from enum import StrEnum
+from typing import Any
+
 from backend.logging_config import get_logger
 
 logger = get_logger("jobs")
 
 
-class JobStatus(str, Enum):
+class JobStatus(StrEnum):
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
@@ -31,12 +32,12 @@ class Job:
     status: JobStatus
     params: dict[str, Any]
     result: Any = None
-    error: Optional[str] = None
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    started_at: Optional[datetime] = None
-    completed_at: Optional[datetime] = None
-    user_id: Optional[str] = None
-    scheduled_cron: Optional[str] = None
+    error: str | None = None
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    user_id: str | None = None
+    scheduled_cron: str | None = None
 
 
 # Job registry
@@ -55,8 +56,8 @@ def register_job_handler(name: str):
 
 async def enqueue_job(
     name: str,
-    params: dict[str, Any] = None,
-    user_id: str = None,
+    params: dict[str, Any] | None = None,
+    user_id: str | None = None,
 ) -> Job:
     """Enqueue a job for background execution."""
     job = Job(
@@ -72,12 +73,12 @@ async def enqueue_job(
     return job
 
 
-def get_job(job_id: str) -> Optional[Job]:
+def get_job(job_id: str) -> Job | None:
     """Get job status."""
     return _active_jobs.get(job_id)
 
 
-def list_jobs(user_id: str = None, status: JobStatus = None) -> list[Job]:
+def list_jobs(user_id: str | None = None, status: JobStatus | None = None) -> list[Job]:
     """List jobs, optionally filtered."""
     jobs = list(_active_jobs.values())
     if user_id:
@@ -87,14 +88,14 @@ def list_jobs(user_id: str = None, status: JobStatus = None) -> list[Job]:
     return sorted(jobs, key=lambda j: j.created_at, reverse=True)
 
 
-async def cancel_job(job_id: str) -> Optional[Job]:
+async def cancel_job(job_id: str) -> Job | None:
     """Cancel a pending job. Running jobs cannot be cancelled."""
     job = _active_jobs.get(job_id)
     if not job:
         return None
     if job.status == JobStatus.PENDING:
         job.status = JobStatus.CANCELLED
-        job.completed_at = datetime.now(timezone.utc)
+        job.completed_at = datetime.now(UTC)
         logger.info("job_cancelled", job_id=job.id, job_name=job.name)
     return job
 
@@ -115,7 +116,7 @@ async def _process_jobs():
                 continue
 
             job.status = JobStatus.RUNNING
-            job.started_at = datetime.now(timezone.utc)
+            job.started_at = datetime.now(UTC)
             logger.info("job_started", job_id=job.id, job_name=job.name)
 
             try:
@@ -127,7 +128,7 @@ async def _process_jobs():
                 job.error = str(e)
                 logger.error("job_failed", job_id=job.id, job_name=job.name, error=str(e))
             finally:
-                job.completed_at = datetime.now(timezone.utc)
+                job.completed_at = datetime.now(UTC)
         except asyncio.CancelledError:
             break
         except Exception as e:

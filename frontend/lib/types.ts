@@ -119,6 +119,7 @@ export interface ConversationTree {
 export interface CostData {
   inputTokens: number;
   outputTokens: number;
+  totalTokens?: number;
   totalCost: number;
   model: string;
   duration: number;

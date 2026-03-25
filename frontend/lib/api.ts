@@ -19,8 +19,7 @@ let _toast: typeof import('@/components/toast').toast | null = null;
 function getToast() {
   if (!_toast) {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      _toast = require('@/components/toast').toast;
+      _toast = require('@/components/toast').toast; // dynamic require to avoid circular deps
     } catch {
       return null;
     }
@@ -118,8 +117,7 @@ export async function createConversation(params: {
   title?: string;
   model?: string;
   personaId?: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  [key: string]: any;
+  [key: string]: unknown;
 }): Promise<Conversation> {
   return apiFetch<Conversation>('/api/conversations', {
     method: 'POST',

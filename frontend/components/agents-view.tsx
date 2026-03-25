@@ -56,7 +56,6 @@ export default function AgentsView() {
       });
       window.history.replaceState({}, '', '/agents');
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleSave = async () => {

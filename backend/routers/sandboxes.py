@@ -1,8 +1,6 @@
-import io
 import uuid
-from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,13 +9,14 @@ from backend.auth import get_current_user
 from backend.db import get_db
 from backend.rate_limit import sandbox_limiter
 from backend.services import sandbox as sandbox_service
+from backend.services.audit import AuditAction, record_audit_event
 
 router = APIRouter(prefix="/api/sandboxes", tags=["sandboxes"])
 
 
 class CreateSandboxRequest(BaseModel):
     template: str = "python-data-science"
-    labels: Optional[dict] = None
+    labels: dict | None = None
 
 
 class ExecuteCodeRequest(BaseModel):
@@ -43,13 +42,14 @@ async def create_sandbox(
         sandbox = await sandbox_service.create_sandbox(
             template=body.template, labels=labels
         )
+        await record_audit_event(AuditAction.SANDBOX_CREATED, actor_id=str(user_id), resource_type="sandbox", resource_id=sandbox.id)
         return {
             "id": sandbox.id,
             "template": body.template,
             "status": "running",
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/{sandbox_id}")
@@ -59,15 +59,15 @@ async def get_sandbox_status(
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        sandbox = await sandbox_service.ensure_sandbox_access(sandbox_id, user_id, db)
+        await sandbox_service.ensure_sandbox_access(sandbox_id, user_id, db)
         return {
             "id": sandbox_id,
             "status": "running",
         }
     except PermissionError as e:
-        raise HTTPException(status_code=403, detail=str(e))
+        raise HTTPException(status_code=403, detail=str(e)) from e
     except Exception as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 @router.post("/{sandbox_id}/execute")
@@ -86,9 +86,9 @@ async def execute_code(
             "exit_code": result.exit_code,
         }
     except PermissionError as e:
-        raise HTTPException(status_code=403, detail=str(e))
+        raise HTTPException(status_code=403, detail=str(e)) from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/{sandbox_id}/files")
@@ -103,9 +103,9 @@ async def list_files(
         files = await sandbox_service.list_files(sandbox, path)
         return {"path": path, "files": files}
     except PermissionError as e:
-        raise HTTPException(status_code=403, detail=str(e))
+        raise HTTPException(status_code=403, detail=str(e)) from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/{sandbox_id}/files/content")
@@ -120,9 +120,9 @@ async def read_file(
         content = await sandbox_service.read_file(sandbox, path)
         return {"path": path, "content": content}
     except PermissionError as e:
-        raise HTTPException(status_code=403, detail=str(e))
+        raise HTTPException(status_code=403, detail=str(e)) from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.put("/{sandbox_id}/files/content")
@@ -137,9 +137,9 @@ async def write_file(
         await sandbox_service.write_file(sandbox, body.path, body.content)
         return {"ok": True, "path": body.path}
     except PermissionError as e:
-        raise HTTPException(status_code=403, detail=str(e))
+        raise HTTPException(status_code=403, detail=str(e)) from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB per file
@@ -183,7 +183,7 @@ async def upload_files(
             if total_size > MAX_TOTAL_UPLOAD_SIZE:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Total upload size exceeds 200MB limit.",
+                    detail="Total upload size exceeds 200MB limit.",
                 )
 
             file_path = f"{path}/{file.filename}"
@@ -195,11 +195,11 @@ async def upload_files(
             uploaded.append(file_path)
         return {"uploaded": uploaded}
     except PermissionError as e:
-        raise HTTPException(status_code=403, detail=str(e))
+        raise HTTPException(status_code=403, detail=str(e)) from e
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/{sandbox_id}/download")
@@ -223,9 +223,9 @@ async def list_output_files(
         files = await list_output_files(sandbox)
         return {"files": files}
     except PermissionError as e:
-        raise HTTPException(status_code=403, detail=str(e))
+        raise HTTPException(status_code=403, detail=str(e)) from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/{sandbox_id}/output/{filename}")
@@ -267,9 +267,9 @@ async def serve_output_file(
 
         return Response(content=content, media_type=content_type, headers=headers)
     except PermissionError as e:
-        raise HTTPException(status_code=403, detail=str(e))
+        raise HTTPException(status_code=403, detail=str(e)) from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/{sandbox_id}/stop")
@@ -283,9 +283,9 @@ async def stop_sandbox(
         await sandbox_service.stop_sandbox(sandbox)
         return {"ok": True, "status": "stopped"}
     except PermissionError as e:
-        raise HTTPException(status_code=403, detail=str(e))
+        raise HTTPException(status_code=403, detail=str(e)) from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/{sandbox_id}/start")
@@ -299,9 +299,9 @@ async def start_sandbox(
         await sandbox_service.start_sandbox(sandbox)
         return {"ok": True, "status": "running"}
     except PermissionError as e:
-        raise HTTPException(status_code=403, detail=str(e))
+        raise HTTPException(status_code=403, detail=str(e)) from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.delete("/{sandbox_id}")
@@ -315,6 +315,6 @@ async def delete_sandbox_endpoint(
         await sandbox_service.delete_sandbox(sandbox)
         return {"ok": True}
     except PermissionError as e:
-        raise HTTPException(status_code=403, detail=str(e))
+        raise HTTPException(status_code=403, detail=str(e)) from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e

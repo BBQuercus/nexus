@@ -1,5 +1,5 @@
 import uuid
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -18,26 +18,26 @@ router = APIRouter(prefix="/api/projects", tags=["projects"])
 
 class CreateProjectRequest(BaseModel):
     name: str
-    description: Optional[str] = None
-    icon: Optional[str] = None
-    color: Optional[str] = None
-    default_model: Optional[str] = None
-    default_persona_id: Optional[uuid.UUID] = None
-    knowledge_base_ids: Optional[list[str]] = None
-    settings: Optional[dict[str, Any]] = None
+    description: str | None = None
+    icon: str | None = None
+    color: str | None = None
+    default_model: str | None = None
+    default_persona_id: uuid.UUID | None = None
+    knowledge_base_ids: list[str] | None = None
+    settings: dict[str, Any] | None = None
 
 
 class UpdateProjectRequest(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
-    icon: Optional[str] = None
-    color: Optional[str] = None
-    default_model: Optional[str] = None
-    default_persona_id: Optional[uuid.UUID] = None
-    knowledge_base_ids: Optional[list[str]] = None
-    pinned_conversation_ids: Optional[list[str]] = None
-    settings: Optional[dict[str, Any]] = None
-    archived: Optional[bool] = None
+    name: str | None = None
+    description: str | None = None
+    icon: str | None = None
+    color: str | None = None
+    default_model: str | None = None
+    default_persona_id: uuid.UUID | None = None
+    knowledge_base_ids: list[str] | None = None
+    pinned_conversation_ids: list[str] | None = None
+    settings: dict[str, Any] | None = None
+    archived: bool | None = None
 
 
 class MoveConversationRequest(BaseModel):
@@ -193,7 +193,7 @@ async def delete_project(
     # Soft delete: archive the project and unlink conversations
     project.archived = True
     await db.execute(
-        Conversation.__table__.update()
+        Conversation.__table__.update()  # type: ignore[attr-defined]
         .where(Conversation.project_id == project_id)
         .values(project_id=None)
     )

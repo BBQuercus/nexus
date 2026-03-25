@@ -5,7 +5,6 @@ Sets up JSON-formatted structured logging with request ID context.
 
 import logging
 import sys
-import uuid
 
 import structlog
 
@@ -25,10 +24,7 @@ def setup_logging(json_output: bool = True, log_level: str = "INFO") -> None:
         structlog.processors.UnicodeDecoder(),
     ]
 
-    if json_output:
-        renderer = structlog.processors.JSONRenderer()
-    else:
-        renderer = structlog.dev.ConsoleRenderer()
+    renderer = structlog.processors.JSONRenderer() if json_output else structlog.dev.ConsoleRenderer()
 
     structlog.configure(
         processors=[
@@ -65,4 +61,4 @@ def setup_logging(json_output: bool = True, log_level: str = "INFO") -> None:
 
 def get_logger(name: str | None = None) -> structlog.stdlib.BoundLogger:
     """Get a structlog logger, optionally named."""
-    return structlog.get_logger(name)
+    return structlog.get_logger(name)  # type: ignore[no-any-return]

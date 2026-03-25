@@ -4,20 +4,21 @@ Roles: viewer, editor, admin, org_admin
 Permissions are checked at the router level using FastAPI dependencies.
 """
 
-from enum import Enum
-from typing import Optional
 import uuid
+from enum import StrEnum
+
 from fastapi import Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from backend.db import get_db
+
 from backend.auth import get_current_user
+from backend.db import get_db
 from backend.logging_config import get_logger
 
 logger = get_logger("rbac")
 
 
-class Role(str, Enum):
+class Role(StrEnum):
     VIEWER = "viewer"
     EDITOR = "editor"
     ADMIN = "admin"

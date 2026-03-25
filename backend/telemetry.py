@@ -1,18 +1,16 @@
 """Telemetry: OpenTelemetry tracing + Prometheus metrics for Nexus."""
 
 import os
-import time
 from contextlib import contextmanager
-from typing import Optional
 
 from opentelemetry import trace
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
+from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
-from opentelemetry.sdk.resources import Resource
-from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
-from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
-from prometheus_client import Counter, Histogram, Gauge, Info, generate_latest, CONTENT_TYPE_LATEST
+from prometheus_client import Counter, Gauge, Histogram, Info
 
 # --- Resource ---
 _resource = Resource.create({
@@ -168,7 +166,7 @@ def get_tracer(name: str = "nexus") -> trace.Tracer:
 
 
 @contextmanager
-def trace_operation(name: str, attributes: Optional[dict] = None):
+def trace_operation(name: str, attributes: dict | None = None):
     """Context manager for tracing an operation with a span."""
     tracer = get_tracer()
     with tracer.start_as_current_span(name, attributes=attributes or {}) as span:

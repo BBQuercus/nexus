@@ -1,11 +1,10 @@
 """CRUD API for AI memories."""
 
 import uuid
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy import select, func
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.auth import get_current_user
@@ -23,17 +22,17 @@ class CreateMemoryRequest(BaseModel):
     scope: str = "global"
     category: str = "preference"
     content: str
-    project_id: Optional[uuid.UUID] = None
-    source_conversation_id: Optional[uuid.UUID] = None
-    source_message_id: Optional[uuid.UUID] = None
+    project_id: uuid.UUID | None = None
+    source_conversation_id: uuid.UUID | None = None
+    source_message_id: uuid.UUID | None = None
 
 
 class UpdateMemoryRequest(BaseModel):
-    scope: Optional[str] = None
-    category: Optional[str] = None
-    content: Optional[str] = None
-    active: Optional[bool] = None
-    project_id: Optional[uuid.UUID] = None
+    scope: str | None = None
+    category: str | None = None
+    content: str | None = None
+    active: bool | None = None
+    project_id: uuid.UUID | None = None
 
 
 def _serialize_memory(m: Memory) -> dict:
@@ -90,10 +89,10 @@ async def create_memory(
 
 @router.get("")
 async def list_memories(
-    scope: Optional[str] = Query(None),
-    category: Optional[str] = Query(None),
-    project_id: Optional[uuid.UUID] = Query(None),
-    active: Optional[bool] = Query(None),
+    scope: str | None = Query(None),
+    category: str | None = Query(None),
+    project_id: uuid.UUID | None = Query(None),
+    active: bool | None = Query(None),
     user_id: uuid.UUID = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -168,7 +167,7 @@ async def delete_memory(
 @router.get("/relevant")
 async def get_relevant(
     context: str = Query(..., min_length=1),
-    project_id: Optional[uuid.UUID] = Query(None),
+    project_id: uuid.UUID | None = Query(None),
     limit: int = Query(10, ge=1, le=50),
     user_id: uuid.UUID = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),

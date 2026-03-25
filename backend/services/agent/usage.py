@@ -65,8 +65,9 @@ async def link_retrieval_logs(
     """Link retrieval logs to the assistant message."""
     if not retrieval_log_ids:
         return
-    from backend.models import RetrievalLog
     from sqlalchemy import update as sa_update
+
+    from backend.models import RetrievalLog
     await db.execute(
         sa_update(RetrievalLog)
         .where(RetrievalLog.id.in_(retrieval_log_ids))

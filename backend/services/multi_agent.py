@@ -4,18 +4,17 @@ Supports running multiple agents in parallel on different aspects of a task,
 scoring results, and letting users adopt or merge outcomes.
 """
 
-import asyncio
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from enum import Enum
-from typing import Any, Optional
+from datetime import UTC, datetime
+from enum import StrEnum
+
 from backend.logging_config import get_logger
 
 logger = get_logger("multi_agent")
 
 
-class AgentStrategy(str, Enum):
+class AgentStrategy(StrEnum):
     PARALLEL = "parallel"      # Run all agents simultaneously
     SEQUENTIAL = "sequential"  # Run one after another
     BEST_OF_N = "best_of_n"    # Run N, pick best
@@ -27,15 +26,15 @@ class AgentRun:
     """A single agent execution within a multi-agent workflow."""
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     model: str = ""
-    persona_id: Optional[str] = None
+    persona_id: str | None = None
     status: str = "pending"  # pending, running, completed, failed
-    result: Optional[str] = None
+    result: str | None = None
     tokens_used: int = 0
     cost_usd: float = 0.0
     duration_ms: float = 0.0
-    score: Optional[float] = None  # Quality score (0-1)
-    started_at: Optional[datetime] = None
-    completed_at: Optional[datetime] = None
+    score: float | None = None  # Quality score (0-1)
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
 
 
 @dataclass
@@ -46,9 +45,9 @@ class MultiAgentWorkflow:
     prompt: str = ""
     runs: list[AgentRun] = field(default_factory=list)
     status: str = "pending"  # pending, running, completed
-    selected_run_id: Optional[str] = None  # Which run was adopted
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    completed_at: Optional[datetime] = None
+    selected_run_id: str | None = None  # Which run was adopted
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+    completed_at: datetime | None = None
 
 
 # In-memory workflow registry
@@ -59,7 +58,7 @@ async def create_workflow(
     strategy: AgentStrategy,
     prompt: str,
     models: list[str],
-    persona_ids: list[str] = None,
+    persona_ids: list[str] | None = None,
 ) -> MultiAgentWorkflow:
     """Create a multi-agent workflow."""
     workflow = MultiAgentWorkflow(
@@ -67,7 +66,7 @@ async def create_workflow(
         prompt=prompt,
         runs=[
             AgentRun(model=model, persona_id=pid)
-            for model, pid in zip(models, persona_ids or [None] * len(models))
+            for model, pid in zip(models, persona_ids or ([None] * len(models)), strict=False)  # type: ignore[list-item]
         ],
     )
     _workflows[workflow.id] = workflow
@@ -75,7 +74,7 @@ async def create_workflow(
     return workflow
 
 
-def get_workflow(workflow_id: str) -> Optional[MultiAgentWorkflow]:
+def get_workflow(workflow_id: str) -> MultiAgentWorkflow | None:
     """Get a workflow by ID."""
     return _workflows.get(workflow_id)
 

@@ -1,5 +1,6 @@
 from sqlalchemy import Index
-from backend.models import Message, Conversation, UsageLog, Feedback, Chunk
+
+from backend.models import Chunk, Conversation, Feedback, Message, UsageLog
 
 # These indexes improve query performance for common access patterns
 idx_messages_conv_created = Index('idx_messages_conv_created', Message.conversation_id, Message.created_at)

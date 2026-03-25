@@ -4,12 +4,13 @@ Defines the standard states, error shapes, and degraded-state patterns
 that all API responses should follow.
 """
 
-from enum import Enum
-from typing import Any, Optional
+from enum import StrEnum
+from typing import Any
+
 from pydantic import BaseModel
 
 
-class RequestStatus(str, Enum):
+class RequestStatus(StrEnum):
     """Standard request lifecycle states."""
     IDLE = "idle"
     LOADING = "loading"
@@ -25,11 +26,11 @@ class ErrorShape(BaseModel):
     """Standard error response shape for all API errors."""
     code: str                              # Machine-readable error code
     message: str                           # Human-readable error message
-    category: Optional[str] = None         # Error category for UI handling
-    request_id: Optional[str] = None       # For support/debugging
-    details: Optional[dict[str, Any]] = None  # Additional context
-    retry_after: Optional[int] = None      # Seconds to wait before retry
-    degraded_fallback: Optional[str] = None  # What degraded behavior is available
+    category: str | None = None         # Error category for UI handling
+    request_id: str | None = None       # For support/debugging
+    details: dict[str, Any] | None = None  # Additional context
+    retry_after: int | None = None      # Seconds to wait before retry
+    degraded_fallback: str | None = None  # What degraded behavior is available
 
 
 class DegradedState(BaseModel):
@@ -37,16 +38,16 @@ class DegradedState(BaseModel):
     service: str           # Which service is degraded
     status: str            # "unavailable", "slow", "partial"
     message: str           # User-facing message
-    fallback: Optional[str] = None  # What fallback is in use
-    since: Optional[str] = None     # When degradation started
+    fallback: str | None = None  # What fallback is in use
+    since: str | None = None     # When degradation started
 
 
 class APIResponse(BaseModel):
     """Standard API response envelope."""
     status: RequestStatus
-    data: Optional[Any] = None
-    error: Optional[ErrorShape] = None
-    degraded: Optional[list[DegradedState]] = None
+    data: Any | None = None
+    error: ErrorShape | None = None
+    degraded: list[DegradedState] | None = None
     metadata: dict[str, Any] = {}
 
     class Config:

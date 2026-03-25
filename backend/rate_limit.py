@@ -6,7 +6,9 @@ Falls back to in-memory when Redis is unavailable.
 
 import time
 from collections import defaultdict
+
 from fastapi import HTTPException
+
 from backend.logging_config import get_logger
 
 logger = get_logger("rate_limit")

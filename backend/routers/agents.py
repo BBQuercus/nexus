@@ -1,38 +1,39 @@
 import uuid
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import or_, select, func
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.auth import get_current_user
 from backend.db import get_db
 from backend.models import AgentPersona
+from backend.services.audit import AuditAction, record_audit_event
+from backend.services.rbac import require_permission
 
 router = APIRouter(prefix="/api/agents", tags=["agents"])
 
 
 class CreateAgentRequest(BaseModel):
     name: str
-    description: Optional[str] = None
+    description: str | None = None
     system_prompt: str
-    default_model: Optional[str] = None
+    default_model: str | None = None
     default_mode: str = "code"
     icon: str = "\U0001f916"
-    tools_enabled: Optional[list[str]] = None
+    tools_enabled: list[str] | None = None
     is_public: bool = False
 
 
 class UpdateAgentRequest(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
-    system_prompt: Optional[str] = None
-    default_model: Optional[str] = None
-    default_mode: Optional[str] = None
-    icon: Optional[str] = None
-    tools_enabled: Optional[list[str]] = None
-    is_public: Optional[bool] = None
+    name: str | None = None
+    description: str | None = None
+    system_prompt: str | None = None
+    default_model: str | None = None
+    default_mode: str | None = None
+    icon: str | None = None
+    tools_enabled: list[str] | None = None
+    is_public: bool | None = None
 
 
 def _serialize_agent(a: AgentPersona) -> dict:
@@ -73,6 +74,7 @@ async def create_agent(
     db.add(agent)
     await db.flush()
     await db.commit()
+    await record_audit_event(AuditAction.AGENT_CREATED, actor_id=str(user_id), resource_type="agent", resource_id=str(agent.id))
     return _serialize_agent(agent)
 
 
@@ -167,7 +169,7 @@ async def update_agent(
 @router.delete("/{agent_id}")
 async def delete_agent(
     agent_id: uuid.UUID,
-    user_id: uuid.UUID = Depends(get_current_user),
+    user_id: uuid.UUID = Depends(require_permission("agent.delete")),
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
@@ -181,6 +183,7 @@ async def delete_agent(
 
     await db.delete(agent)
     await db.commit()
+    await record_audit_event(AuditAction.AGENT_DELETED, actor_id=str(user_id), resource_type="agent", resource_id=str(agent_id))
     return {"ok": True}
 
 

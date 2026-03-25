@@ -4,7 +4,7 @@ import type { Project } from '../types';
 import { emptyConfirm } from './types';
 
 export interface WorkspaceSlice {
-  rightPanelTab: 'terminal' | 'files' | 'preview' | 'artifacts' | 'tree' | 'sources';
+  rightPanelTab: 'terminal' | 'files' | 'preview' | 'artifacts' | 'tree' | 'sources' | 'memory';
   rightPanelOpen: boolean;
   previewUrl: string | null;
   diffView: { columns: { label: string; content: string }[] } | null;

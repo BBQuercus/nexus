@@ -5,13 +5,14 @@ documents, diagrams. This module formalizes how they're created, versioned,
 and traced back to their source.
 """
 
-from enum import Enum
-from typing import Any, Optional
-from pydantic import BaseModel
 from datetime import datetime
+from enum import StrEnum
+from typing import Any
+
+from pydantic import BaseModel
 
 
-class ArtifactType(str, Enum):
+class ArtifactType(StrEnum):
     """Canonical artifact types."""
     CODE = "code"
     CHART = "chart"
@@ -24,7 +25,7 @@ class ArtifactType(str, Enum):
     REPORT = "report"   # For generated reports (future)
 
 
-class ArtifactSource(str, Enum):
+class ArtifactSource(StrEnum):
     """How the artifact was produced."""
     LLM_GENERATED = "llm_generated"     # Direct model output
     TOOL_OUTPUT = "tool_output"         # Result of tool execution
@@ -36,13 +37,13 @@ class ArtifactSource(str, Enum):
 class ArtifactLineage(BaseModel):
     """Tracks the provenance of an artifact."""
     source: ArtifactSource
-    conversation_id: Optional[str] = None
-    message_id: Optional[str] = None
-    tool_call_id: Optional[str] = None
-    tool_name: Optional[str] = None
-    parent_artifact_id: Optional[str] = None  # For derived artifacts
-    model: Optional[str] = None               # Which model generated it
-    prompt_snippet: Optional[str] = None       # First 200 chars of prompt that led to this
+    conversation_id: str | None = None
+    message_id: str | None = None
+    tool_call_id: str | None = None
+    tool_name: str | None = None
+    parent_artifact_id: str | None = None  # For derived artifacts
+    model: str | None = None               # Which model generated it
+    prompt_snippet: str | None = None       # First 200 chars of prompt that led to this
 
 
 class ArtifactVersion(BaseModel):
@@ -50,8 +51,8 @@ class ArtifactVersion(BaseModel):
     version: int
     content: Any
     metadata: dict[str, Any] = {}
-    created_at: Optional[datetime] = None
-    change_summary: Optional[str] = None  # What changed from previous version
+    created_at: datetime | None = None
+    change_summary: str | None = None  # What changed from previous version
 
 
 class ArtifactEnvelope(BaseModel):
@@ -68,8 +69,8 @@ class ArtifactEnvelope(BaseModel):
     versions: list[ArtifactVersion] = []
     pinned: bool = False
     tags: list[str] = []
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
     class Config:
         extra = "allow"
@@ -96,8 +97,7 @@ def classify_artifact_type(content: Any, label: str = "", tool_name: str = "") -
     if "diagram" in label_lower or "mermaid" in label_lower:
         return ArtifactType.DIAGRAM
 
-    if isinstance(content, str) and len(content) > 0:
-        if content.strip().startswith("{") or content.strip().startswith("```"):
-            return ArtifactType.CODE
+    if isinstance(content, str) and len(content) > 0 and (content.strip().startswith("{") or content.strip().startswith("```")):
+        return ArtifactType.CODE
 
     return ArtifactType.DOCUMENT

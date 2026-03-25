@@ -1,9 +1,10 @@
+import asyncio
+import contextlib
 import json
 import os
 import uuid
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any
 
 import jwt
 from fastapi import Depends, FastAPI, WebSocket, WebSocketDisconnect
@@ -11,22 +12,32 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.auth import get_current_user, router as auth_router, validate_csrf
+import backend.indexes  # noqa: F401 — register DB indexes
+from backend.auth import get_current_user, validate_csrf
+from backend.auth import router as auth_router
 from backend.config import settings
 from backend.db import Base, async_session, engine, get_db
 from backend.logging_config import get_logger, setup_logging
-from backend.middleware import GlobalExceptionMiddleware, MetricsMiddleware, RequestIdMiddleware, SecurityHeadersMiddleware
+from backend.middleware import (
+    GlobalExceptionMiddleware,
+    MetricsMiddleware,
+    RequestIdMiddleware,
+    SecurityHeadersMiddleware,
+)
 from backend.models import FrontendError
 from backend.routers.admin import router as admin_router
 from backend.routers.admin_analytics import router as admin_analytics_router
 from backend.routers.agents import router as agents_router
 from backend.routers.analytics import router as analytics_router
-from backend.routers.chat import artifact_router, router as chat_router
+from backend.routers.chat import artifact_router
+from backend.routers.chat import router as chat_router
 from backend.routers.compliance import router as compliance_router
 from backend.routers.feedback import router as feedback_router
 from backend.routers.integrations import router as integrations_router
 from backend.routers.jobs import router as jobs_router
-from backend.routers.knowledge import router as knowledge_router, doc_router as knowledge_doc_router, retrieval_router as knowledge_retrieval_router
+from backend.routers.knowledge import doc_router as knowledge_doc_router
+from backend.routers.knowledge import retrieval_router as knowledge_retrieval_router
+from backend.routers.knowledge import router as knowledge_router
 from backend.routers.media import router as media_router
 from backend.routers.memory import router as memory_router
 from backend.routers.projects import router as projects_router
@@ -35,9 +46,15 @@ from backend.routers.search import router as search_router
 from backend.routers.tts import router as tts_router
 from backend.routers.users import router as users_router
 from backend.services import sandbox as sandbox_service
-from backend.telemetry import CONTENT_TYPE_LATEST, generate_latest, setup_telemetry
+from backend.services.audit import flush_audit_buffer
+from backend.telemetry import setup_telemetry
+
+try:
+    from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+except ImportError:
+    CONTENT_TYPE_LATEST = "text/plain"  # type: ignore[assignment]
+    generate_latest = None  # type: ignore[assignment]
 from backend.version import BUILD_SHA, VERSION
-import backend.indexes  # noqa: F401 — register DB indexes
 
 # Initialize structured logging
 setup_logging(json_output=not os.environ.get("DEV_MODE"), log_level="INFO")
@@ -46,10 +63,10 @@ logger = get_logger("main")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+
     from sqlalchemy import text as sa_text
 
-    import asyncio
-    from backend.redis import get_redis, close_redis
+    from backend.redis import close_redis, get_redis
     from backend.services.cleanup import start_cleanup_loop
     from backend.services.jobs import start_job_worker
 
@@ -64,15 +81,12 @@ async def lifespan(app: FastAPI):
         logger.info("graceful_shutdown_started")
         cleanup_task.cancel()
         job_worker_task.cancel()
-        try:
+        with contextlib.suppress(asyncio.CancelledError):
             await cleanup_task
-        except asyncio.CancelledError:
-            pass
-        try:
+        with contextlib.suppress(asyncio.CancelledError):
             await job_worker_task
-        except asyncio.CancelledError:
-            pass
         await close_redis()
+        await flush_audit_buffer()
         await asyncio.sleep(1)
         await engine.dispose()
         logger.info("database_engine_disposed")
@@ -128,15 +142,12 @@ async def lifespan(app: FastAPI):
     logger.info("graceful_shutdown_started")
     cleanup_task.cancel()
     job_worker_task.cancel()
-    try:
+    with contextlib.suppress(asyncio.CancelledError):
         await cleanup_task
-    except asyncio.CancelledError:
-        pass
-    try:
+    with contextlib.suppress(asyncio.CancelledError):
         await job_worker_task
-    except asyncio.CancelledError:
-        pass
     await close_redis()
+    await flush_audit_buffer()
     await asyncio.sleep(1)
     await engine.dispose()
     logger.info("database_engine_disposed")
@@ -258,9 +269,9 @@ def _extract_proxy_models(payload: Any) -> list[str]:
     return sorted(models)
 
 
-async def _check_llm() -> dict:
+async def _check_llm() -> dict[str, Any]:
     """Check LiteLLM proxy reachability."""
-    import asyncio
+
     import httpx
 
     base_url = settings.LITE_LLM_URL.rstrip("/")
@@ -300,7 +311,7 @@ async def _check_llm() -> dict:
             # If models are reachable, treat this as available and surface the
             # health timeout only as diagnostic metadata.
             if available_models:
-                result = {
+                result: dict[str, Any] = {
                     "status": "ok" if not affected_models else "degraded",
                     "health_url": health_url,
                     "warning": health_error,
@@ -310,49 +321,49 @@ async def _check_llm() -> dict:
                 result["available_models"] = available_models
                 return result
 
-            result = {
+            result2: dict[str, Any] = {
                 "status": "error",
                 "error": health_error,
                 "health_url": health_url,
             }
             if affected_models:
-                result["affected_models"] = affected_models
+                result2["affected_models"] = affected_models
             if available_models:
-                result["available_models"] = available_models
+                result2["available_models"] = available_models
             if models_error:
-                result["models_error"] = models_error
-            return result
+                result2["models_error"] = models_error
+            return result2
 
-        if 200 <= health_result.status_code < 300:
-            result = {
+        if 200 <= health_result.status_code < 300:  # type: ignore[union-attr]
+            result3: dict[str, Any] = {
                 "status": "ok" if not affected_models else "degraded",
                 "health_url": health_url,
             }
             if affected_models:
-                result["affected_models"] = affected_models
+                result3["affected_models"] = affected_models
             if available_models:
-                result["available_models"] = available_models
-            return result
+                result3["available_models"] = available_models
+            return result3
 
-        result = {
+        result4: dict[str, Any] = {
             "status": "degraded",
-            "error": f"HTTP {health_result.status_code}",
+            "error": f"HTTP {health_result.status_code}",  # type: ignore[union-attr]
             "health_url": health_url,
         }
         if affected_models:
-            result["affected_models"] = affected_models
+            result4["affected_models"] = affected_models
         if available_models:
-            result["available_models"] = available_models
-        return result
+            result4["available_models"] = available_models
+        return result4
     except Exception as e:
-        result = {
+        result5: dict[str, Any] = {
             "status": "error",
             "error": str(e),
             "health_url": health_url,
         }
         if configured_models:
-            result["affected_models"] = configured_models
-        return result
+            result5["affected_models"] = configured_models
+        return result5
 
 
 async def _check_redis() -> dict:
@@ -366,7 +377,7 @@ async def _check_redis() -> dict:
     try:
         r = await get_redis()
         if r:
-            await r.ping()
+            await r.ping()  # type: ignore[misc]
             return {"status": "ok"}
         return {"status": "unavailable"}
     except Exception as e:
@@ -394,7 +405,6 @@ async def _check_daytona() -> dict:
 @app.get("/health")
 async def health():
     """Deep health check — checks DB, LLM, and Daytona."""
-    import asyncio
     import time
 
     start = time.monotonic()
@@ -433,12 +443,12 @@ async def readiness():
 
 class FrontendErrorReport(BaseModel):
     message: str
-    stack: Optional[str] = None
-    url: Optional[str] = None
-    user_agent: Optional[str] = None
-    component: Optional[str] = None
-    request_id: Optional[str] = None
-    extra: Optional[dict] = None
+    stack: str | None = None
+    url: str | None = None
+    user_agent: str | None = None
+    component: str | None = None
+    request_id: str | None = None
+    extra: dict | None = None
 
 
 @app.post("/api/errors")
@@ -568,10 +578,8 @@ async def sandbox_terminal(websocket: WebSocket, sandbox_id: str, token: str | N
         logger.info("ws_disconnected", sandbox_id=sandbox_id)
     except Exception as e:
         logger.error("ws_error", sandbox_id=sandbox_id, error=str(e))
-        try:
+        with contextlib.suppress(Exception):
             await websocket.close()
-        except Exception:
-            pass
 
 
 if __name__ == "__main__":

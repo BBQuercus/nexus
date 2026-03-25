@@ -4,19 +4,18 @@ Provides async Redis client for rate limiting, caching, and pub/sub.
 Falls back gracefully if Redis is unavailable.
 """
 
-import asyncio
-from typing import Optional
 import redis.asyncio as redis
+
 from backend.config import settings
 from backend.logging_config import get_logger
 
 logger = get_logger("redis")
 
-_pool: Optional[redis.Redis] = None
+_pool: redis.Redis | None = None
 _available: bool = False
 
 
-async def get_redis() -> Optional[redis.Redis]:
+async def get_redis() -> redis.Redis | None:
     """Get the Redis client. Returns None if Redis is unavailable."""
     global _pool, _available
 
@@ -32,7 +31,7 @@ async def get_redis() -> Optional[redis.Redis]:
                 retry_on_timeout=True,
             )
             # Test connection
-            await _pool.ping()
+            await _pool.ping()  # type: ignore[misc]
             _available = True
             logger.info("redis_connected", url=settings.REDIS_URL.split("@")[-1])  # Don't log auth
         except Exception as e:

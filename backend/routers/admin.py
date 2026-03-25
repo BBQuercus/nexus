@@ -1,6 +1,6 @@
 import uuid
-from datetime import datetime, timedelta, timezone
-from typing import Optional
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -11,7 +11,6 @@ from backend.auth import get_current_user
 from backend.db import get_db
 from backend.logging_config import get_logger
 from backend.models import (
-    AnalyticsEvent,
     Conversation,
     Feedback,
     FrontendError,
@@ -58,7 +57,7 @@ async def admin_overview(
     db: AsyncSession = Depends(get_db),
 ):
     """Dashboard overview: totals, active users, error rate."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     day_ago = now - timedelta(hours=24)
     week_ago = now - timedelta(days=7)
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -111,9 +110,9 @@ async def admin_overview(
 
 @router.get("/feedback")
 async def admin_list_feedback(
-    rating: Optional[str] = Query(None),
-    tag: Optional[str] = Query(None),
-    model: Optional[str] = Query(None),
+    rating: str | None = Query(None),
+    tag: str | None = Query(None),
+    model: str | None = Query(None),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
     admin: User = Depends(get_admin_user),
@@ -138,8 +137,8 @@ async def admin_list_feedback(
     # Paginate
     offset = (page - 1) * page_size
     query = query.offset(offset).limit(page_size)
-    result = await db.execute(query)
-    feedbacks = result.scalars().all()
+    fb_result = await db.execute(query)
+    feedbacks: list[Any] = list(fb_result.scalars().all())
 
     user_ids = list({f.user_id for f in feedbacks})
     message_ids = list({f.message_id for f in feedbacks})
@@ -193,7 +192,7 @@ async def admin_feedback_stats(
     db: AsyncSession = Depends(get_db),
 ):
     """Feedback statistics: by model, common tags, rating distribution, trends."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     week_ago = now - timedelta(days=7)
 
     # Rating distribution
@@ -263,7 +262,7 @@ async def admin_usage(
     db: AsyncSession = Depends(get_db),
 ):
     """Usage analytics: messages per day, popular models, avg response time, most active users."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     month_ago = now - timedelta(days=30)
 
     # Messages per day (last 30 days)
@@ -350,10 +349,10 @@ async def admin_list_users(
     total = result.scalar() or 0
 
     offset = (page - 1) * page_size
-    result = await db.execute(
+    user_result = await db.execute(
         select(User).order_by(User.created_at.desc()).offset(offset).limit(page_size)
     )
-    users = result.scalars().all()
+    users: list[Any] = list(user_result.scalars().all())
 
     items = []
     for u in users:
@@ -435,13 +434,13 @@ async def admin_list_errors(
     total = result.scalar() or 0
 
     offset = (page - 1) * page_size
-    result = await db.execute(
+    err_result = await db.execute(
         select(FrontendError)
         .order_by(FrontendError.created_at.desc())
         .offset(offset)
         .limit(page_size)
     )
-    errors = result.scalars().all()
+    errors: list[Any] = list(err_result.scalars().all())
 
     items = []
     for e in errors:

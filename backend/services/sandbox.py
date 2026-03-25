@@ -2,7 +2,7 @@ import asyncio
 import base64
 import uuid
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any
 
 from backend.config import settings
 from backend.logging_config import get_logger
@@ -39,14 +39,14 @@ def _get_daytona():
 
 
 async def create_sandbox(
-    template: str = "python-data-science", labels: Optional[dict] = None
-) -> object:
+    template: str = "python-data-science", labels: dict | None = None
+) -> Any:
     """Create a new Daytona sandbox."""
     daytona = _get_daytona()
     if daytona is None:
         raise RuntimeError("Daytona SDK not configured (missing API key or URL)")
 
-    from daytona_sdk import CreateSandboxFromSnapshotParams, CreateSandboxFromImageParams
+    from daytona_sdk import CreateSandboxFromImageParams, CreateSandboxFromSnapshotParams
 
     # Use pre-built snapshots for fast startup with packages pre-installed
     if template in ("nodejs", "react-vite"):
@@ -58,7 +58,7 @@ async def create_sandbox(
         )
     else:
         # Python templates use the pre-built snapshot with data science packages
-        params = CreateSandboxFromSnapshotParams(
+        params = CreateSandboxFromSnapshotParams(  # type: ignore[assignment]
             snapshot="nexus-ds-v4",
             language="python",
             labels=labels or {},
@@ -133,7 +133,7 @@ async def execute_code(sandbox, language: str, code: str) -> ExecutionResult:
             asyncio.to_thread(sandbox.process.exec, cmd),
             timeout=120,  # 2 minute timeout
         )
-    except asyncio.TimeoutError:
+    except TimeoutError:
         logger.warning("sandbox_execution_timeout", sandbox_id=sandbox.id, language=language, code_length=len(code))
         return ExecutionResult(
             stdout="",

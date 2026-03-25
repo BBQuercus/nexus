@@ -1,8 +1,10 @@
 """Caching utilities backed by Redis with in-memory fallback."""
 
+import contextlib
 import json
 import time
-from typing import Any, Optional
+from typing import Any
+
 from backend.logging_config import get_logger
 
 logger = get_logger("cache")
@@ -12,7 +14,7 @@ _memory_cache: dict[str, tuple[Any, float]] = {}  # key -> (value, expiry_timest
 _MAX_MEMORY_CACHE_SIZE = 1000
 
 
-async def cache_get(key: str) -> Optional[Any]:
+async def cache_get(key: str) -> Any | None:
     """Get a value from cache. Tries Redis first, falls back to memory."""
     from backend.redis import get_redis
 
@@ -68,10 +70,8 @@ async def cache_delete(key: str):
 
     r = await get_redis()
     if r:
-        try:
+        with contextlib.suppress(Exception):
             await r.delete(f"nexus:{key}")
-        except Exception:
-            pass
 
     _memory_cache.pop(key, None)
 

@@ -2,7 +2,8 @@
 
 import asyncio
 import random
-from typing import Callable, Set, Type
+from collections.abc import Callable
+
 from backend.logging_config import get_logger
 
 logger = get_logger("retry")
@@ -15,8 +16,8 @@ async def retry_async(
     base_delay: float = 1.0,
     max_delay: float = 30.0,
     backoff_factor: float = 2.0,
-    retryable_exceptions: Set[Type[Exception]] = None,
-    retryable_status_codes: Set[int] = None,
+    retryable_exceptions: set[type[Exception]] | None = None,
+    retryable_status_codes: set[int] | None = None,
     operation_name: str = "operation",
     **kwargs,
 ):
@@ -33,26 +34,25 @@ async def retry_async(
         operation_name: Name for logging
     """
     retryable_exceptions = retryable_exceptions or {Exception}
-    last_exception = None
+    last_exception: Exception | None = None
 
     for attempt in range(max_retries + 1):
         try:
             result = await func(*args, **kwargs)
 
             # Check for retryable status codes on httpx-like responses
-            if retryable_status_codes and hasattr(result, 'status_code'):
-                if result.status_code in retryable_status_codes and attempt < max_retries:
-                    delay = min(base_delay * (backoff_factor ** attempt), max_delay)
-                    delay += random.uniform(0, delay * 0.1)  # jitter
-                    logger.warning(
-                        "retry_on_status",
-                        operation=operation_name,
-                        attempt=attempt + 1,
-                        status_code=result.status_code,
-                        delay=round(delay, 2),
-                    )
-                    await asyncio.sleep(delay)
-                    continue
+            if retryable_status_codes and hasattr(result, 'status_code') and result.status_code in retryable_status_codes and attempt < max_retries:
+                delay = min(base_delay * (backoff_factor ** attempt), max_delay)
+                delay += random.uniform(0, delay * 0.1)  # jitter
+                logger.warning(
+                    "retry_on_status",
+                    operation=operation_name,
+                    attempt=attempt + 1,
+                    status_code=result.status_code,
+                    delay=round(delay, 2),
+                )
+                await asyncio.sleep(delay)
+                continue
 
             return result
 
@@ -77,4 +77,4 @@ async def retry_async(
             )
             await asyncio.sleep(delay)
 
-    raise last_exception  # Should never reach here, but just in case
+    raise last_exception  # type: ignore[misc]  # Should never reach here, but just in case

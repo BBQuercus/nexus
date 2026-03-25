@@ -1,9 +1,9 @@
 import re
-from typing import Any, Optional
+from typing import Any
 
 
 def extract_artifacts(
-    message_content: str, tool_calls: Optional[list[dict[str, Any]]] = None
+    message_content: str, tool_calls: list[dict[str, Any]] | None = None
 ) -> list[dict[str, Any]]:
     """Extract artifacts from message content and tool calls.
 

@@ -1,4 +1,3 @@
-from typing import Optional
 
 TOOLS = [
     {
@@ -334,7 +333,7 @@ KNOWLEDGE_SEARCH_TOOL = {
 
 def get_tools_for_mode(
     mode: str,
-    tools_enabled: Optional[list[str]] = None,
+    tools_enabled: list[str] | None = None,
     has_knowledge: bool = False,
 ) -> list[dict]:
     """Get the tools available for a given agent mode.
@@ -347,8 +346,8 @@ def get_tools_for_mode(
     Returns:
         List of tool definitions for function calling
     """
-    if tools_enabled is not None:
-        base = [t for t in TOOLS if t["function"]["name"] in tools_enabled]
+    if tools_enabled is not None:  # noqa: SIM108
+        base = [t for t in TOOLS if t["function"]["name"] in tools_enabled]  # type: ignore[index]
     else:
         base = list(TOOLS)
 

@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from backend.config import settings
-from backend.services.rag.retrieval import RetrievalResult, ScoredChunk
+
+if TYPE_CHECKING:
+    from backend.services.rag.retrieval import RetrievalResult, ScoredChunk
 
 
 def format_retrieval_context(result: RetrievalResult) -> tuple[str, float]:

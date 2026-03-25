@@ -1,8 +1,7 @@
 import uuid
-from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func, or_, select, text as sa_text
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.auth import get_current_user
@@ -51,7 +50,6 @@ async def search(
         return results
 
     # Use PostgreSQL full-text search where possible, with ILIKE fallback
-    ts_query = func.plainto_tsquery("english", search_term)
     like_pattern = f"%{search_term}%"
 
     # ── Search conversations by title ──

@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
-import uuid
+from typing import TYPE_CHECKING
 
 from sqlalchemy import select, update
-from sqlalchemy.ext.asyncio import AsyncSession
+
+if TYPE_CHECKING:
+    import uuid
+
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
 from backend.db import async_session
@@ -91,7 +95,7 @@ async def ingest_document(
             # Embed the combined prefix + content for better retrieval
             texts_to_embed = [
                 f"{prefix}\n\n{chunk.content}" if prefix else chunk.content
-                for prefix, chunk in zip(prefixes, parsed.chunks)
+                for prefix, chunk in zip(prefixes, parsed.chunks, strict=False)
             ]
             embeddings = await embed_texts(texts_to_embed, model=embedding_model)
 
@@ -103,8 +107,8 @@ async def ingest_document(
 
             # 4. Store chunks with embeddings
             chunk_records = []
-            for i, (parsed_chunk, prefix, embedding) in enumerate(
-                zip(parsed.chunks, prefixes, embeddings)
+            for _i, (parsed_chunk, prefix, embedding) in enumerate(
+                zip(parsed.chunks, prefixes, embeddings, strict=False)
             ):
                 chunk_records.append(Chunk(
                     document_id=document_id,

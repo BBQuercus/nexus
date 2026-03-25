@@ -3,13 +3,14 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useStore } from '@/lib/store';
 import { useIsMobile } from '@/lib/useMediaQuery';
-import { Terminal, FolderOpen, Eye, Layers, Network, BookOpen, X } from 'lucide-react';
+import { Terminal, FolderOpen, Eye, Layers, Network, BookOpen, Brain, X } from 'lucide-react';
 import TerminalPanel from './terminal-panel';
 import FilesPanel from './files-panel';
 import PreviewPanel from './preview-panel';
-import ArtifactsPanel from './artifacts-panel';
+import ArtifactCenter from './artifact-center';
 import TreePanel from './tree-panel';
 import SourcesPanel from './sources-panel';
+import { MemoryPanel } from './memory-panel';
 
 const ALL_TABS = [
   { key: 'terminal' as const, label: 'Terminal', icon: <Terminal size={12} />, needsSandbox: true },
@@ -18,6 +19,7 @@ const ALL_TABS = [
   { key: 'artifacts' as const, label: 'Artifacts', icon: <Layers size={12} />, needsSandbox: false },
   { key: 'tree' as const, label: 'Tree', icon: <Network size={12} />, needsSandbox: false },
   { key: 'sources' as const, label: 'Sources', icon: <BookOpen size={12} />, needsSandbox: false },
+  { key: 'memory' as const, label: 'Memory', icon: <Brain size={12} />, needsSandbox: false },
 ];
 
 const MIN_WIDTH = 280;
@@ -157,9 +159,10 @@ export default function RightPanel() {
         {activeTab === 'terminal' && <TerminalPanel />}
         {activeTab === 'files' && <FilesPanel />}
         {activeTab === 'preview' && <PreviewPanel />}
-        {activeTab === 'artifacts' && <ArtifactsPanel />}
+        {activeTab === 'artifacts' && <ArtifactCenter />}
         {activeTab === 'tree' && <TreePanel />}
         {activeTab === 'sources' && <SourcesPanel />}
+        {activeTab === 'memory' && <MemoryPanel />}
       </div>
     </div>
   );

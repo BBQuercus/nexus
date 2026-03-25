@@ -1,4 +1,4 @@
-from typing import Optional, Any
+from typing import Any
 
 CHAT_SYSTEM_PROMPT = """You are Nexus, a helpful AI assistant. Answer questions, explain concepts, and help with reasoning tasks. Be concise but thorough. Use markdown formatting and fenced code blocks where appropriate. Never use emojis. Be direct and professional.
 
@@ -145,9 +145,9 @@ def build_tool_catalog_addendum(tools: list[dict[str, Any]]) -> str:
 
 def build_system_prompt(
     mode: str,
-    persona: Optional[object] = None,
+    persona: object | None = None,
     has_knowledge: bool = False,
-    tools: Optional[list[dict[str, Any]]] = None,
+    tools: list[dict[str, Any]] | None = None,
 ) -> str:
     """Build the system prompt based on mode and optional persona.
 

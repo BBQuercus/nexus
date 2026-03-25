@@ -2,20 +2,19 @@
 
 import json
 import uuid
-from typing import Any, Optional
+from typing import Any
 
-from sqlalchemy import func, select, text as sa_text
+from sqlalchemy import func, select
+from sqlalchemy import text as sa_text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.models import Conversation, Message
-from backend.prompts.system import build_system_prompt
-from backend.prompts.tools import get_tools_for_mode
 
 
 async def load_conversation_messages(
     db: AsyncSession,
     conversation_id: uuid.UUID,
-    leaf_message_id: Optional[uuid.UUID],
+    leaf_message_id: uuid.UUID | None,
 ) -> list[Message]:
     """Load conversation messages, either the full list or the path to a leaf."""
     if leaf_message_id:
@@ -50,7 +49,7 @@ async def detect_knowledge(
     db: AsyncSession,
     conversation: Conversation,
     conversation_id: uuid.UUID,
-    persona: Optional[object],
+    persona: object | None,
 ) -> tuple[bool, list[uuid.UUID]]:
     """Determine if knowledge bases/documents are available.
 
@@ -85,7 +84,7 @@ def build_llm_messages(
     existing_messages: list[Message],
     system_prompt: str,
     user_message: str,
-    leaf_message_id: Optional[uuid.UUID],
+    leaf_message_id: uuid.UUID | None,
 ) -> list[dict]:
     """Build the message list for the LLM from DB messages."""
     llm_messages: list[dict] = [{"role": "system", "content": system_prompt}]

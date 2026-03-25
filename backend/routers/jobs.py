@@ -1,5 +1,4 @@
 import uuid
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -26,11 +25,11 @@ class JobResponse(BaseModel):
     name: str
     status: str
     params: dict
-    result: Optional[dict] = None
-    error: Optional[str] = None
+    result: dict | None = None
+    error: str | None = None
     created_at: str
-    started_at: Optional[str] = None
-    completed_at: Optional[str] = None
+    started_at: str | None = None
+    completed_at: str | None = None
 
 
 def _job_to_dict(job) -> dict:
@@ -52,7 +51,7 @@ def _job_to_dict(job) -> dict:
 
 @router.get("")
 async def list_user_jobs(
-    status: Optional[str] = None,
+    status: str | None = None,
     user_id: uuid.UUID = Depends(get_current_user),
 ):
     """List jobs for the current user."""
@@ -60,8 +59,8 @@ async def list_user_jobs(
     if status:
         try:
             job_status = JobStatus(status)
-        except ValueError:
-            raise HTTPException(status_code=400, detail=f"Invalid status: {status}")
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=f"Invalid status: {status}") from e
 
     jobs = list_jobs(user_id=str(user_id), status=job_status)
     return [_job_to_dict(j) for j in jobs]

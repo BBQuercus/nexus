@@ -18,6 +18,12 @@ import {
   InlineBranchInput,
   AudioPlayer,
 } from './message-actions';
+import { ExecutionTimeline } from '../execution-timeline';
+import { RunSummaryPanel } from '../run-summary';
+import { ConfidenceDot } from '../confidence-indicator';
+import { ProvenanceRow } from '../provenance-indicator';
+import type { ExecutionStep } from '@/lib/execution-types';
+import type { RunSummary as RunSummaryType } from '@/lib/execution-types';
 
 export default function MessageBubble({ message }: { message: Message }) {
 
@@ -101,12 +107,54 @@ export default function MessageBubble({ message }: { message: Message }) {
     );
   }
 
+  // Build execution steps from tool calls
+  const executionSteps: ExecutionStep[] = (message.toolCalls || []).map((tc) => ({
+    id: tc.id,
+    type: 'tool_call' as const,
+    name: tc.name,
+    description: tc.name,
+    status: tc.isRunning ? ('running' as const) : tc.output !== undefined || tc.exitCode !== undefined ? (tc.exitCode !== undefined && tc.exitCode !== 0 ? ('failed' as const) : ('success' as const)) : ('success' as const),
+    startedAt: Date.now(),
+    durationMs: tc.duration ?? 0,
+    result: tc.output,
+    error: tc.exitCode !== undefined && tc.exitCode !== 0 ? (tc.stderr || `Exit code ${tc.exitCode}`) : undefined,
+  }));
+
+  // Determine confidence level
+  const hasFailedTools = executionSteps.some((s) => s.status === 'failed');
+  const hasRetrieval = (message.toolCalls || []).some((tc) => ['retrieval', 'rag_query', 'file_search', 'search'].includes(tc.name));
+  const confidenceLevel = hasFailedTools ? ('low' as const) : hasRetrieval ? ('medium' as const) : ('high' as const);
+
+  // Build run summary
+  const runSummary: RunSummaryType | null = executionSteps.length > 0 ? {
+    steps: executionSteps,
+    totalDurationMs: executionSteps.reduce((acc, s) => acc + (s.durationMs ?? 0), 0),
+    totalTokens: (message.cost?.inputTokens ?? 0) + (message.cost?.outputTokens ?? 0),
+    totalCostUsd: message.cost?.totalCost,
+    artifactsCreated: (message.charts?.length ?? 0) + (message.images?.length ?? 0) + (message.files?.length ?? 0),
+    toolsUsed: [...new Set((message.toolCalls || []).map((tc) => tc.name))],
+    retrievalUsed: hasRetrieval,
+    sandboxUsed: (message.toolCalls || []).some((tc) => ['code_exec', 'execute_code', 'run_code'].includes(tc.name)),
+    warnings: [],
+    uncertainResults: [],
+  } : null;
+
+  // Build provenance sources
+  const provenanceSources = [
+    { source: 'model' as const, label: 'Model answer' },
+    ...(message.citations && message.citations.length > 0 ? [{ source: 'citation' as const, label: 'Cited source' }] : []),
+    ...(hasRetrieval ? [{ source: 'retrieval' as const, label: 'Retrieved context' }] : []),
+    ...((message.toolCalls || []).some((tc) => ['code_exec', 'execute_code', 'run_code'].includes(tc.name)) ? [{ source: 'sandbox' as const, label: 'Sandbox output' }] : []),
+  ];
+
   return (
     <div className="flex justify-start" data-message-id={message.id}>
       <div className="group max-w-[95%] sm:max-w-[85%]">
         <SiblingNav message={message} />
         {message.reasoning && <ReasoningTrace content={message.reasoning} tokenCount={message.reasoningTokens} />}
         {message.toolCalls?.filter((tool) => tool.name !== 'create_chart' && tool.name !== 'create_ui').map((tool) => <ExecBlock key={tool.id} tool={tool} />)}
+        {executionSteps.length > 0 && <ExecutionTimeline steps={executionSteps} />}
+        {runSummary && <RunSummaryPanel summary={runSummary} />}
         <ImageGallery images={message.images} />
         <FileGallery files={message.files} sandboxId={sandboxId} />
         <ChartDisplay charts={message.charts} />
@@ -118,8 +166,17 @@ export default function MessageBubble({ message }: { message: Message }) {
           }} />
         ))}
         <MessageContent content={message.content} />
+        {provenanceSources.length > 1 && <ProvenanceRow sources={provenanceSources} />}
         <CitationSection citations={message.citations} />
         {message.cost && <CostBadge data={message.cost} />}
+        {executionSteps.length > 0 && (
+          <div className="flex items-center gap-1.5 mt-1">
+            <ConfidenceDot level={confidenceLevel} />
+            <span className="text-[10px] text-text-tertiary font-mono">
+              {confidenceLevel === 'high' ? 'High confidence' : confidenceLevel === 'medium' ? 'Medium confidence' : 'Low confidence'}
+            </span>
+          </div>
+        )}
         {audioUrl && (
           <AudioPlayer src={audioUrl} onClose={() => { URL.revokeObjectURL(audioUrl); setAudioUrl(null); }} />
         )}

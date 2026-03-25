@@ -194,8 +194,6 @@ function GroupedCitations({
 }
 
 export function CitationBar({ citations }: { citations: Citation[] }) {
-  if (!citations || citations.length === 0) return null;
-
   const setRightPanelTab = useStore((s) => s.setRightPanelTab);
   const setRightPanelOpen = useStore((s) => s.setRightPanelOpen);
   const [openIndex, setOpenIndex] = useState<number | null>(null);
@@ -219,6 +217,8 @@ export function CitationBar({ citations }: { citations: Citation[] }) {
       document.removeEventListener('keydown', keyHandler);
     };
   }, [openIndex]);
+
+  if (!citations || citations.length === 0) return null;
 
   return (
     <div ref={barRef} className="flex flex-wrap items-center gap-1.5 mt-2 pt-2 border-t border-border-default/20">
