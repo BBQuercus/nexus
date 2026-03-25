@@ -52,15 +52,6 @@ function makeCapabilities(): Capability[] {
   ];
 }
 
-const QUICK_SUGGESTIONS = [
-  'Analyze a CSV and create interactive charts',
-  'Build a React dashboard with live preview',
-  'Create a feedback survey with ratings and conditional questions',
-  'Compare GPT vs Claude on a code review task',
-  'Search the web and summarize with citations',
-  'Debug a repo and explain the root cause',
-];
-
 const RETURNING_STARTERS = [
   { icon: <Terminal size={16} />, text: 'Run code in a sandbox, inspect files, and generate artifacts', color: 'text-emerald-400' },
   { icon: <Code2 size={16} />, text: 'Build a web app with live preview and hot-reload', color: 'text-blue-400' },
@@ -113,18 +104,6 @@ function ReturningUserScreen() {
         <p className="text-text-tertiary text-xs tracking-[0.2em] uppercase">
           Agents, tools, and sandboxed execution
         </p>
-      </div>
-
-      <div className="flex flex-wrap justify-center gap-1.5 max-w-lg">
-        {QUICK_SUGGESTIONS.map((s) => (
-          <button
-            key={s}
-            onClick={() => setPendingPrompt(s)}
-            className="px-2.5 py-1 text-[11px] bg-surface-0 border border-border-default rounded-full text-text-tertiary hover:text-text-secondary hover:border-border-focus transition-all cursor-pointer"
-          >
-            {s}
-          </button>
-        ))}
       </div>
 
       {/* Capabilities */}
