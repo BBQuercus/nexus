@@ -618,6 +618,7 @@ export function useChatSubmit({ textareaRef }: UseChatSubmitOptions): UseChatSub
       const detail = (e as CustomEvent).detail;
       if (detail?.mode) setComposeMode(detail.mode);
       if (detail?.imageModel) setImageModel(detail.imageModel);
+      if (detail?.compareModels) setCompareModels(detail.compareModels);
       if (detail?.prompt) {
         setPendingPrompt(detail.prompt);
         setContent(detail.prompt);

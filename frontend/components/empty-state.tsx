@@ -6,7 +6,7 @@ import {
   Image, Blocks, ArrowRight,
 } from 'lucide-react';
 import { useStore } from '@/lib/store';
-import { IMAGE_MODELS } from '@/lib/types';
+import { IMAGE_MODELS, MODELS } from '@/lib/types';
 
 const ACTION_CARDS = [
   {
@@ -62,7 +62,21 @@ function makeCapabilities(): Capability[] {
     { label: 'Charts', icon: <BarChart3 size={11} />, prompt: 'Create interactive data visualizations. Use Vega-Lite to build charts from data I provide or generate sample data to demonstrate different chart types.' },
     { label: 'SQL on Files', icon: <Blocks size={11} />, prompt: 'Load my CSV or Excel files into DuckDB and run SQL queries. Show the schema, suggest interesting queries, and visualize the results.' },
     { label: 'Interactive Forms', icon: <ClipboardList size={11} />, prompt: 'Create an interactive form with multiple field types: text, dropdowns, ratings, sliders, and conditional sections. Then analyze my responses.' },
-    { label: 'Multi-Model Compare', icon: <GitCompare size={11} />, prompt: '/compare Tell me how to approach building a SaaS product from scratch' },
+    {
+      label: 'Multi-Model Compare',
+      icon: <GitCompare size={11} />,
+      prompt: 'Tell me how to approach building a SaaS product from scratch',
+      action: () => {
+        // Pick first non-legacy models from two different providers
+        const nonLegacy = MODELS.filter((m) => !m.legacy);
+        const first = nonLegacy.find((m) => m.provider === 'anthropic') || nonLegacy[0];
+        const second = nonLegacy.find((m) => m.provider === 'openai') || nonLegacy[1];
+        const ids = first && second ? [first.id, second.id] : nonLegacy.slice(0, 2).map((m) => m.id);
+        window.dispatchEvent(new CustomEvent('nexus:set-compose', {
+          detail: { compareModels: ids, prompt: 'Tell me how to approach building a SaaS product from scratch' },
+        }));
+      },
+    },
     {
       label: 'Image Generation',
       icon: <Image size={11} />,
