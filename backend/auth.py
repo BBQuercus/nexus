@@ -225,6 +225,22 @@ async def validate_csrf(request: Request) -> None:
 # ── Routes ──
 
 
+def _display_name_from_workos(workos_user) -> str | None:
+    """Build a display name from WorkOS profile fields."""
+    first = getattr(workos_user, "first_name", None) or ""
+    last = getattr(workos_user, "last_name", None) or ""
+    full = f"{first} {last}".strip()
+    return full or None
+
+
+def _display_name_from_email(email: str) -> str:
+    """Derive a capitalised display name from an email prefix."""
+    import re
+    local = email.split("@")[0]
+    parts = re.split(r"[.\-_]", local)
+    return " ".join(p.capitalize() for p in parts if p)
+
+
 async def _upsert_workos_user(workos_user, db: AsyncSession) -> User:
     """Upsert a local User from a WorkOS user profile. Returns the User."""
     result = await db.execute(select(User).where(User.workos_id == workos_user.id))
@@ -234,7 +250,7 @@ async def _upsert_workos_user(workos_user, db: AsyncSession) -> User:
         user = User(
             workos_id=workos_user.id,
             email=workos_user.email,
-            name=getattr(workos_user, "first_name", None) or workos_user.email.split("@")[0],
+            name=_display_name_from_workos(workos_user) or _display_name_from_email(workos_user.email),
             avatar_url=getattr(workos_user, "profile_picture_url", None),
             role="editor",
         )
@@ -244,7 +260,7 @@ async def _upsert_workos_user(workos_user, db: AsyncSession) -> User:
     else:
         user.last_seen_at = datetime.now(UTC)
         user.email = workos_user.email
-        user.name = getattr(workos_user, "first_name", None) or user.name
+        user.name = _display_name_from_workos(workos_user) or user.name
         if getattr(workos_user, "profile_picture_url", None):
             user.avatar_url = workos_user.profile_picture_url
         logger.info("user_login", user_id=str(user.id), email=user.email)
