@@ -48,6 +48,7 @@ from backend.routers.users import router as users_router
 from backend.services import sandbox as sandbox_service
 from backend.services.audit import flush_audit_buffer
 from backend.telemetry import setup_telemetry
+from backend.vector_db import ensure_vector_schema
 
 try:
     from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
@@ -69,6 +70,8 @@ async def lifespan(app: FastAPI):
     from backend.redis import close_redis, get_redis
     from backend.services.cleanup import start_cleanup_loop
     from backend.services.jobs import start_job_worker
+
+    await ensure_vector_schema()
 
     should_manage_schema = settings.AUTO_APPLY_DB_SCHEMA or bool(os.environ.get("DEV_MODE"))
     if not should_manage_schema:

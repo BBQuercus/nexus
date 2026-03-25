@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.logging_config import get_logger
 from backend.models import Conversation, Message
+from backend.vector_db import vector_async_session
 
 logger = get_logger("services.agent.history")
 
@@ -70,9 +71,10 @@ async def detect_knowledge(
     from backend.models import Document as DocumentModel
 
     try:
-        conv_doc_count = await db.scalar(
-            select(func.count()).select_from(DocumentModel).where(DocumentModel.conversation_id == conversation_id)
-        )
+        async with vector_async_session() as vector_db:
+            conv_doc_count = await vector_db.scalar(
+                select(func.count()).select_from(DocumentModel).where(DocumentModel.conversation_id == conversation_id)
+            )
     except (ProgrammingError, DBAPIError) as exc:
         message = str(getattr(exc, "orig", exc)).lower()
         if "documents" not in message or ("undefinedtable" not in message and "does not exist" not in message):

@@ -12,9 +12,9 @@ if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
-from backend.db import async_session
 from backend.logging_config import get_logger
 from backend.models import Chunk, Document, KnowledgeBase
+from backend.vector_db import vector_async_session
 
 logger = get_logger("rag.pipeline")
 
@@ -34,7 +34,7 @@ async def ingest_document(
     """
     embedding_model = embedding_model or settings.EMBEDDING_MODEL
 
-    async with async_session() as db:
+    async with vector_async_session() as db:
         try:
             # 0. Pre-flight: check that the chunks table exists (requires pgvector)
             from sqlalchemy import text as sa_text
@@ -154,7 +154,7 @@ async def ingest_document(
                 filename=filename,
             )
             # Mark document as errored in a new transaction
-            async with async_session() as err_db:
+            async with vector_async_session() as err_db:
                 await _mark_document_error(err_db, document_id, str(e))
                 await err_db.commit()
 
