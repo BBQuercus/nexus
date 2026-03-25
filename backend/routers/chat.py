@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy import text as sa_text
+from sqlalchemy.exc import DBAPIError, ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sse_starlette.sse import EventSourceResponse
@@ -13,6 +14,7 @@ from sse_starlette.sse import EventSourceResponse
 from backend.auth import get_current_user
 from backend.config import settings
 from backend.db import get_db
+from backend.logging_config import get_logger
 from backend.models import AgentPersona, Artifact, Conversation, Message
 from backend.rate_limit import chat_limiter
 from backend.services import llm as llm_service
@@ -23,6 +25,7 @@ from backend.services.messages import extract_message_files
 from backend.services.rbac import require_permission
 
 router = APIRouter(prefix="/api/conversations", tags=["conversations"])
+logger = get_logger("routers.chat")
 
 
 # ----- Schemas -----
@@ -122,6 +125,86 @@ def _serialize_message(m: Message) -> dict:
     }
 
 
+def _is_missing_schema_error(exc: Exception, *, table: str | None = None, column: str | None = None) -> bool:
+    message = str(getattr(exc, "orig", exc)).lower()
+    if "undefinedtable" in message or "does not exist" in message:
+        return table is None or table.lower() in message
+    if "undefinedcolumn" in message or "column" in message:
+        return column is not None and column.lower() in message
+    return False
+
+
+async def _list_conversations_legacy(
+    *,
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    search: str | None,
+    page: int,
+    limit: int,
+) -> dict:
+    filters = ["user_id = :user_id"]
+    params: dict[str, object] = {
+        "user_id": str(user_id),
+        "limit": limit,
+        "offset": (page - 1) * limit,
+    }
+    if search:
+        filters.append("title ILIKE :search")
+        params["search"] = f"%{search}%"
+
+    where_clause = " AND ".join(filters)
+    total = (
+        await db.execute(
+            sa_text(f"SELECT COUNT(*) FROM conversations WHERE {where_clause}"),
+            params,
+        )
+    ).scalar() or 0
+
+    conversations_result = await db.execute(
+        sa_text(
+            f"""
+            SELECT id, title, model, agent_mode, sandbox_id, created_at, updated_at
+            FROM conversations
+            WHERE {where_clause}
+            ORDER BY updated_at DESC
+            LIMIT :limit OFFSET :offset
+            """
+        ),
+        params,
+    )
+    conversations = conversations_result.mappings().all()
+    conversation_ids = [row["id"] for row in conversations]
+
+    message_counts: dict[uuid.UUID, int] = {}
+    if conversation_ids:
+        count_result = await db.execute(
+            select(Message.conversation_id, func.count(Message.id))
+            .where(Message.conversation_id.in_(conversation_ids))
+            .group_by(Message.conversation_id)
+        )
+        message_counts = {conversation_id: int(message_count) for conversation_id, message_count in count_result.all()}
+
+    return {
+        "conversations": [
+            {
+                "id": str(row["id"]),
+                "title": row["title"],
+                "model": row["model"],
+                "agent_mode": row["agent_mode"],
+                "sandbox_id": row["sandbox_id"],
+                "project_id": None,
+                "message_count": message_counts.get(row["id"], 0),
+                "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+                "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None,
+            }
+            for row in conversations
+        ],
+        "total": total,
+        "page": page,
+        "limit": limit,
+    }
+
+
 # ----- Endpoints -----
 
 
@@ -165,51 +248,59 @@ async def list_conversations(
     user_id: uuid.UUID = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    query = select(Conversation).where(Conversation.user_id == user_id)
-    if search:
-        query = query.where(Conversation.title.ilike(f"%{search}%"))
-    if project_id:
-        query = query.where(Conversation.project_id == project_id)
-    query = query.order_by(Conversation.updated_at.desc())
+    try:
+        query = select(Conversation).where(Conversation.user_id == user_id)
+        if search:
+            query = query.where(Conversation.title.ilike(f"%{search}%"))
+        if project_id:
+            query = query.where(Conversation.project_id == project_id)
+        query = query.order_by(Conversation.updated_at.desc())
 
-    # Count total
-    count_query = select(func.count()).select_from(query.subquery())
-    total = (await db.execute(count_query)).scalar() or 0
+        count_query = select(func.count()).select_from(query.subquery())
+        total = (await db.execute(count_query)).scalar() or 0
 
-    # Paginate
-    query = query.offset((page - 1) * limit).limit(limit)
-    result = await db.execute(query)
-    conversations = result.scalars().all()
-    conversation_ids = [c.id for c in conversations]
+        query = query.offset((page - 1) * limit).limit(limit)
+        result = await db.execute(query)
+        conversations = result.scalars().all()
+        conversation_ids = [c.id for c in conversations]
 
-    message_counts: dict[uuid.UUID, int] = {}
-    if conversation_ids:
-        count_result = await db.execute(
-            select(Message.conversation_id, func.count(Message.id))
-            .where(Message.conversation_id.in_(conversation_ids))
-            .group_by(Message.conversation_id)
+        message_counts: dict[uuid.UUID, int] = {}
+        if conversation_ids:
+            count_result = await db.execute(
+                select(Message.conversation_id, func.count(Message.id))
+                .where(Message.conversation_id.in_(conversation_ids))
+                .group_by(Message.conversation_id)
+            )
+            message_counts = {conversation_id: int(message_count) for conversation_id, message_count in count_result.all()}
+
+        return {
+            "conversations": [
+                {
+                    "id": str(c.id),
+                    "title": c.title,
+                    "model": c.model,
+                    "agent_mode": c.agent_mode,
+                    "sandbox_id": c.sandbox_id,
+                    "project_id": str(c.project_id) if c.project_id else None,
+                    "message_count": message_counts.get(c.id, 0),
+                    "created_at": c.created_at.isoformat() if c.created_at else None,
+                    "updated_at": c.updated_at.isoformat() if c.updated_at else None,
+                }
+                for c in conversations
+            ],
+            "total": total,
+            "page": page,
+            "limit": limit,
+        }
+    except (ProgrammingError, DBAPIError) as exc:
+        if not _is_missing_schema_error(exc, table="conversations", column="project_id"):
+            raise
+        logger.warning(
+            "legacy_conversations_schema_detected",
+            error=str(getattr(exc, "orig", exc)),
+            user_id=str(user_id),
         )
-        message_counts = {conversation_id: int(message_count) for conversation_id, message_count in count_result.all()}
-
-    return {
-        "conversations": [
-            {
-                "id": str(c.id),
-                "title": c.title,
-                "model": c.model,
-                "agent_mode": c.agent_mode,
-                "sandbox_id": c.sandbox_id,
-                "project_id": str(c.project_id) if c.project_id else None,
-                "message_count": message_counts.get(c.id, 0),
-                "created_at": c.created_at.isoformat() if c.created_at else None,
-                "updated_at": c.updated_at.isoformat() if c.updated_at else None,
-            }
-            for c in conversations
-        ],
-        "total": total,
-        "page": page,
-        "limit": limit,
-    }
+        return await _list_conversations_legacy(db=db, user_id=user_id, search=search, page=page, limit=limit)
 
 
 @router.get("/{conversation_id}")
