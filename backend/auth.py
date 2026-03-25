@@ -274,9 +274,12 @@ async def login(provider: str | None = None):
 
 
 @router.get("/callback")
-async def callback(code: str, db: AsyncSession = Depends(get_db)):
+async def callback(code: str | None = None, db: AsyncSession = Depends(get_db)):
     """Handle WorkOS OAuth callback, upsert user, issue tokens."""
     from fastapi.responses import RedirectResponse
+
+    if not code:
+        return RedirectResponse(url=_get_frontend_url())
 
     try:
         auth_response = exchange_code(code)
