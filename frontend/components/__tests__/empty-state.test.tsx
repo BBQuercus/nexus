@@ -71,10 +71,10 @@ describe('EmptyState', () => {
       expect(screen.getByText('AI Memory')).toBeInTheDocument()
     })
 
-    it('displays quick suggestion chips', async () => {
+    it('does not display quick suggestion chips', async () => {
       await renderReady(<EmptyState />)
-      expect(screen.getByText('Analyze a CSV and create interactive charts')).toBeInTheDocument()
-      expect(screen.getByText('Build a React dashboard with live preview')).toBeInTheDocument()
+      expect(screen.queryByText('Analyze a CSV and create interactive charts')).not.toBeInTheDocument()
+      expect(screen.queryByText('Build a React dashboard with live preview')).not.toBeInTheDocument()
     })
 
     it('sets pending prompt when clicking a capability button', async () => {
@@ -84,12 +84,6 @@ describe('EmptyState', () => {
       expect(useStore.getState().pendingPrompt).toContain('Python sandbox workflow')
     })
 
-    it('sets pending prompt when clicking a quick suggestion', async () => {
-      const user = userEvent.setup()
-      await renderReady(<EmptyState />)
-      await user.click(screen.getByText('Analyze a CSV and create interactive charts'))
-      expect(useStore.getState().pendingPrompt).toBe('Analyze a CSV and create interactive charts')
-    })
   })
 
   describe('when user has existing conversations', () => {
