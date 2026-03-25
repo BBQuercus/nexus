@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useStore } from '@/lib/store';
 import { logout as apiLogout } from '@/lib/api';
 import { clearToken } from '@/lib/auth';
-import { LogOut, User, Keyboard, Shield, Users, BookOpen, Home } from 'lucide-react';
+import { LogOut, User, Keyboard, Shield, Users, BookOpen, Home, Compass } from 'lucide-react';
 
 export default function UserDropdown({ compact = false }: { compact?: boolean }) {
   const user = useStore((s) => s.user);
@@ -50,6 +50,11 @@ export default function UserDropdown({ compact = false }: { compact?: boolean })
   const handleShortcuts = () => {
     setOpen(false);
     useStore.getState().setCommandPaletteOpen(true);
+  };
+
+  const handleTour = () => {
+    setOpen(false);
+    window.dispatchEvent(new Event('nexus:start-tour'));
   };
 
   const navigateTo = (href: string) => {
@@ -117,6 +122,13 @@ export default function UserDropdown({ compact = false }: { compact?: boolean })
               <Keyboard size={13} className="text-text-tertiary shrink-0" />
               <span className="flex-1 text-left">Keyboard shortcuts</span>
               <kbd className="text-[9px] text-text-tertiary bg-surface-1 border border-border-default rounded px-1 py-0.5">&#8984;K</kbd>
+            </button>
+            <button
+              onClick={handleTour}
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-text-secondary hover:text-text-primary hover:bg-surface-1 cursor-pointer transition-colors"
+            >
+              <Compass size={13} className="text-text-tertiary shrink-0" />
+              <span className="flex-1 text-left">Take a tour</span>
             </button>
             <button
               type="button"

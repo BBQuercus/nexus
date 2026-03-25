@@ -3,21 +3,17 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import * as api from '@/lib/api';
 import type { KnowledgeBase, KBDocument } from '@/lib/types';
+import type { KBChunk } from '@/lib/api';
 import {
   BookOpen, Plus, Trash2, Upload, X, FileText, Check,
-  Loader2, Search,
+  Loader2, Search, ArrowLeft, Download,
 } from 'lucide-react';
 import { toast } from './toast';
 import { getCsrfToken, getToken } from '@/lib/auth';
 import PageShell from './page-shell';
 import ConfirmDialog from './confirm-dialog';
 import { useStore } from '@/lib/store';
-
-// Upload directly to the backend, bypassing the Next.js proxy which can
-// buffer/break multipart uploads in dev mode.
-const UPLOAD_BASE = typeof window !== 'undefined' && window.location.port === '3000'
-  ? 'http://localhost:8000'
-  : '';
+import { toApiUrl } from '@/lib/runtime';
 
 async function directUpload(url: string, files: File[]): Promise<{ documents: Record<string, unknown>[] }> {
   const formData = new FormData();
@@ -29,7 +25,7 @@ async function directUpload(url: string, files: File[]): Promise<{ documents: Re
     const csrfToken = getCsrfToken();
     if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
   }
-  const resp = await fetch(`${UPLOAD_BASE}${url}`, {
+  const resp = await fetch(toApiUrl(url), {
     method: 'POST',
     headers,
     credentials: 'include',
@@ -81,8 +77,8 @@ function KBSidebar({
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center gap-2 p-3 border-b border-border-default">
-        <div className="flex-1" />
+      <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border-default">
+        <span className="text-[11px] text-text-tertiary uppercase tracking-wider flex-1">Knowledge Bases</span>
         <button
           onClick={onCreate}
           title="New knowledge base"
@@ -133,10 +129,11 @@ function KBSidebar({
 
 // ── Document Row ──
 
-function DocumentRow({ doc, kbId, onDelete }: { doc: KBDocument; kbId: string; onDelete: () => void }) {
+function DocumentRow({ doc, kbId, onDelete, onView }: { doc: KBDocument; kbId: string; onDelete: () => void; onView: () => void }) {
   const [deleting, setDeleting] = useState(false);
 
-  const handleDelete = async () => {
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.stopPropagation();
     setDeleting(true);
     try {
       await api.deleteKBDocument(kbId, doc.id);
@@ -149,7 +146,12 @@ function DocumentRow({ doc, kbId, onDelete }: { doc: KBDocument; kbId: string; o
   };
 
   return (
-    <div className="flex items-center gap-3 px-4 py-3 border border-border-default rounded-lg bg-surface-0">
+    <div
+      onClick={doc.status === 'ready' ? onView : undefined}
+      className={`flex items-center gap-3 px-4 py-3 border border-border-default rounded-lg bg-surface-0 transition-colors ${
+        doc.status === 'ready' ? 'cursor-pointer hover:border-border-focus hover:bg-surface-1/50' : ''
+      }`}
+    >
       <FileText size={16} className="text-text-tertiary shrink-0" />
       <div className="flex-1 min-w-0">
         <div className="text-sm font-medium text-text-primary truncate">{doc.filename}</div>
@@ -171,14 +173,256 @@ function DocumentRow({ doc, kbId, onDelete }: { doc: KBDocument; kbId: string; o
   );
 }
 
+// ── Document Viewer ──
+
+type DocViewTab = 'chunks' | 'full';
+
+function DocumentViewer({ doc, kbId, onBack }: { doc: KBDocument; kbId: string; onBack: () => void }) {
+  const [tab, setTab] = useState<DocViewTab>('chunks');
+  const [chunks, setChunks] = useState<KBChunk[]>([]);
+  const [rawText, setRawText] = useState<string | null>(null);
+  const [loadingChunks, setLoadingChunks] = useState(true);
+  const [loadingContent, setLoadingContent] = useState(false);
+  const [search, setSearch] = useState('');
+  const [expandedChunks, setExpandedChunks] = useState<Set<number>>(new Set());
+
+  useEffect(() => {
+    setLoadingChunks(true);
+    api.getKBDocumentChunks(kbId, doc.id)
+      .then(setChunks)
+      .catch(() => toast.error('Failed to load document chunks'))
+      .finally(() => setLoadingChunks(false));
+  }, [kbId, doc.id]);
+
+  // Lazy-load full content on tab switch
+  useEffect(() => {
+    if (tab !== 'full' || rawText !== null) return;
+    setLoadingContent(true);
+    api.getKBDocumentContent(kbId, doc.id)
+      .then((res) => setRawText(res.rawText))
+      .catch(() => toast.error('Failed to load document content'))
+      .finally(() => setLoadingContent(false));
+  }, [tab, rawText, kbId, doc.id]);
+
+  const filteredChunks = search.trim()
+    ? chunks.filter((c) =>
+        c.content.toLowerCase().includes(search.toLowerCase()) ||
+        (c.sectionTitle || '').toLowerCase().includes(search.toLowerCase())
+      )
+    : chunks;
+
+  const toggleChunk = (idx: number) => {
+    setExpandedChunks((prev) => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx); else next.add(idx);
+      return next;
+    });
+  };
+
+  const totalTokens = chunks.reduce((sum, c) => sum + c.tokenCount, 0);
+
+  const handleDownload = () => {
+    if (!rawText) return;
+    const blob = new Blob([rawText], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const baseName = doc.filename.replace(/\.[^.]+$/, '');
+    a.download = `${baseName}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const tabs: { id: DocViewTab; label: string }[] = [
+    { id: 'chunks', label: `Chunks (${chunks.length})` },
+    { id: 'full', label: 'Full Document' },
+  ];
+
+  return (
+    <div className="flex-1 overflow-y-auto p-8 w-full">
+      {/* Header */}
+      <div className="mb-6">
+        <button
+          onClick={onBack}
+          className="flex items-center gap-1.5 text-[11px] text-text-tertiary hover:text-text-secondary cursor-pointer transition-colors mb-3"
+        >
+          <ArrowLeft size={11} /> Back to documents
+        </button>
+        <div className="flex items-start justify-between">
+          <div>
+            <h2 className="text-xl font-semibold text-text-primary flex items-center gap-2.5">
+              <FileText size={18} className="text-text-tertiary" />
+              {doc.filename}
+            </h2>
+            <div className="flex items-center gap-3 mt-2 text-[11px] text-text-tertiary font-mono">
+              <span>{formatBytes(doc.fileSizeBytes)}</span>
+              {doc.pageCount && <span>{doc.pageCount} pages</span>}
+              <span>{chunks.length} chunks</span>
+              <span>{totalTokens.toLocaleString()} tokens</span>
+            </div>
+          </div>
+          <StatusBadge status={doc.status} />
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex items-center gap-1 mb-4 border-b border-border-default">
+        {tabs.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={`px-3 py-2 text-xs font-medium cursor-pointer transition-colors relative ${
+              tab === t.id
+                ? 'text-accent'
+                : 'text-text-tertiary hover:text-text-secondary'
+            }`}
+          >
+            {t.label}
+            {tab === t.id && (
+              <div className="absolute bottom-0 left-0 right-0 h-px bg-accent" />
+            )}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'chunks' && (
+        <>
+          {/* Search */}
+          <div className="relative mb-4">
+            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search within document..."
+              className="w-full bg-surface-1 border border-border-default rounded-lg pl-8 pr-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary outline-none focus:border-accent/40"
+            />
+            {search && (
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-text-tertiary font-mono">
+                {filteredChunks.length}/{chunks.length}
+              </span>
+            )}
+          </div>
+
+          {/* Chunks */}
+          {loadingChunks ? (
+            <div className="flex items-center justify-center py-12 text-text-tertiary">
+              <Loader2 size={16} className="animate-spin" />
+            </div>
+          ) : chunks.length === 0 ? (
+            <div className="text-center py-12 text-text-tertiary text-sm">
+              No chunks found. Document may still be processing.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {filteredChunks.map((chunk) => {
+                const isExpanded = expandedChunks.has(chunk.chunkIndex);
+                const preview = chunk.content.slice(0, 200);
+                const hasMore = chunk.content.length > 200;
+
+                return (
+                  <div
+                    key={chunk.id}
+                    className="border border-border-default rounded-lg bg-surface-0 overflow-hidden"
+                  >
+                    {/* Chunk header */}
+                    <button
+                      onClick={() => toggleChunk(chunk.chunkIndex)}
+                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-left cursor-pointer hover:bg-surface-1/50 transition-colors"
+                    >
+                      <span className="text-[10px] font-mono text-text-tertiary bg-surface-1 border border-border-default rounded px-1.5 py-0.5 shrink-0">
+                        #{chunk.chunkIndex + 1}
+                      </span>
+                      {chunk.pageNumber != null && (
+                        <span className="text-[10px] font-mono text-text-tertiary shrink-0">
+                          p.{chunk.pageNumber}
+                        </span>
+                      )}
+                      {chunk.sectionTitle && (
+                        <span className="text-[11px] text-text-secondary truncate font-medium">
+                          {chunk.sectionTitle}
+                        </span>
+                      )}
+                      <span className="flex-1" />
+                      <span className="text-[10px] font-mono text-text-tertiary shrink-0">
+                        {chunk.tokenCount} tok
+                      </span>
+                    </button>
+
+                    {/* Chunk content */}
+                    <div className="px-4 pb-3">
+                      {chunk.contextPrefix && (
+                        <div className="text-[11px] text-accent/70 italic mb-1.5 border-l-2 border-accent/20 pl-2">
+                          {chunk.contextPrefix}
+                        </div>
+                      )}
+                      <div className="text-xs text-text-secondary leading-relaxed whitespace-pre-wrap">
+                        {isExpanded ? chunk.content : preview}
+                        {hasMore && !isExpanded && (
+                          <span className="text-text-tertiary">...</span>
+                        )}
+                      </div>
+                      {hasMore && (
+                        <button
+                          onClick={() => toggleChunk(chunk.chunkIndex)}
+                          className="text-[10px] text-accent hover:underline cursor-pointer mt-1"
+                        >
+                          {isExpanded ? 'Show less' : 'Show more'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+
+      {tab === 'full' && (
+        <>
+          {loadingContent ? (
+            <div className="flex items-center justify-center py-12 text-text-tertiary">
+              <Loader2 size={16} className="animate-spin" />
+            </div>
+          ) : rawText === '' ? (
+            <div className="text-center py-12 text-text-tertiary text-sm">
+              No extracted text available for this document.
+            </div>
+          ) : rawText !== null ? (
+            <>
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-[11px] text-text-tertiary font-mono">
+                  {rawText.length.toLocaleString()} characters
+                </span>
+                <button
+                  onClick={handleDownload}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] text-text-secondary hover:text-text-primary border border-border-default hover:border-border-focus rounded-lg transition-colors cursor-pointer"
+                >
+                  <Download size={11} /> Download as .txt
+                </button>
+              </div>
+              <div className="border border-border-default rounded-lg bg-surface-0 p-5 max-h-[70vh] overflow-y-auto">
+                <div className="text-[13px] text-text-secondary leading-relaxed whitespace-pre-wrap">
+                  {rawText}
+                </div>
+              </div>
+            </>
+          ) : null}
+        </>
+      )}
+    </div>
+  );
+}
+
 // ── KB Detail (main content) ──
 
-function KBDetail({ kb, onRefresh }: { kb: KnowledgeBase; onRefresh: () => void }) {
+function KBDetail({ kb, onRefresh, initialDocId }: { kb: KnowledgeBase; onRefresh: () => void; initialDocId?: string | null }) {
   const [documents, setDocuments] = useState<KBDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [viewingDoc, setViewingDoc] = useState<KBDocument | null>(null);
 
   const loadDocs = useCallback(async () => {
     try {
@@ -190,7 +434,19 @@ function KBDetail({ kb, onRefresh }: { kb: KnowledgeBase; onRefresh: () => void 
     setLoading(false);
   }, [kb.id]);
 
-  useEffect(() => { loadDocs(); }, [loadDocs]);
+  useEffect(() => {
+    loadDocs().then(() => {
+      // handled below after documents state updates
+    });
+  }, [loadDocs]);
+
+  // Auto-open document from URL param
+  useEffect(() => {
+    if (initialDocId && documents.length > 0 && !viewingDoc) {
+      const doc = documents.find((d) => d.id === initialDocId);
+      if (doc && doc.status === 'ready') setViewingDoc(doc);
+    }
+  }, [initialDocId, documents]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Poll for processing documents
   useEffect(() => {
@@ -237,8 +493,15 @@ function KBDetail({ kb, onRefresh }: { kb: KnowledgeBase; onRefresh: () => void 
     }
   };
 
+  // Reset viewingDoc when KB changes
+  useEffect(() => { setViewingDoc(null); }, [kb.id]);
+
+  if (viewingDoc) {
+    return <DocumentViewer doc={viewingDoc} kbId={kb.id} onBack={() => setViewingDoc(null)} />;
+  }
+
   return (
-    <div className="flex-1 overflow-y-auto p-8 max-w-3xl mx-auto w-full">
+    <div className="flex-1 overflow-y-auto p-8 w-full">
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div>
@@ -263,7 +526,7 @@ function KBDetail({ kb, onRefresh }: { kb: KnowledgeBase; onRefresh: () => void 
         onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
         onDragLeave={() => setDragOver(false)}
         onDrop={handleDrop}
-        className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors mb-6 ${
+        className={`border-2 border-dashed rounded-xl p-6 text-center transition-colors mb-6 max-w-xl ${
           dragOver ? 'border-accent bg-accent/5' : 'border-border-default hover:border-border-focus'
         }`}
       >
@@ -272,21 +535,23 @@ function KBDetail({ kb, onRefresh }: { kb: KnowledgeBase; onRefresh: () => void 
             <Loader2 size={16} className="animate-spin" /> Uploading and processing...
           </div>
         ) : (
-          <>
-            <Upload size={28} className="mx-auto mb-3 text-text-tertiary" />
-            <p className="text-sm text-text-secondary">
-              Drag & drop files or{' '}
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="text-accent hover:underline cursor-pointer"
-              >
-                browse
-              </button>
-            </p>
-            <p className="text-[11px] text-text-tertiary mt-2">
-              PDF, DOCX, PPTX, Excel, CSV, TXT, JSON, Markdown
-            </p>
-          </>
+          <div className="flex items-center gap-4">
+            <Upload size={22} className="text-text-tertiary shrink-0" />
+            <div className="text-left">
+              <p className="text-sm text-text-secondary">
+                Drag & drop files or{' '}
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="text-accent hover:underline cursor-pointer"
+                >
+                  browse
+                </button>
+              </p>
+              <p className="text-[11px] text-text-tertiary mt-0.5">
+                PDF, DOCX, PPTX, Excel, CSV, TXT, JSON, Markdown
+              </p>
+            </div>
+          </div>
         )}
         <input
           ref={fileInputRef}
@@ -299,21 +564,21 @@ function KBDetail({ kb, onRefresh }: { kb: KnowledgeBase; onRefresh: () => void 
       </div>
 
       {/* Document list */}
-      <div className="space-y-2">
-        {loading ? (
-          <div className="flex items-center justify-center py-12 text-text-tertiary">
-            <Loader2 size={16} className="animate-spin" />
-          </div>
-        ) : documents.length === 0 ? (
-          <div className="text-center py-12 text-text-tertiary text-sm">
-            No documents yet. Upload files to get started.
-          </div>
-        ) : (
-          documents.map((doc) => (
-            <DocumentRow key={doc.id} doc={doc} kbId={kb.id} onDelete={() => { loadDocs(); onRefresh(); }} />
-          ))
-        )}
-      </div>
+      {loading ? (
+        <div className="flex items-center justify-center py-12 text-text-tertiary">
+          <Loader2 size={16} className="animate-spin" />
+        </div>
+      ) : documents.length === 0 ? (
+        <div className="text-center py-12 text-text-tertiary text-sm">
+          No documents yet. Upload files to get started.
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-2">
+          {documents.map((doc) => (
+            <DocumentRow key={doc.id} doc={doc} kbId={kb.id} onDelete={() => { loadDocs(); onRefresh(); }} onView={() => setViewingDoc(doc)} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -400,6 +665,7 @@ export default function KnowledgeBaseView() {
   const [selectedKB, setSelectedKB] = useState<KnowledgeBase | null>(null);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
+  const [initialDocId, setInitialDocId] = useState<string | null>(null);
 
   const loadKBs = useCallback(async () => {
     try {
@@ -416,16 +682,25 @@ export default function KnowledgeBaseView() {
   }, [selectedKB]);
 
   useEffect(() => {
-    loadKBs().then(() => {
-      // Auto-select KB from URL params (e.g. ?kb=xxx&doc=yyy)
+    loadKBs().then(async () => {
       if (typeof window === 'undefined') return;
       const params = new URLSearchParams(window.location.search);
       const kbId = params.get('kb');
+      const docId = params.get('doc');
+      if (docId) setInitialDocId(docId);
       if (kbId) {
-        api.getKnowledgeBase(kbId).then((kb) => setSelectedKB(kb)).catch(() => {});
+        // Auto-select KB from URL params (e.g. ?kb=xxx&doc=yyy)
+        try { setSelectedKB(await api.getKnowledgeBase(kbId)); } catch {}
       }
     });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-select the first KB once loaded (if nothing selected and not from URL)
+  useEffect(() => {
+    if (!selectedKB && !creating && knowledgeBases.length > 0) {
+      setSelectedKB(knowledgeBases[0]);
+    }
+  }, [knowledgeBases]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleCreate = async () => {
     if (!newName.trim()) return;
@@ -461,7 +736,7 @@ export default function KnowledgeBaseView() {
           onCancel={() => { setCreating(false); setNewName(''); }}
         />
       ) : selectedKB ? (
-        <KBDetail kb={selectedKB} onRefresh={loadKBs} />
+        <KBDetail kb={selectedKB} onRefresh={loadKBs} initialDocId={initialDocId} />
       ) : (
         <EmptyContent onCreate={() => setCreating(true)} />
       )}
