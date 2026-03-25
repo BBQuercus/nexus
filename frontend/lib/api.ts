@@ -179,6 +179,7 @@ export async function sendMessage(
   temperature?: number,
   verbosity?: string,
   tone?: string,
+  images?: { filename: string; dataUrl: string }[],
 ): Promise<Response> {
   const token = getToken();
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -203,6 +204,7 @@ export async function sendMessage(
       ...(temperature !== undefined ? { temperature } : {}),
       ...(verbosity ? { verbosity } : {}),
       ...(tone ? { tone } : {}),
+      ...(images && images.length > 0 ? { images: images.map((img) => ({ filename: img.filename, data_url: img.dataUrl })) } : {}),
     }),
   });
   if (!response.ok) {

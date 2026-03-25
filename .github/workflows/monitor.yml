@@ -1,0 +1,29 @@
+name: Monitor Railway
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+jobs:
+  staging:
+    name: Staging Smoke Check
+    runs-on: ubuntu-latest
+    if: ${{ vars.STAGING_FRONTEND_URL != '' && vars.STAGING_BACKEND_URL != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python scripts/smoke_check.py --frontend-url "${{ vars.STAGING_FRONTEND_URL }}" --backend-url "${{ vars.STAGING_BACKEND_URL }}"
+
+  production:
+    name: Production Smoke Check
+    runs-on: ubuntu-latest
+    if: ${{ vars.PRODUCTION_FRONTEND_URL != '' && vars.PRODUCTION_BACKEND_URL != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python scripts/smoke_check.py --frontend-url "${{ vars.PRODUCTION_FRONTEND_URL }}" --backend-url "${{ vars.PRODUCTION_BACKEND_URL }}"

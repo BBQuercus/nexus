@@ -1,3 +1,5 @@
+import { toApiUrl } from './runtime';
+
 const TOKEN_KEY = 'nexus_session';
 const REFRESH_TOKEN_KEY = 'nexus_refresh_token';
 
@@ -22,7 +24,7 @@ export function clearToken(): void {
 }
 
 export function getLoginUrl(): string {
-  return '/auth/login';
+  return toApiUrl('/auth/login');
 }
 
 export function getCsrfToken(): string | null {
@@ -37,11 +39,8 @@ export function getCsrfToken(): string | null {
  */
 export async function refreshAccessToken(): Promise<boolean> {
   try {
-    const base = typeof window !== 'undefined' && window.location.port === '5173'
-      ? 'http://localhost:8000'
-      : '';
     const csrfToken = getCsrfToken();
-    const resp = await fetch(`${base}/auth/refresh`, {
+    const resp = await fetch(toApiUrl('/auth/refresh'), {
       method: 'POST',
       headers: csrfToken ? { 'X-CSRF-Token': csrfToken } : {},
       credentials: 'include',

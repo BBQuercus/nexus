@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     WORKOS_API_KEY: str = ""
     WORKOS_CLIENT_ID: str = ""
     WORKOS_REDIRECT_URI: str = "http://localhost:8000/auth/callback"
+    FRONTEND_URL: str = "http://localhost:5173"
+    CORS_ORIGINS: str = ""
 
     DATABASE_URL: str = "postgresql+asyncpg://nexus:nexus@localhost:5432/nexus"
 
@@ -47,8 +49,31 @@ class Settings(BaseSettings):
     # Redis
     REDIS_URL: str = "redis://localhost:6379/0"
 
+    ENVIRONMENT: str = "development"
+    COOKIE_SECURE: bool = False
+    COOKIE_SAMESITE: str = "lax"
+    COOKIE_DOMAIN: str = ""
+
     PORT: int = 8000
     AUTO_APPLY_DB_SCHEMA: bool = False
+
+    @property
+    def cors_origins(self) -> list[str]:
+        origins = [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
+        if self.FRONTEND_URL and self.FRONTEND_URL not in origins:
+            origins.append(self.FRONTEND_URL)
+        for local_origin in ("http://localhost:5173", "http://localhost:3000"):
+            if local_origin not in origins:
+                origins.append(local_origin)
+        return origins
+
+    @property
+    def cookie_domain(self) -> str | None:
+        return self.COOKIE_DOMAIN or None
+
+    @property
+    def cookie_secure(self) -> bool:
+        return self.COOKIE_SECURE or self.FRONTEND_URL.startswith("https://")
 
 
 settings = Settings()  # type: ignore[call-arg]

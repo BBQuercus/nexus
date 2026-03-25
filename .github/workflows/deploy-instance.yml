@@ -1,0 +1,43 @@
+name: Deploy Railway Instance
+
+on:
+  workflow_dispatch:
+    inputs:
+      deploy_environment:
+        description: Railway environment name
+        required: true
+        default: staging
+        type: string
+      railway_project_id:
+        description: Railway project ID
+        required: true
+        type: string
+      backend_service:
+        description: Backend service name or ID
+        required: true
+        type: string
+      frontend_service:
+        description: Frontend service name or ID
+        required: true
+        type: string
+      frontend_url:
+        description: Public frontend URL for smoke checks
+        required: true
+        type: string
+      backend_url:
+        description: Public backend URL for smoke checks
+        required: true
+        type: string
+
+jobs:
+  deploy:
+    uses: ./.github/workflows/railway-deploy.yml
+    with:
+      deploy_environment: ${{ inputs.deploy_environment }}
+      railway_project_id: ${{ inputs.railway_project_id }}
+      backend_service: ${{ inputs.backend_service }}
+      frontend_service: ${{ inputs.frontend_service }}
+      frontend_url: ${{ inputs.frontend_url }}
+      backend_url: ${{ inputs.backend_url }}
+    secrets:
+      railway_token: ${{ secrets.RAILWAY_CI_TOKEN }}

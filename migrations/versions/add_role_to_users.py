@@ -20,9 +20,17 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     op.add_column('users', sa.Column('role', sa.String(), nullable=True))
-    # Backfill: set existing admins to 'admin' role, others to 'editor'
-    op.execute("UPDATE users SET role = 'admin' WHERE is_admin = true")
-    op.execute("UPDATE users SET role = 'editor' WHERE is_admin = false OR is_admin IS NULL")
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    user_columns = {column["name"] for column in inspector.get_columns("users")}
+
+    if "is_admin" in user_columns:
+        op.execute("UPDATE users SET role = 'admin' WHERE is_admin = true")
+        op.execute("UPDATE users SET role = 'editor' WHERE is_admin = false OR is_admin IS NULL")
+    else:
+        # Fresh databases created from the current base schema may not include
+        # the legacy is_admin column, so default existing users to editor.
+        op.execute("UPDATE users SET role = 'editor' WHERE role IS NULL")
 
 
 def downgrade() -> None:

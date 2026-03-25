@@ -1,0 +1,23 @@
+name: Deploy Staging
+
+on:
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') }}
+    uses: ./.github/workflows/railway-deploy.yml
+    with:
+      deploy_environment: staging
+      railway_project_id: ${{ vars.RAILWAY_PROJECT_ID_STAGING }}
+      backend_service: ${{ vars.RAILWAY_BACKEND_SERVICE_STAGING }}
+      frontend_service: ${{ vars.RAILWAY_FRONTEND_SERVICE_STAGING }}
+      frontend_url: ${{ vars.STAGING_FRONTEND_URL }}
+      backend_url: ${{ vars.STAGING_BACKEND_URL }}
+    secrets:
+      railway_token: ${{ secrets.RAILWAY_TOKEN_STAGING }}

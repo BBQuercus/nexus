@@ -16,6 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: taiki-e/install-action@just
 
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
@@ -28,29 +29,24 @@ jobs:
       - name: Install dependencies
         run: uv sync --extra dev
 
-      - name: Lint (ruff check)
-        run: uv run ruff check backend/
-
-      - name: Format check (ruff format)
-        run: uv run ruff format --check backend/
-
-      - name: Type check (mypy)
-        run: uv run python -m mypy backend/ --ignore-missing-imports
+      - name: Lint
+        run: just lint-backend
 
       - name: Verify test discovery
         run: uv run pytest tests/ --co -q
 
+      - name: Type check
+        run: just type-check-backend
+
       - name: Run tests
-        run: uv run pytest tests/ -v --tb=short
+        run: just test-backend
 
   frontend:
     name: Frontend
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: frontend
     steps:
       - uses: actions/checkout@v4
+      - uses: taiki-e/install-action@just
 
       - name: Set up Node 22
         uses: actions/setup-node@v4
@@ -60,28 +56,26 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
-        run: npm ci
+        run: cd frontend && npm ci
 
       - name: Type check
-        run: npx tsc --noEmit
+        run: just type-check-frontend
 
       - name: Lint
-        run: npm run lint
+        run: just lint-frontend
 
       - name: Build
-        run: npm run build
+        run: cd frontend && npm run build
 
       - name: Run tests
-        run: npx vitest run --reporter=verbose --passWithNoTests
+        run: just test-frontend
 
   docker:
     name: Docker Build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: taiki-e/install-action@just
 
-      - name: Build backend image
-        run: docker build -f Dockerfile.backend -t nexus-backend:ci .
-
-      - name: Build frontend image
-        run: docker build -f Dockerfile.frontend -t nexus-frontend:ci .
+      - name: Build images
+        run: just build
