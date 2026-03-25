@@ -31,7 +31,6 @@ export default function TerminalPanel() {
     (async () => {
       const { Terminal } = await import('@xterm/xterm');
       const { FitAddon } = await import('@xterm/addon-fit');
-      // @ts-expect-error CSS import
       await import('@xterm/xterm/css/xterm.css');
 
       if (cancelled || !containerRef.current) return;
