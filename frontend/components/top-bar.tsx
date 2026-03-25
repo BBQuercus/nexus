@@ -4,6 +4,7 @@ import { useStore } from '@/lib/store';
 import { PanelRight, PanelLeft, Network, Search, Plus, Zap } from 'lucide-react';
 import * as api from '@/lib/api';
 import SandboxBar from './sandbox-bar';
+import UserDropdown from './user-dropdown';
 
 function TreeToggleButton() {
   const tree = useStore((s) => s.conversationTree);
@@ -96,6 +97,11 @@ export default function TopBar() {
         >
           <Plus size={15} />
         </button>
+      </div>
+
+      {/* User icon — always visible, fixed top-right */}
+      <div className="absolute top-0 right-0 z-20 p-2">
+        <UserDropdown compact />
       </div>
 
       {/* Full header bar — transitions height to collapse when sidebar is closed */}

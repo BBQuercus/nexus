@@ -7,7 +7,7 @@ import { logout as apiLogout } from '@/lib/api';
 import { clearToken } from '@/lib/auth';
 import { LogOut, User, Keyboard, Shield, Users, BookOpen } from 'lucide-react';
 
-export default function UserDropdown() {
+export default function UserDropdown({ compact = false }: { compact?: boolean }) {
   const user = useStore((s) => s.user);
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -63,7 +63,7 @@ export default function UserDropdown() {
     <div ref={dropdownRef} className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-2.5 w-full px-1 py-1 rounded-lg hover:bg-surface-1 transition-colors cursor-pointer"
+        className={`flex items-center gap-2.5 px-1 py-1 rounded-lg hover:bg-surface-1 transition-colors cursor-pointer ${compact ? '' : 'w-full'}`}
       >
         <div className="w-7 h-7 bg-surface-1 border border-border-default rounded-full flex items-center justify-center text-xs font-mono text-text-secondary overflow-hidden shrink-0">
           {user?.avatarUrl ? (
@@ -72,12 +72,12 @@ export default function UserDropdown() {
             user?.name?.charAt(0)?.toUpperCase() || 'U'
           )}
         </div>
-        <span className="text-xs text-text-secondary truncate">{user?.name || 'User'}</span>
+        {!compact && <span className="text-xs text-text-secondary truncate">{user?.name || 'User'}</span>}
       </button>
 
       {open && (
         <div
-          className="absolute left-0 bottom-full mb-1.5 w-56 bg-surface-0 border border-border-default rounded-lg shadow-2xl shadow-black/30 overflow-hidden animate-fade-in-up z-50"
+          className="absolute right-0 top-full mt-1.5 w-56 bg-surface-0 border border-border-default rounded-lg shadow-2xl shadow-black/30 overflow-hidden animate-fade-in-up z-50"
           style={{ animationDuration: '0.1s' }}
         >
           {/* User info */}

@@ -59,6 +59,11 @@ export default function PageShell({
         </button>
       </div>
 
+      {/* User icon — always visible, fixed top-right */}
+      <div className="absolute top-0 right-0 z-20 p-2">
+        <UserDropdown compact />
+      </div>
+
       {/* Top bar — collapses when sidebar is closed */}
       <div className={`relative flex items-center px-3 bg-surface-0 border-b shrink-0 z-10 transition-[height,border-color,opacity] duration-200 ease-in-out overflow-hidden ${
         sidebarOpen ? 'h-12 border-border-default opacity-100' : 'h-0 border-transparent opacity-0'
@@ -133,9 +138,6 @@ function SidebarChrome({ children }: { children: React.ReactNode }) {
           >
             <ArrowLeft size={11} /> Back to chat
           </button>
-        </div>
-        <div className="px-3 pb-3 pt-1">
-          <UserDropdown />
         </div>
       </div>
     </div>
