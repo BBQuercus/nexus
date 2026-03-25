@@ -7,6 +7,7 @@ import { Pin, PinOff, Download, X, CheckSquare, Square } from 'lucide-react';
 interface ConversationItemProps {
   conv: Conversation;
   isActive: boolean;
+  isDeleting: boolean;
   bulkMode: boolean;
   isSelected: boolean;
   isRenaming: boolean;
@@ -27,6 +28,7 @@ interface ConversationItemProps {
 export default function ConversationItem({
   conv,
   isActive,
+  isDeleting,
   bulkMode,
   isSelected,
   isRenaming,
@@ -102,7 +104,8 @@ export default function ConversationItem({
           <button
             onClick={(e) => onDelete(conv.id, e)}
             title="Delete conversation"
-            className="text-text-tertiary hover:text-error shrink-0 cursor-pointer p-0.5 rounded hover:bg-surface-2 transition-all"
+            disabled={isDeleting}
+            className="text-text-tertiary hover:text-error shrink-0 cursor-pointer p-0.5 rounded hover:bg-surface-2 transition-all disabled:opacity-40 disabled:cursor-default"
           >
             <X size={12} />
           </button>

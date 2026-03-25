@@ -113,6 +113,7 @@ export interface AppActions {
   setPendingPrompt: (prompt: string | null) => void;
   updateConversationTitle: (id: string, title: string) => void;
   togglePinConversation: (id: string) => void;
+  removeConversation: (id: string) => void;
   showConfirm: (opts: { title: string; message?: string; confirmLabel?: string; variant?: 'danger' | 'default' }) => Promise<boolean>;
   resolveConfirm: (confirmed: boolean) => void;
   setActiveKnowledgeBaseIds: (ids: string[]) => void;

@@ -7,6 +7,7 @@ import ConversationItem from './conversation-item';
 interface PinnedItemsProps {
   items: Conversation[];
   activeConversationId: string | null;
+  deletingIds: Set<string>;
   bulkMode: boolean;
   selectedIds: Set<string>;
   renamingId: string | null;
@@ -27,6 +28,7 @@ interface PinnedItemsProps {
 export default function PinnedItems({
   items,
   activeConversationId,
+  deletingIds,
   bulkMode,
   selectedIds,
   renamingId,
@@ -56,6 +58,7 @@ export default function PinnedItems({
           key={conv.id}
           conv={conv}
           isActive={conv.id === activeConversationId}
+          isDeleting={deletingIds.has(conv.id)}
           bulkMode={bulkMode}
           isSelected={selectedIds.has(conv.id)}
           isRenaming={renamingId === conv.id}
