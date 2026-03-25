@@ -31,21 +31,36 @@ export default function ChatMessages() {
     }
   }, []);
 
+  const updateScrollButtonVisibility = useCallback(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const hasVisibleContent = messages.length > 0 || isStreaming;
+    if (!hasVisibleContent) {
+      setShowScrollButton(false);
+      return;
+    }
+
+    const { scrollTop, scrollHeight, clientHeight } = container;
+    const isScrollable = scrollHeight > clientHeight + 10;
+    const distFromBottom = scrollHeight - scrollTop - clientHeight;
+    setShowScrollButton(isScrollable && distFromBottom > 150);
+  }, [isStreaming, messages.length]);
+
   // Track scroll position to show/hide scroll-to-bottom button
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
-    const handleScroll = () => {
-      const { scrollTop, scrollHeight, clientHeight } = container;
-      const isScrollable = scrollHeight > clientHeight + 10;
-      const distFromBottom = scrollHeight - scrollTop - clientHeight;
-      setShowScrollButton(isScrollable && distFromBottom > 150);
-    };
+    const handleScroll = () => updateScrollButtonVisibility();
 
     container.addEventListener('scroll', handleScroll, { passive: true });
     return () => container.removeEventListener('scroll', handleScroll);
-  }, []);
+  }, [updateScrollButtonVisibility]);
+
+  useEffect(() => {
+    updateScrollButtonVisibility();
+  }, [activeConversationId, messages, isStreaming, loading, updateScrollButtonVisibility]);
 
   useEffect(() => {
     scrollToBottom();
