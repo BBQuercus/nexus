@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     CORS_ORIGINS: str = ""
 
     DATABASE_URL: str = "postgresql+asyncpg://nexus:nexus@localhost:5432/nexus"
+    PGVECTOR_DATABASE_URL: str = ""
 
     SERVER_SECRET: str
 
@@ -56,6 +57,10 @@ class Settings(BaseSettings):
 
     PORT: int = 8000
     AUTO_APPLY_DB_SCHEMA: bool = False
+
+    @property
+    def vector_database_url(self) -> str:
+        return self.PGVECTOR_DATABASE_URL or self.DATABASE_URL
 
     @property
     def cors_origins(self) -> list[str]:

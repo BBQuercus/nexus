@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.models import Artifact, Conversation, Message, UsageLog
 from backend.services import extraction
 from backend.services import llm as llm_service
+from backend.vector_db import vector_async_session
 
 
 async def save_assistant_message(
@@ -71,9 +72,11 @@ async def link_retrieval_logs(
 
     from backend.models import RetrievalLog
 
-    await db.execute(
-        sa_update(RetrievalLog).where(RetrievalLog.id.in_(retrieval_log_ids)).values(message_id=message_id)
-    )
+    async with vector_async_session() as vector_db:
+        await vector_db.execute(
+            sa_update(RetrievalLog).where(RetrievalLog.id.in_(retrieval_log_ids)).values(message_id=message_id)
+        )
+        await vector_db.commit()
 
 
 async def save_artifacts(

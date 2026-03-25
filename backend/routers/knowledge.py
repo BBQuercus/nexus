@@ -16,6 +16,7 @@ from backend.models import Chunk, Document, KnowledgeBase
 from backend.services.audit import AuditAction, record_audit_event
 from backend.services.rag.ingestion import SUPPORTED_EXTENSIONS
 from backend.services.rbac import require_permission
+from backend.vector_db import get_vector_db
 
 logger = get_logger("routers.knowledge")
 
@@ -92,7 +93,7 @@ def _is_missing_table_error(exc: Exception, table: str) -> bool:
 async def create_knowledge_base(
     body: CreateKBRequest,
     user_id: uuid.UUID = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_vector_db),
 ):
     kb = KnowledgeBase(
         user_id=user_id,
@@ -114,7 +115,7 @@ async def create_knowledge_base(
 @router.get("")
 async def list_knowledge_bases(
     user_id: uuid.UUID = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_vector_db),
 ):
     try:
         result = await db.execute(
@@ -143,7 +144,7 @@ async def list_knowledge_bases(
 async def get_knowledge_base(
     kb_id: uuid.UUID,
     user_id: uuid.UUID = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_vector_db),
 ):
     kb = await _get_kb_or_404(db, kb_id, user_id)
     return _serialize_kb(kb)
@@ -154,7 +155,7 @@ async def update_knowledge_base(
     kb_id: uuid.UUID,
     body: UpdateKBRequest,
     user_id: uuid.UUID = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_vector_db),
 ):
     kb = await _get_kb_owned_or_403(db, kb_id, user_id)
     if body.name is not None:
@@ -171,7 +172,7 @@ async def update_knowledge_base(
 async def delete_knowledge_base(
     kb_id: uuid.UUID,
     user_id: uuid.UUID = Depends(require_permission("kb.delete")),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_vector_db),
 ):
     # Verify ownership without keeping the ORM object in session
     await _get_kb_owned_or_403(db, kb_id, user_id)
@@ -198,7 +199,7 @@ async def upload_documents(
     background_tasks: BackgroundTasks,
     files: list[UploadFile] = File(...),
     user_id: uuid.UUID = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_vector_db),
 ):
     """Upload documents to a knowledge base. Processing happens in background."""
     kb = await _get_kb_owned_or_403(db, kb_id, user_id)
@@ -254,7 +255,7 @@ async def upload_documents(
 async def list_documents(
     kb_id: uuid.UUID,
     user_id: uuid.UUID = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_vector_db),
 ):
     await _get_kb_or_404(db, kb_id, user_id)
     result = await db.execute(
@@ -268,7 +269,7 @@ async def get_document_content(
     kb_id: uuid.UUID,
     doc_id: uuid.UUID,
     user_id: uuid.UUID = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_vector_db),
 ):
     """Return the extracted raw text for a document."""
     await _get_kb_or_404(db, kb_id, user_id)
@@ -289,7 +290,7 @@ async def get_document_chunks(
     kb_id: uuid.UUID,
     doc_id: uuid.UUID,
     user_id: uuid.UUID = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_vector_db),
 ):
     """Return all chunks for a document, ordered by chunk_index."""
     await _get_kb_or_404(db, kb_id, user_id)
@@ -316,7 +317,7 @@ async def delete_document(
     kb_id: uuid.UUID,
     doc_id: uuid.UUID,
     user_id: uuid.UUID = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_vector_db),
 ):
     await _get_kb_owned_or_403(db, kb_id, user_id)
 
@@ -350,7 +351,7 @@ async def search_knowledge_base(
     kb_id: uuid.UUID,
     body: SearchRequest,
     user_id: uuid.UUID = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_vector_db),
 ):
     """Search a knowledge base directly (useful for testing)."""
     await _get_kb_or_404(db, kb_id, user_id)
@@ -390,7 +391,7 @@ async def search_knowledge_base(
 async def get_kb_stats(
     kb_id: uuid.UUID,
     user_id: uuid.UUID = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_vector_db),
 ):
     kb = await _get_kb_or_404(db, kb_id, user_id)
     from sqlalchemy import func
@@ -415,12 +416,15 @@ async def upload_conversation_documents(
     background_tasks: BackgroundTasks,
     files: list[UploadFile] = File(...),
     user_id: uuid.UUID = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_vector_db),
+    primary_db: AsyncSession = Depends(get_db),
 ):
     """Upload documents scoped to a conversation (no KB needed)."""
     from backend.models import Conversation
 
-    result = await db.execute(select(Conversation).where(Conversation.id == conv_id, Conversation.user_id == user_id))
+    result = await primary_db.execute(
+        select(Conversation).where(Conversation.id == conv_id, Conversation.user_id == user_id)
+    )
     conv = result.scalar_one_or_none()
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
@@ -464,11 +468,14 @@ async def upload_conversation_documents(
 async def list_conversation_documents(
     conv_id: uuid.UUID,
     user_id: uuid.UUID = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_vector_db),
+    primary_db: AsyncSession = Depends(get_db),
 ):
     from backend.models import Conversation
 
-    result = await db.execute(select(Conversation).where(Conversation.id == conv_id, Conversation.user_id == user_id))
+    result = await primary_db.execute(
+        select(Conversation).where(Conversation.id == conv_id, Conversation.user_id == user_id)
+    )
     if not result.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Conversation not found")
 
@@ -485,7 +492,7 @@ async def list_conversation_documents(
 async def get_retrieval_log(
     msg_id: uuid.UUID,
     user_id: uuid.UUID = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_vector_db),
 ):
     """Get retrieval log for a message (shows why sources were chosen)."""
     from backend.models import RetrievalLog

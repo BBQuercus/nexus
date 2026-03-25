@@ -8,8 +8,8 @@ from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.exc import DBAPIError, ProgrammingError
 
-from backend.db import async_session
 from backend.logging_config import get_logger
+from backend.vector_db import vector_async_session
 
 logger = get_logger("cleanup")
 
@@ -58,7 +58,7 @@ async def cleanup_expired_analytics(days_to_keep: int = 90):
     from sqlalchemy import text
 
     try:
-        async with async_session() as session:
+        async with vector_async_session() as session:
             cutoff = datetime.now(UTC) - timedelta(days=days_to_keep)
             result = await session.execute(
                 text("DELETE FROM analytics_events WHERE created_at < :cutoff"),

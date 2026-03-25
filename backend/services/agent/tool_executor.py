@@ -8,12 +8,14 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.logging_config import get_logger
+from backend.models import RetrievalLog
 from backend.services import sandbox as sandbox_service
 from backend.services.chart_tool import normalize_chart_spec
 from backend.services.search import web_search
 from backend.services.sql_tool import build_run_sql_script
 from backend.services.tables import detect_table, rows_to_csv
 from backend.services.web import call_api, web_browse
+from backend.vector_db import vector_async_session
 
 from .stream_mapper import sanitize_tool_arguments, sse_event
 
@@ -31,7 +33,6 @@ async def _run_knowledge_search(
     use async-with session management without conflicting with the
     caller's async generator suspension points.
     """
-    from backend.db import async_session
     from backend.services.rag.retrieval import SearchScope, retrieve
 
     scope = SearchScope(
@@ -39,7 +40,7 @@ async def _run_knowledge_search(
         conversation_id=conversation_id,
     )
 
-    async with async_session() as rag_db:
+    async with vector_async_session() as rag_db:
         result = await retrieve(
             db=rag_db,
             query=query,
@@ -465,7 +466,6 @@ async def _knowledge_search(
     func_name: str, args: dict, tool_call_id: str, ctx: ToolExecutionContext
 ) -> AsyncGenerator[dict, None]:
     """Handle knowledge_search tool."""
-    from backend.models import RetrievalLog
     from backend.services.rag.citations import (
         build_citations_json,
         build_retrieval_sse_event,
@@ -488,27 +488,28 @@ async def _knowledge_search(
         tool_output = context_text if context_text else "No relevant documents found."
         _rag_sse_event = build_retrieval_sse_event(result)
 
-        # Store retrieval log on the main session
-        retrieval_log = RetrievalLog(
-            query=args.get("query", ctx.user_message),
-            chunks_retrieved=[
-                {
-                    "chunk_id": str(c.id),
-                    "document_id": str(c.document_id),
-                    "score": round(c.score, 3),
-                    "rerank_score": round(c.rerank_score, 3) if c.rerank_score else None,
-                }
-                for c in result.chunks
-            ],
-            total_candidates=result.total_candidates,
-            retrieval_time_ms=result.retrieval_time_ms,
-            rerank_time_ms=result.rerank_time_ms,
-        )
-        ctx.db.add(retrieval_log)
-        await ctx.db.flush()
+        async with vector_async_session() as vector_db:
+            retrieval_log = RetrievalLog(
+                query=args.get("query", ctx.user_message),
+                chunks_retrieved=[
+                    {
+                        "chunk_id": str(c.id),
+                        "document_id": str(c.document_id),
+                        "score": round(c.score, 3),
+                        "rerank_score": round(c.rerank_score, 3) if c.rerank_score else None,
+                    }
+                    for c in result.chunks
+                ],
+                total_candidates=result.total_candidates,
+                retrieval_time_ms=result.retrieval_time_ms,
+                rerank_time_ms=result.rerank_time_ms,
+            )
+            vector_db.add(retrieval_log)
+            await vector_db.flush()
+            ctx.retrieval_log_ids.append(retrieval_log.id)
+            await vector_db.commit()
 
         ctx.rag_citations.extend(build_citations_json(result))
-        ctx.retrieval_log_ids.append(retrieval_log.id)
 
     except Exception as rag_err:
         logger.warning("knowledge_search_failed", error=str(rag_err), query=args.get("query", ""))

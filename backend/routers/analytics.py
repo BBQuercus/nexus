@@ -10,6 +10,7 @@ from backend.auth import get_current_user
 from backend.db import get_db
 from backend.logging_config import get_logger
 from backend.models import AnalyticsEvent, Conversation, UsageLog
+from backend.vector_db import get_vector_db
 
 logger = get_logger("analytics")
 
@@ -37,7 +38,7 @@ class AnalyticsEventResponse(BaseModel):
 async def track_events(
     body: AnalyticsEventRequest | list[AnalyticsEventRequest],
     user_id: uuid.UUID = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    vector_db: AsyncSession = Depends(get_vector_db),
 ):
     """Track one or more analytics events. Accepts a single event or a list."""
     events = body if isinstance(body, list) else [body]
@@ -49,10 +50,10 @@ async def track_events(
             event_type=event_req.event_type,
             event_data=event_req.event_data,
         )
-        db.add(event)
+        vector_db.add(event)
         created.append(event)
 
-    await db.flush()
+    await vector_db.flush()
 
     logger.info("analytics_events_tracked", count=len(created), user_id=str(user_id))
 
