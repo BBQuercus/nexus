@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useCallback, useState } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { useStore } from '@/lib/store';
 import * as api from '@/lib/api';
 import { mapRawMessages, loadAndAttachArtifacts } from '@/lib/useStreaming';
@@ -37,11 +38,19 @@ export default function ChatMessages() {
   const hasMore = messages.length > visibleCount;
   const visibleMessages = hasMore ? messages.slice(messages.length - visibleCount) : messages;
 
+  // Virtualizer for efficient rendering of long message lists
+  const virtualizer = useVirtualizer({
+    count: visibleMessages.length,
+    getScrollElement: () => containerRef.current,
+    estimateSize: () => 120,
+    overscan: 5,
+    getItemKey: (index) => visibleMessages[index]?.id ?? index,
+  });
+
   const loadMore = useCallback(() => {
     const container = containerRef.current;
     const prevHeight = container?.scrollHeight ?? 0;
     setVisibleCount((prev) => prev + PAGE_SIZE);
-    // Preserve scroll position after loading older messages
     requestAnimationFrame(() => {
       if (container) {
         const newHeight = container.scrollHeight;
@@ -122,7 +131,6 @@ export default function ChatMessages() {
     const nextCount = messages.length;
 
     if (nextCount > previousCount) {
-      // Keep new messages visible by expanding the window
       const added = nextCount - previousCount;
       setVisibleCount((prev) => prev + added);
       scrollToBottomIfPinned('smooth');
@@ -197,7 +205,7 @@ export default function ChatMessages() {
         {loading && messages.length === 0 ? (
           <MessageSkeleton />
         ) : (
-          <div className="space-y-4 max-w-4xl mx-auto">
+          <div className="max-w-4xl mx-auto">
             {hasMore && (
               <div className="flex justify-center py-2">
                 <button
@@ -208,9 +216,35 @@ export default function ChatMessages() {
                 </button>
               </div>
             )}
-            {visibleMessages.map((msg) => (
-              <MessageBubble key={msg.id} message={msg} />
-            ))}
+            <div
+              style={{
+                height: `${virtualizer.getTotalSize()}px`,
+                width: '100%',
+                position: 'relative',
+              }}
+            >
+              {virtualizer.getVirtualItems().map((virtualRow) => {
+                const msg = visibleMessages[virtualRow.index];
+                return (
+                  <div
+                    key={virtualRow.key}
+                    data-index={virtualRow.index}
+                    ref={virtualizer.measureElement}
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '100%',
+                      transform: `translateY(${virtualRow.start}px)`,
+                    }}
+                  >
+                    <div className="pb-4">
+                      <MessageBubble message={msg} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
             <StreamingBubble />
           </div>
         )}
