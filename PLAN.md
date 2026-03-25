@@ -1,7 +1,7 @@
 # Nexus — Master Plan
 
 **Last updated:** 2026-03-25
-**Status:** All 10 initiatives implemented (see Implementation Log below)
+**Status:** All 10 initiatives structurally implemented; release gate green (see Implementation Log below)
 **Goal:** Build the de-facto gold standard AI chat application.
 **Sources:** Codebase audit, competitive analysis (ChatGPT, Claude.ai, Cursor, TypingMind, OpenWebUI, LibreChat), CompanyGPT teardown, colleague review, and tool implementation specs.
 
@@ -1510,7 +1510,7 @@ That is the path from "pretty decent tool" to "gold standard."
 
 ## Implementation Log
 
-All 10 initiatives were implemented on 2026-03-24/25. Each produced atomic commits.
+All 10 initiatives were structurally implemented on 2026-03-24/25. Each produced atomic commits. A verification pass on 2026-03-25 fixed linting, type errors, unmounted components, and missing integrations — release gate is now fully green (ruff, mypy, tsc, eslint, build, 222 tests).
 
 | # | Initiative | Commit | Key Deliverables |
 |---|-----------|--------|-----------------|
@@ -1535,3 +1535,11 @@ All 10 initiatives were implemented on 2026-03-24/25. Each produced atomic commi
 - **MCP client**: Implements the basic tool discovery + execution protocol. Full MCP spec compliance (resources, prompts, sampling) is future work.
 - **Multi-agent**: The orchestration layer supports 4 strategies but the actual parallel execution reuses existing `run_multi_agent_loop`. Deep multi-step debate/merge is future work.
 - **Migrations**: 4 new Alembic migrations added (audit_events, projects, memories, user roles). Run `alembic upgrade head` to apply.
+- **Audit wiring**: Audit events are recorded for conversation/agent/KB CRUD, sandbox creation, user login, and document uploads. Buffer flushes on shutdown.
+- **Memory in agent runtime**: The agent loop retrieves relevant memories before each LLM call and prepends them to the system prompt.
+- **RBAC coverage**: Permission guards on destructive endpoints (delete conversation/agent/KB). Compliance and admin analytics require admin+ role. Broader coverage is incremental.
+- **UI components mounted**: ExecutionTimeline, RunSummary, ConfidenceDot, ProvenanceRow in message-bubble; ArtifactCenter and MemoryPanel as right-panel tabs; RunComparison in streaming-bubble for multi-model compare.
+- **Plugin registry**: Currently in-memory; production use requires DB-backed persistence (future work).
+- **create_ui field types**: V1 supports 10 types (text, textarea, number, select, multiselect, checkbox, radio, date, slider, rating). datetime, file, and table are deferred to V2.
+- **Staging/production deploy, preview deployments, security scanning, performance budgets**: CI structure exists but CD workflows are deferred until Railway deployment config is finalized.
+- **Smoke/E2E suites**: Not yet implemented. Backend and frontend unit/component test coverage is the current quality gate.
