@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import { useStore } from '@/lib/store';
 import { logout as apiLogout } from '@/lib/api';
 import { clearToken } from '@/lib/auth';
@@ -10,6 +11,8 @@ export default function UserDropdown() {
   const user = useStore((s) => s.user);
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     if (!open) return;
@@ -47,6 +50,13 @@ export default function UserDropdown() {
   const handleShortcuts = () => {
     setOpen(false);
     useStore.getState().setCommandPaletteOpen(true);
+  };
+
+  const navigateTo = (href: string) => {
+    setOpen(false);
+    if (pathname !== href) {
+      router.push(href);
+    }
   };
 
   return (
@@ -101,25 +111,31 @@ export default function UserDropdown() {
               <span className="flex-1 text-left">Keyboard shortcuts</span>
               <kbd className="text-[9px] text-text-tertiary bg-surface-1 border border-border-default rounded px-1 py-0.5">&#8984;K</kbd>
             </button>
-            <a href="/agents" onClick={() => setOpen(false)}
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-text-secondary hover:text-text-primary hover:bg-surface-1 cursor-pointer transition-colors">
+            <button
+              type="button"
+              onClick={() => navigateTo('/agents')}
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-text-secondary hover:text-text-primary hover:bg-surface-1 cursor-pointer transition-colors"
+            >
               <Users size={13} className="text-text-tertiary shrink-0" />
               <span className="flex-1 text-left">Agents</span>
-            </a>
-            <a href="/knowledge" onClick={() => setOpen(false)}
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-text-secondary hover:text-text-primary hover:bg-surface-1 cursor-pointer transition-colors">
+            </button>
+            <button
+              type="button"
+              onClick={() => navigateTo('/knowledge')}
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-text-secondary hover:text-text-primary hover:bg-surface-1 cursor-pointer transition-colors"
+            >
               <BookOpen size={13} className="text-text-tertiary shrink-0" />
               <span className="flex-1 text-left">Knowledge Bases</span>
-            </a>
+            </button>
             {user?.isAdmin && (
-              <a
-                href="/admin"
-                onClick={() => setOpen(false)}
+              <button
+                type="button"
+                onClick={() => navigateTo('/admin')}
                 className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-text-secondary hover:text-text-primary hover:bg-surface-1 cursor-pointer transition-colors"
               >
                 <Shield size={13} className="text-text-tertiary shrink-0" />
                 <span className="flex-1 text-left">Admin dashboard</span>
-              </a>
+              </button>
             )}
           </div>
 
