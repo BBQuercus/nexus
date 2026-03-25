@@ -3,7 +3,8 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useStore } from '@/lib/store';
 import { useIsMobile } from '@/lib/useMediaQuery';
-import { Terminal, FolderOpen, Eye, Layers, Network, BookOpen, Brain, X } from 'lucide-react';
+import { Terminal, FolderOpen, Eye, Layers, Network, BookOpen, Brain, X, StopCircle, Play, Trash2 } from 'lucide-react';
+import * as api from '@/lib/api';
 import TerminalPanel from './terminal-panel';
 import FilesPanel from './files-panel';
 import PreviewPanel from './preview-panel';
@@ -33,6 +34,70 @@ function getInitialWidth() {
     if (saved) return Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, parseInt(saved, 10)));
   } catch {}
   return DEFAULT_WIDTH;
+}
+
+function SandboxStatus() {
+  const sandboxStatus = useStore((s) => s.sandboxStatus);
+  const sandboxId = useStore((s) => s.sandboxId);
+  const setSandboxStatus = useStore((s) => s.setSandboxStatus);
+  const setSandboxId = useStore((s) => s.setSandboxId);
+
+  if (sandboxStatus === 'none') return null;
+
+  const dotColor: Record<string, string> = {
+    creating: 'bg-warning',
+    running: 'bg-accent',
+    stopped: 'bg-error',
+  };
+  const labels: Record<string, string> = {
+    creating: 'Creating...',
+    running: 'Running',
+    stopped: 'Stopped',
+  };
+
+  return (
+    <div className="flex items-center gap-2 px-2.5 py-1.5 border-b border-border-default text-[11px]">
+      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotColor[sandboxStatus]} ${sandboxStatus === 'running' ? 'animate-pulse' : ''}`} />
+      <span className="text-text-tertiary font-mono">Sandbox: {labels[sandboxStatus]}</span>
+      <div className="flex-1" />
+      {sandboxId && sandboxStatus === 'running' && (
+        <button
+          onClick={async () => { try { await api.stopSandbox(sandboxId); setSandboxStatus('stopped'); } catch {} }}
+          title="Stop sandbox"
+          className="text-text-tertiary hover:text-text-secondary cursor-pointer transition-colors"
+        >
+          <StopCircle size={12} />
+        </button>
+      )}
+      {sandboxId && sandboxStatus === 'stopped' && (
+        <button
+          onClick={async () => { try { await api.startSandbox(sandboxId); setSandboxStatus('running'); } catch {} }}
+          title="Start sandbox"
+          className="text-text-tertiary hover:text-text-secondary cursor-pointer transition-colors"
+        >
+          <Play size={12} />
+        </button>
+      )}
+      {sandboxId && (
+        <button
+          onClick={async () => {
+            const confirmed = await useStore.getState().showConfirm({
+              title: 'Delete this sandbox?',
+              message: 'All sandbox files and state will be lost.',
+              confirmLabel: 'Delete',
+              variant: 'danger',
+            });
+            if (!confirmed) return;
+            try { await api.deleteSandbox(sandboxId); setSandboxStatus('none'); setSandboxId(null); } catch {}
+          }}
+          title="Delete sandbox"
+          className="text-text-tertiary hover:text-error cursor-pointer transition-colors"
+        >
+          <Trash2 size={12} />
+        </button>
+      )}
+    </div>
+  );
 }
 
 export default function RightPanel() {
@@ -157,6 +222,8 @@ export default function RightPanel() {
           <X size={14} />
         </button>
       </div>
+
+      <SandboxStatus />
 
       <div className="flex-1 min-h-0 overflow-hidden">
         {activeTab === 'terminal' && <TerminalPanel />}
