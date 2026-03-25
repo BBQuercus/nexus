@@ -377,6 +377,7 @@ export function useStreaming() {
     convId: string,
     opts: {
       attachmentIds?: string[];
+      images?: { filename: string; dataUrl: string }[];
       model: string;
       parentId?: string;
       numResponses: number;
@@ -425,6 +426,7 @@ export function useStreaming() {
         opts.parentId, opts.numResponses, controller.signal,
         opts.contextIds, opts.agentPersonaId, opts.knowledgeBaseIds,
         opts.compareModels, opts.temperature, opts.verbosity, opts.tone,
+        opts.images,
       );
       for await (const event of streamSSE(response)) {
         const result = processSseEvent(

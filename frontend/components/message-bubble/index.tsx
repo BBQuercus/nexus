@@ -37,6 +37,7 @@ export default function MessageBubble({ message }: { message: Message }) {
   const [showRetryMenu, setShowRetryMenu] = useState(false);
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const allMessages = useStore((s) => s.messages);
   const submittedFormTitles = useMemo(() => {
     const titles = new Set<string>();
@@ -123,7 +124,7 @@ export default function MessageBubble({ message }: { message: Message }) {
               {message.images && message.images.length > 0 && (
                 <div className="flex flex-wrap gap-2 mb-2">
                   {message.images.map((img, i) => (
-                    <img key={i} src={img.url} alt={img.filename} className="max-w-[200px] max-h-[200px] rounded-lg object-cover" />
+                    <img key={i} src={img.url} alt={img.filename} className="max-w-[200px] max-h-[200px] rounded-lg object-cover cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setLightboxUrl(img.url)} />
                   ))}
                 </div>
               )}
@@ -163,6 +164,14 @@ export default function MessageBubble({ message }: { message: Message }) {
             <InlineBranchInput messageId={message.id} onClose={() => setShowBranchInput(false)} />
           )}
         </div>
+        {lightboxUrl && (
+          <div
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm cursor-zoom-out"
+            onClick={() => setLightboxUrl(null)}
+          >
+            <img src={lightboxUrl} alt="" className="max-w-[90vw] max-h-[90vh] rounded-lg object-contain shadow-2xl" />
+          </div>
+        )}
       </div>
     );
   }

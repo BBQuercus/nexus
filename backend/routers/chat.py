@@ -44,6 +44,11 @@ class UpdateConversationRequest(BaseModel):
     agent_persona_id: uuid.UUID | None = None
 
 
+class ImageAttachment(BaseModel):
+    filename: str
+    data_url: str  # base64 data URL (e.g. data:image/png;base64,...)
+
+
 class SendMessageRequest(BaseModel):
     content: str
     attachments: list | None = None
@@ -58,6 +63,7 @@ class SendMessageRequest(BaseModel):
     temperature: float | None = None  # 0.0-1.0 creativity control
     verbosity: str | None = None  # concise | detailed (omit for balanced)
     tone: str | None = None  # casual | technical (omit for professional)
+    images: list[ImageAttachment] | None = None  # Inline image attachments for vision
 
 
 class GenerateImageRequest(BaseModel):
@@ -365,11 +371,17 @@ async def send_message(
     if context_refs:
         msg_attachments = (msg_attachments or []) + [{"type": "context", "contexts": context_refs}]
 
+    # Store image metadata (without data URLs to keep DB lean)
+    user_images = None
+    if body.images:
+        user_images = [{"filename": img.filename, "url": img.data_url} for img in body.images]
+
     user_msg = Message(
         conversation_id=conversation_id,
         role="user",
         content=body.content,
         attachments=msg_attachments,
+        images=user_images,
         parent_id=parent_id,
         branch_index=sibling_count,
     )
