@@ -107,10 +107,8 @@ async def get_user_role(user_id: uuid.UUID, db: AsyncSession) -> Role:
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    # Map existing is_admin to roles, with new role field taking precedence
-    if hasattr(user, "role") and user.role:
-        return Role(user.role)
-    return Role.ADMIN if user.is_admin else Role.EDITOR
+    role_str = user.role or ("admin" if user.is_admin else "editor")
+    return Role(role_str)
 
 
 def has_permission(role: Role, permission: str) -> bool:

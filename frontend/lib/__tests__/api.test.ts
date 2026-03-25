@@ -2,9 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 
 // Mock auth module before importing api
 vi.mock('@/lib/auth', () => ({
-  getToken: vi.fn(() => 'test-token'),
-  clearToken: vi.fn(),
-  getCsrfToken: vi.fn(() => null),
+  getCsrfToken: vi.fn(() => 'csrf-test'),
 }))
 
 // Mock toast module
@@ -15,8 +13,6 @@ vi.mock('@/components/toast', () => ({
     info: vi.fn(),
   },
 }))
-
-import * as auth from '@/lib/auth'
 
 function expectPath(callUrl: unknown, expectedPath: string) {
   expect(typeof callUrl).toBe('string')
@@ -46,17 +42,16 @@ describe('API module', () => {
   })
 
   describe('apiFetch', () => {
-    it('adds Authorization header when token exists', async () => {
+    it('adds CSRF token header for cookie-based auth', async () => {
       const fetchMock = mockFetchResponse(200, { id: '1', title: 'Test' })
       globalThis.fetch = fetchMock
 
-      // Re-import to get fresh module with mocked deps
       const { createConversation } = await import('@/lib/api')
       await createConversation({ title: 'Test' })
 
       expect(fetchMock).toHaveBeenCalled()
       const callArgs = fetchMock.mock.calls[0]
-      expect(callArgs[1].headers['Authorization']).toBe('Bearer test-token')
+      expect(callArgs[1].headers['X-CSRF-Token']).toBe('csrf-test')
     })
 
     it('adds Content-Type header for JSON body', async () => {
@@ -90,17 +85,11 @@ describe('API module', () => {
       await expect(listAgents()).rejects.toThrow('Internal error')
     })
 
-    it('clears token on 401 response', async () => {
+    it('throws ApiError on 401 response', async () => {
       globalThis.fetch = mockFetchResponse(401, { detail: 'Unauthorized' })
 
       const { listAgents } = await import('@/lib/api')
-      try {
-        await listAgents()
-      } catch {
-        // expected
-      }
-
-      expect(auth.clearToken).toHaveBeenCalled()
+      await expect(listAgents()).rejects.toThrow('Unauthorized')
     })
 
     it('includes status code in ApiError', async () => {

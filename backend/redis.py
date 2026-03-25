@@ -19,8 +19,12 @@ async def get_redis() -> redis.Redis | None:
     """Get the Redis client. Returns None if Redis is unavailable."""
     global _pool, _available
 
-    if _pool is None:
-        try:
+    if _pool is not None and _available:
+        return _pool
+
+    # Either first connect or reconnecting after failure
+    try:
+        if _pool is None:
             _pool = redis.from_url(
                 settings.REDIS_URL,
                 encoding="utf-8",
@@ -30,14 +34,17 @@ async def get_redis() -> redis.Redis | None:
                 socket_timeout=2,
                 retry_on_timeout=True,
             )
-            # Test connection
-            await _pool.ping()  # type: ignore[misc]
-            _available = True
+        # Test connection (also acts as reconnect check)
+        await _pool.ping()  # type: ignore[misc]
+        if not _available:
             logger.info("redis_connected", url=settings.REDIS_URL.split("@")[-1])  # Don't log auth
-        except Exception as e:
+        _available = True
+    except Exception as e:
+        if _available:
+            logger.warning("redis_connection_lost", error=str(e))
+        else:
             logger.warning("redis_unavailable", error=str(e), hint="Falling back to in-memory rate limiting")
-            _pool = None
-            _available = False
+        _available = False
 
     return _pool if _available else None
 

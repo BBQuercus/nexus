@@ -1,4 +1,5 @@
 import type { User, Conversation, Message, Artifact, AgentPersona, ToolCall, ConversationTree, Citation, RetrievalResult, KnowledgeBase, StreamingTable, StreamingChart, FormSpec, Project } from '../types';
+import type { AuthStatus } from './session-slice';
 
 export interface StreamingImage {
   filename: string;
@@ -43,6 +44,7 @@ export interface ConfirmState {
 
 export interface AppState {
   user: User | null;
+  authStatus: AuthStatus;
   conversations: Conversation[];
   activeConversationId: string | null;
   messages: Message[];
@@ -79,6 +81,7 @@ export interface AppState {
 
 export interface AppActions {
   setUser: (user: User | null) => void;
+  setAuthStatus: (status: AuthStatus) => void;
   setConversations: (conversations: Conversation[]) => void;
   setActiveConversationId: (id: string | null) => void;
   setMessages: (messages: Message[] | ((prev: Message[]) => Message[])) => void;

@@ -1,5 +1,5 @@
 import type { Conversation, Message, Artifact, AgentPersona, User, FileNode, ConversationTree, KnowledgeBase, KBDocument, Citation, Project, SearchResult } from './types';
-import { clearToken, getCsrfToken, getToken, setCsrfToken } from './auth';
+import { getCsrfToken } from './auth';
 import { toApiUrl } from './runtime';
 
 export class ApiError extends Error {
@@ -33,17 +33,12 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
     ...(options.headers as Record<string, string> || {}),
   };
 
-  const token = getToken();
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-
   if (options.body && !(options.body instanceof FormData)) {
     headers['Content-Type'] = 'application/json';
   }
 
-  // Include CSRF token for state-changing requests when using cookie auth
-  if (!token && typeof document !== 'undefined') {
+  // Include CSRF token for state-changing requests (cookie-based auth)
+  if (typeof document !== 'undefined') {
     const csrfToken = getCsrfToken();
     if (csrfToken) {
       headers['X-CSRF-Token'] = csrfToken;
@@ -68,13 +63,16 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
       || response.statusText;
     const requestId = response.headers.get('X-Request-Id') || undefined;
 
-    // Handle 401 — clear stale token but don't redirect (let callers handle it)
+    // 401 → redirect to login
     if (response.status === 401) {
-      clearToken();
+      if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+        window.location.href = '/login';
+      }
+      throw new ApiError(response.status, message, errorBody, requestId);
     }
 
     // Toast for all other API errors (except error reporting itself)
-    if (response.status !== 401 && !path.includes('/api/errors')) {
+    if (!path.includes('/api/errors')) {
       getToast()?.error(message || 'Something went wrong');
     }
 
@@ -181,13 +179,9 @@ export async function sendMessage(
   tone?: string,
   images?: { filename: string; dataUrl: string }[],
 ): Promise<Response> {
-  const token = getToken();
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
-  if (!token) {
-    const csrfToken = getCsrfToken();
-    if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
-  }
+  const csrfToken = getCsrfToken();
+  if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
   const response = await fetch(toApiUrl(`/api/conversations/${conversationId}/messages`), {
     method: 'POST',
     headers,
@@ -237,13 +231,9 @@ export async function submitFeedback(
 }
 
 export async function regenerateMessage(conversationId: string, messageId: string, signal?: AbortSignal, model?: string): Promise<Response> {
-  const token = getToken();
   const headers: Record<string, string> = {};
-  if (token) headers['Authorization'] = `Bearer ${token}`;
-  if (!token) {
-    const csrfToken = getCsrfToken();
-    if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
-  }
+  const csrfToken = getCsrfToken();
+  if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
   if (model) headers['Content-Type'] = 'application/json';
   const response = await fetch(toApiUrl(`/api/conversations/${conversationId}/messages/${messageId}/regenerate`), {
     method: 'POST',
@@ -494,13 +484,9 @@ export async function transcribeAudio(file: File, model = 'azure/whisper-1'): Pr
 export async function synthesizeAudio(
   params: { text: string; model?: string; voice?: string; format?: string },
 ): Promise<Blob> {
-  const token = getToken();
   const headers: Record<string, string> = {};
-  if (token) headers['Authorization'] = `Bearer ${token}`;
-  if (!token) {
-    const csrfToken = getCsrfToken();
-    if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
-  }
+  const csrfToken = getCsrfToken();
+  if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
   const response = await fetch(toApiUrl('/api/media/speak'), {
     method: 'POST',
     headers: {
@@ -573,7 +559,7 @@ export async function getAdminUsage(): Promise<Record<string, unknown>> {
 export async function getAdminUsers(): Promise<Record<string, unknown>[]> {
   return apiFetch('/api/admin/users');
 }
-export async function updateAdminUser(userId: string, params: { is_admin?: boolean }): Promise<void> {
+export async function updateAdminUser(userId: string, params: { role?: string }): Promise<void> {
   return apiFetch(`/api/admin/users/${userId}`, { method: 'PATCH', body: JSON.stringify(params) });
 }
 export async function getAdminModels(): Promise<Record<string, unknown>[]> {
@@ -587,15 +573,11 @@ export async function getAdminErrors(page?: number): Promise<Record<string, unkn
 // ── User ──
 
 export async function getCurrentUser(): Promise<User> {
-  const raw = await apiFetch<User & { csrfToken?: string }>('/auth/me');
-  setCsrfToken(raw.csrfToken || null);
-  return raw;
+  return apiFetch<User>('/auth/me');
 }
 
 export async function logout(): Promise<void> {
-  const result = await apiFetch<void>('/auth/logout', { method: 'POST' });
-  setCsrfToken(null);
-  return result;
+  return apiFetch<void>('/auth/logout', { method: 'POST' });
 }
 
 // ── Knowledge Bases ──

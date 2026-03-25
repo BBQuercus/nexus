@@ -232,9 +232,15 @@ async def _dequeue_job() -> Job:
 
 async def _process_jobs():
     """Background worker that processes jobs from the queue."""
+    backoff = 0
     while True:
         try:
+            if backoff > 0:
+                await asyncio.sleep(backoff)
+
             job = await _dequeue_job()
+            backoff = 0  # Reset on successful dequeue
+
             if job.status == JobStatus.CANCELLED:
                 continue
 
@@ -255,11 +261,14 @@ async def _process_jobs():
                 await _update_job(job, status=JobStatus.FAILED, error=str(e))
                 logger.error("job_failed", job_id=job.id, job_name=job.name, error=str(e))
         except TimeoutError:
+            backoff = 0
             continue
         except asyncio.CancelledError:
             break
         except Exception as e:
-            logger.error("job_worker_error", error=str(e))
+            # Connection errors (Redis down, etc.) — back off to avoid tight loop
+            backoff = min(backoff + 5, 30)
+            logger.error("job_worker_error", error=str(e), retry_in=backoff)
 
 
 async def start_job_worker():

@@ -36,7 +36,8 @@ async def get_admin_user(
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    if not user.is_admin:
+    role = user.role or ("admin" if user.is_admin else "editor")
+    if role not in ("admin", "org_admin"):
         raise HTTPException(status_code=403, detail="Admin access required")
     return user
 
@@ -45,7 +46,7 @@ async def get_admin_user(
 
 
 class UpdateUserAdminRequest(BaseModel):
-    is_admin: bool
+    role: str
 
 
 # ----- Routes -----
@@ -338,7 +339,7 @@ async def admin_list_users(
                 "email": u.email,
                 "name": u.name,
                 "avatar_url": u.avatar_url,
-                "is_admin": u.is_admin,
+                "role": u.role or ("admin" if u.is_admin else "editor"),
                 "conversation_count": conv_count,
                 "message_count": msg_count,
                 "last_seen": u.last_seen_at.isoformat() if u.last_seen_at else None,
@@ -367,13 +368,18 @@ async def admin_update_user(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    user.is_admin = body.is_admin
+    valid_roles = {"viewer", "editor", "admin", "org_admin"}
+    if body.role not in valid_roles:
+        raise HTTPException(status_code=422, detail=f"Invalid role. Must be one of: {', '.join(sorted(valid_roles))}")
+
+    user.role = body.role
+    user.is_admin = body.role in ("admin", "org_admin")  # keep is_admin in sync during migration
     await db.flush()
 
     logger.info(
-        "admin_status_updated",
+        "user_role_updated",
         target_user_id=str(user_id),
-        is_admin=body.is_admin,
+        role=body.role,
         updated_by=str(admin.id),
     )
 
@@ -381,7 +387,7 @@ async def admin_update_user(
         "id": str(user.id),
         "email": user.email,
         "name": user.name,
-        "is_admin": user.is_admin,
+        "role": user.role,
     }
 
 

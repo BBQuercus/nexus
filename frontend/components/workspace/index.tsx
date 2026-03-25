@@ -1,29 +1,30 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import { useStore } from '@/lib/store';
 import { useIsMobile } from '@/lib/useMediaQuery';
-import { initMarkdown } from '@/lib/markdown';
+import { useVisualViewport } from '@/lib/useVisualViewport';
 import { initErrorReporter } from '@/lib/error-reporter';
-import { startTokenRefreshTimer, stopTokenRefreshTimer } from '@/lib/auth';
 import { toast } from '@/components/toast';
 import TopBar from '../top-bar';
 import ChatMessages from '../chat-messages';
 import ChatInput from '../chat-input';
 import EmptyState from '../empty-state';
-import CommandPalette from '../command-palette';
-import SearchPanel from '../search-panel';
 import ConfirmDialog from '../confirm-dialog';
 import ToastContainer from '../toast';
 import PanelErrorBoundary from '../panel-error-boundary';
-import KeyboardShortcuts from '../keyboard-shortcuts';
 import HealthBanner from '../health-banner';
-import DiffViewer from '../diff-viewer';
+import InstallPrompt from '../install-prompt';
 import ShellLayout from './shell-layout';
 import { useKeyboardShortcuts } from './use-keyboard-shortcuts';
 import { useFocusMode } from './use-focus-mode';
 import { Upload } from 'lucide-react';
 import { startTour, isTourCompleted } from '@/lib/onboarding-tour';
+
+const CommandPalette = lazy(() => import('../command-palette'));
+const SearchPanel = lazy(() => import('../search-panel'));
+const KeyboardShortcuts = lazy(() => import('../keyboard-shortcuts'));
+const DiffViewer = lazy(() => import('../diff-viewer'));
 
 export default function Workspace() {
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
@@ -39,6 +40,7 @@ export default function Workspace() {
   const setSidebarOpen = useStore((s) => s.setSidebarOpen);
 
   const isMobile = useIsMobile();
+  useVisualViewport();
 
   const { focusMode, focusModeRef, toggleFocusMode } = useFocusMode();
 
@@ -53,12 +55,7 @@ export default function Workspace() {
   });
 
   useEffect(() => {
-    initMarkdown();
     initErrorReporter();
-    startTokenRefreshTimer(() => {
-      toast.warning('Session expiring soon. Please save your work.');
-    });
-    return () => stopTokenRefreshTimer();
   }, []);
 
   // Listen for open-shortcuts event from slash commands / command palette
@@ -130,7 +127,8 @@ export default function Workspace() {
 
   return (
     <div
-      className="relative flex flex-col h-dvh w-screen bg-bg overflow-hidden noise-overlay"
+      className="relative flex flex-col w-screen bg-bg overflow-hidden noise-overlay"
+      style={{ height: 'var(--viewport-height, 100dvh)' }}
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
@@ -167,7 +165,7 @@ export default function Workspace() {
       {isDragging && (
         <div className="fixed inset-0 z-[70] pointer-events-none animate-focus-fade-in" style={{ animationDuration: '0.15s' }}>
           <div className="absolute inset-0 bg-bg/80 backdrop-blur-sm" />
-          <div className="absolute inset-5 sm:inset-8">
+          <div className="absolute inset-5 md:inset-8">
             <div className="absolute inset-0 border border-accent/40" />
             {/* Corner accents — top-left */}
             <div className="absolute -top-px -left-px w-5 h-5">
@@ -202,10 +200,13 @@ export default function Workspace() {
         </div>
       )}
 
-      {commandPaletteOpen && <CommandPalette />}
-      {searchPanelOpen && <SearchPanel />}
-      {shortcutsOpen && <KeyboardShortcuts onClose={() => setShortcutsOpen(false)} />}
-      <DiffViewer />
+      <Suspense fallback={null}>
+        {commandPaletteOpen && <CommandPalette />}
+        {searchPanelOpen && <SearchPanel />}
+        {shortcutsOpen && <KeyboardShortcuts onClose={() => setShortcutsOpen(false)} />}
+        <DiffViewer />
+      </Suspense>
+      <InstallPrompt />
       <ToastContainer />
       <ConfirmDialog
         open={confirmDialog.open}
