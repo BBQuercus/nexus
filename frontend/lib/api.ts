@@ -580,6 +580,20 @@ export async function logout(): Promise<void> {
   return apiFetch<void>('/auth/logout', { method: 'POST' });
 }
 
+export async function passwordLogin(email: string, password: string): Promise<void> {
+  return apiFetch<void>('/auth/password', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+  });
+}
+
+export async function registerAccount(email: string, password: string, name?: string): Promise<void> {
+  return apiFetch<void>('/auth/register', {
+    method: 'POST',
+    body: JSON.stringify({ email, password, name }),
+  });
+}
+
 // ── Knowledge Bases ──
 
 function kbFromSnake(raw: Record<string, unknown>): KnowledgeBase {

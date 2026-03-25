@@ -65,9 +65,24 @@ def _set_csrf_cookie(response: Response, value: str, max_age: int) -> None:
     )
 
 
-def get_auth_url() -> str:
-    """Returns WorkOS authorization URL."""
+def get_auth_url(provider: str | None = None) -> str:
+    """Returns WorkOS authorization URL for the given provider."""
     client = _get_workos_client()
+
+    if provider == "microsoft" and settings.WORKOS_ORG_ID:
+        # Microsoft uses SSO via WorkOS Organization (Entra ID OIDC)
+        return client.user_management.get_authorization_url(  # type: ignore[no-any-return]
+            redirect_uri=settings.WORKOS_REDIRECT_URI,
+            organization_id=settings.WORKOS_ORG_ID,
+        )
+
+    if provider == "github":
+        return client.user_management.get_authorization_url(  # type: ignore[no-any-return]
+            redirect_uri=settings.WORKOS_REDIRECT_URI,
+            provider="GitHubOAuth",
+        )
+
+    # Fallback to AuthKit hosted login
     return client.user_management.get_authorization_url(  # type: ignore[no-any-return]
         redirect_uri=settings.WORKOS_REDIRECT_URI,
         provider="authkit",
@@ -173,10 +188,15 @@ async def get_current_user(request: Request) -> uuid.UUID:
 # ── CSRF Validation ──
 
 
+# Auth endpoints that are called before a session exists (no CSRF cookie yet)
+_CSRF_EXEMPT_PATHS = {"/auth/password", "/auth/register", "/auth/refresh", "/auth/logout"}
+
+
 async def validate_csrf(request: Request) -> None:
     """Validate CSRF token on state-changing requests using cookie-based auth.
 
     Skipped when using Bearer token auth (not vulnerable to CSRF).
+    Skipped for auth endpoints that run before a session exists.
     """
     # Only validate if using cookie-based auth
     auth_header = request.headers.get("authorization", "")
@@ -185,6 +205,9 @@ async def validate_csrf(request: Request) -> None:
 
     if request.method in ("GET", "HEAD", "OPTIONS"):
         return  # Safe methods don't need CSRF
+
+    if request.url.path in _CSRF_EXEMPT_PATHS:
+        return  # Pre-session auth endpoints
 
     csrf_header = request.headers.get("X-CSRF-Token", "")
     if not csrf_header:
@@ -202,18 +225,57 @@ async def validate_csrf(request: Request) -> None:
 # ── Routes ──
 
 
+async def _upsert_workos_user(workos_user, db: AsyncSession) -> User:
+    """Upsert a local User from a WorkOS user profile. Returns the User."""
+    result = await db.execute(select(User).where(User.workos_id == workos_user.id))
+    user = result.scalar_one_or_none()
+
+    if user is None:
+        user = User(
+            workos_id=workos_user.id,
+            email=workos_user.email,
+            name=getattr(workos_user, "first_name", None) or workos_user.email.split("@")[0],
+            avatar_url=getattr(workos_user, "profile_picture_url", None),
+            role="editor",
+        )
+        db.add(user)
+        await db.flush()
+        logger.info("user_created", user_id=str(user.id), email=user.email)
+    else:
+        user.last_seen_at = datetime.now(UTC)
+        user.email = workos_user.email
+        user.name = getattr(workos_user, "first_name", None) or user.name
+        if getattr(workos_user, "profile_picture_url", None):
+            user.avatar_url = workos_user.profile_picture_url
+        logger.info("user_login", user_id=str(user.id), email=user.email)
+
+    await db.commit()
+    await record_audit_event(AuditAction.USER_LOGIN, actor_id=str(user.id), details={"email": user.email})
+    return user
+
+
+def _set_session_cookies(response: Response, user: User) -> None:
+    """Issue access + refresh + CSRF cookies on a response."""
+    access_token = create_access_token(str(user.id), user.email)
+    refresh_token = create_refresh_token(str(user.id), user.email)
+    _set_auth_cookie(response, "session", access_token, settings.JWT_ACCESS_TOKEN_MINUTES * 60)
+    _set_auth_cookie(response, "refresh_token", refresh_token, settings.JWT_REFRESH_TOKEN_DAYS * 86400)
+    csrf_token = generate_csrf_token(str(user.id))
+    _set_csrf_cookie(response, csrf_token, settings.JWT_REFRESH_TOKEN_DAYS * 86400)
+
+
 @router.get("/login")
-async def login():
-    """Redirect to WorkOS login."""
+async def login(provider: str | None = None):
+    """Redirect to OAuth provider (microsoft, github) or AuthKit fallback."""
     from fastapi.responses import RedirectResponse
 
-    url = get_auth_url()
+    url = get_auth_url(provider)
     return RedirectResponse(url=url)
 
 
 @router.get("/callback")
 async def callback(code: str, db: AsyncSession = Depends(get_db)):
-    """Handle WorkOS callback, upsert user, issue access + refresh tokens."""
+    """Handle WorkOS OAuth callback, upsert user, issue tokens."""
     from fastapi.responses import RedirectResponse
 
     try:
@@ -224,45 +286,80 @@ async def callback(code: str, db: AsyncSession = Depends(get_db)):
         frontend_url = _get_frontend_url()
         return RedirectResponse(url=f"{frontend_url}/login?error=auth_failed")
 
-    result = await db.execute(select(User).where(User.workos_id == workos_user.id))
-    user = result.scalar_one_or_none()
-
-    if user is None:
-        user = User(
-            workos_id=workos_user.id,
-            email=workos_user.email,
-            name=workos_user.first_name or workos_user.email.split("@")[0],
-            avatar_url=getattr(workos_user, "profile_picture_url", None),
-            role="editor",
-        )
-        db.add(user)
-        await db.flush()
-        logger.info("user_created", user_id=str(user.id), email=user.email)
-    else:
-        user.last_seen_at = datetime.now(UTC)
-        user.email = workos_user.email
-        user.name = workos_user.first_name or user.name
-        if getattr(workos_user, "profile_picture_url", None):
-            user.avatar_url = workos_user.profile_picture_url
-        logger.info("user_login", user_id=str(user.id), email=user.email)
-
-    await db.commit()
-
-    await record_audit_event(AuditAction.USER_LOGIN, actor_id=str(user.id), details={"email": user.email})
-
-    access_token = create_access_token(str(user.id), user.email)
-    refresh_token = create_refresh_token(str(user.id), user.email)
+    user = await _upsert_workos_user(workos_user, db)
 
     frontend_url = _get_frontend_url()
     response = RedirectResponse(url=frontend_url)
-    _set_auth_cookie(response, "session", access_token, settings.JWT_ACCESS_TOKEN_MINUTES * 60)
-    _set_auth_cookie(response, "refresh_token", refresh_token, settings.JWT_REFRESH_TOKEN_DAYS * 86400)
-
-    # Set CSRF cookie
-    csrf_token = generate_csrf_token(str(user.id))
-    _set_csrf_cookie(response, csrf_token, settings.JWT_REFRESH_TOKEN_DAYS * 86400)
-
+    _set_session_cookies(response, user)
     return response
+
+
+class PasswordLoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class RegisterRequest(BaseModel):
+    email: str
+    password: str
+    name: str | None = None
+
+
+@router.post("/password")
+async def password_login(body: PasswordLoginRequest, response: Response, db: AsyncSession = Depends(get_db)):
+    """Authenticate with email + password via WorkOS."""
+    client = _get_workos_client()
+    try:
+        auth_response = client.user_management.authenticate_with_password(
+            email=body.email,
+            password=body.password,
+        )
+        workos_user = auth_response.user
+    except Exception as e:
+        error_msg = str(e)
+        logger.warning("password_login_failed", email=body.email, error=error_msg)
+        raise HTTPException(status_code=401, detail="Invalid email or password") from None
+
+    user = await _upsert_workos_user(workos_user, db)
+    _set_session_cookies(response, user)
+    return {"ok": True}
+
+
+@router.post("/register")
+async def register(body: RegisterRequest, response: Response, db: AsyncSession = Depends(get_db)):
+    """Create a new account with email + password via WorkOS."""
+    client = _get_workos_client()
+    try:
+        workos_user = client.user_management.create_user(
+            email=body.email,
+            password=body.password,
+            first_name=body.name or body.email.split("@")[0],
+        )
+    except Exception as e:
+        error_msg = str(e)
+        logger.warning("register_failed", email=body.email, error=error_msg)
+        # WorkOS returns specific error messages for duplicate email, weak password, etc.
+        detail = "Registration failed"
+        if "already exists" in error_msg.lower() or "duplicate" in error_msg.lower():
+            detail = "An account with this email already exists"
+        elif "password" in error_msg.lower():
+            detail = "Password does not meet requirements (min 8 characters)"
+        raise HTTPException(status_code=400, detail=detail) from None
+
+    # Now authenticate to get a proper session
+    try:
+        auth_response = client.user_management.authenticate_with_password(
+            email=body.email,
+            password=body.password,
+        )
+        workos_user = auth_response.user
+    except Exception:
+        # User created but auth failed — still upsert from the create response
+        pass
+
+    user = await _upsert_workos_user(workos_user, db)
+    _set_session_cookies(response, user)
+    return {"ok": True}
 
 
 class RefreshRequest(BaseModel):
