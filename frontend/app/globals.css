@@ -185,19 +185,20 @@ pre code {
 
 /* ─── Animations ──────────────────────────────────────────── */
 
-/* Streaming cursor */
-@keyframes blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0; }
+/* Streaming dot */
+@keyframes stream-breathe {
+  0%, 100% { opacity: 0.4; transform: scale(0.85); box-shadow: 0 0 0 0 var(--color-accent); }
+  50% { opacity: 1; transform: scale(1); box-shadow: 0 0 8px 2px color-mix(in srgb, var(--color-accent) 35%, transparent); }
 }
-.streaming-cursor {
+.streaming-dot {
   display: inline-block;
-  width: 2px;
-  height: 1em;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
   background: var(--color-accent);
-  margin-left: 2px;
-  vertical-align: text-bottom;
-  animation: blink 1s step-end infinite;
+  margin-left: 4px;
+  vertical-align: middle;
+  animation: stream-breathe 1.4s ease-in-out infinite;
 }
 
 /* Thinking indicator */
@@ -454,4 +455,73 @@ pre code {
 #vg-tooltip-element.vg-tooltip td.value {
   color: var(--color-accent);
   font-weight: 600;
+}
+
+/* Onboarding tour (driver.js) overrides */
+.nexus-tour-popover.driver-popover {
+  background: var(--color-surface-0);
+  border: 1px solid var(--color-border-default);
+  border-radius: 12px;
+  box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.5);
+  color: var(--color-text-primary);
+  max-width: 320px;
+}
+.nexus-tour-popover .driver-popover-title {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+.nexus-tour-popover .driver-popover-description {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+}
+.nexus-tour-popover .driver-popover-progress-text {
+  font-family: var(--font-code);
+  font-size: 10px;
+  color: var(--color-text-tertiary);
+}
+.nexus-tour-popover .driver-popover-navigation-btns {
+  gap: 6px;
+}
+.nexus-tour-popover .driver-popover-next-btn {
+  background: var(--color-accent);
+  color: var(--color-bg);
+  border: none;
+  border-radius: 6px;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 5px 14px;
+  text-shadow: none;
+}
+.nexus-tour-popover .driver-popover-next-btn:hover {
+  background: var(--color-accent-hover);
+}
+.nexus-tour-popover .driver-popover-prev-btn {
+  background: var(--color-surface-1);
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 6px;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 500;
+  padding: 5px 14px;
+  text-shadow: none;
+}
+.nexus-tour-popover .driver-popover-prev-btn:hover {
+  background: var(--color-surface-2);
+  color: var(--color-text-primary);
+}
+.nexus-tour-popover .driver-popover-close-btn {
+  color: var(--color-text-tertiary);
+}
+.nexus-tour-popover .driver-popover-close-btn:hover {
+  color: var(--color-text-primary);
+}
+/* Hide arrow — border-triangle doesn't render cleanly on dark theme */
+.nexus-tour-popover .driver-popover-arrow {
+  display: none;
 }

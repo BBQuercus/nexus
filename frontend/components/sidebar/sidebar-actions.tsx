@@ -59,6 +59,7 @@ export default function SidebarActions({
           <CheckSquare size={13} />
         </button>
         <button
+          data-tour="new-chat"
           onClick={onNewConversation}
           title="New conversation (Cmd+N)"
           className="w-8 h-8 flex items-center justify-center bg-surface-1 border border-border-default rounded-lg text-text-tertiary hover:text-accent hover:border-accent/30 cursor-pointer transition-colors shrink-0"
