@@ -18,6 +18,13 @@ vi.mock('lucide-react', () => {
     Terminal: stub,
     Cpu: stub,
     Sparkles: stub,
+    ClipboardList: stub,
+    Brain: stub,
+    Search: stub,
+    GitCompare: stub,
+    Image: stub,
+    Blocks: stub,
+    ArrowRight: stub,
   }
 })
 
@@ -38,55 +45,60 @@ describe('EmptyState', () => {
 
     it('displays the welcome tagline', () => {
       render(<EmptyState />)
-      expect(screen.getByText(/Your AI workspace with sandboxed code execution/)).toBeInTheDocument()
+      expect(screen.getByText(/Your AI workspace/)).toBeInTheDocument()
     })
 
     it('displays action cards', () => {
       render(<EmptyState />)
-      expect(screen.getByText('Analyze Data')).toBeInTheDocument()
-      expect(screen.getByText('Write Code')).toBeInTheDocument()
-      expect(screen.getByText('Ask Anything')).toBeInTheDocument()
+      expect(screen.getByText('Sandbox & Execute')).toBeInTheDocument()
+      expect(screen.getByText('Build & Preview')).toBeInTheDocument()
+      expect(screen.getByText('Research & Ground')).toBeInTheDocument()
+      expect(screen.getByText('Forms & Workflows')).toBeInTheDocument()
     })
 
-    it('displays template buttons', () => {
+    it('displays capability buttons', () => {
       render(<EmptyState />)
-      expect(screen.getByText('Python')).toBeInTheDocument()
-      expect(screen.getByText('Node.js')).toBeInTheDocument()
-      expect(screen.getByText('Data Analysis')).toBeInTheDocument()
-      expect(screen.getByText('Web App')).toBeInTheDocument()
+      expect(screen.getByText('Python Sandbox')).toBeInTheDocument()
+      expect(screen.getByText('Node 22')).toBeInTheDocument()
+      expect(screen.getByText('Knowledge Base')).toBeInTheDocument()
+      expect(screen.getByText('Charts')).toBeInTheDocument()
+      expect(screen.getByText('SQL on Files')).toBeInTheDocument()
+      expect(screen.getByText('Interactive Forms')).toBeInTheDocument()
+      expect(screen.getByText('Multi-Model Compare')).toBeInTheDocument()
+      expect(screen.getByText('AI Memory')).toBeInTheDocument()
     })
 
     it('displays quick suggestion chips', () => {
       render(<EmptyState />)
-      expect(screen.getByText('Explain how async/await works')).toBeInTheDocument()
-      expect(screen.getByText('Write a REST API with FastAPI')).toBeInTheDocument()
+      expect(screen.getByText('Analyze a CSV and create interactive charts')).toBeInTheDocument()
+      expect(screen.getByText('Build a React dashboard with live preview')).toBeInTheDocument()
     })
 
     it('sets pending prompt when clicking an action card', async () => {
       const user = userEvent.setup()
       render(<EmptyState />)
 
-      await user.click(screen.getByText('Analyze Data'))
+      await user.click(screen.getByText('Sandbox & Execute'))
 
-      expect(useStore.getState().pendingPrompt).toContain('CSV dataset')
+      expect(useStore.getState().pendingPrompt).toContain('Spin up a sandbox')
     })
 
-    it('sets pending prompt when clicking a template button', async () => {
+    it('sets pending prompt when clicking a capability button', async () => {
       const user = userEvent.setup()
       render(<EmptyState />)
 
-      await user.click(screen.getByText('Python'))
+      await user.click(screen.getByText('Python Sandbox'))
 
-      expect(useStore.getState().pendingPrompt).toContain('Python project')
+      expect(useStore.getState().pendingPrompt).toContain('Python sandbox workflow')
     })
 
     it('sets pending prompt when clicking a quick suggestion', async () => {
       const user = userEvent.setup()
       render(<EmptyState />)
 
-      await user.click(screen.getByText('Explain how async/await works'))
+      await user.click(screen.getByText('Analyze a CSV and create interactive charts'))
 
-      expect(useStore.getState().pendingPrompt).toBe('Explain how async/await works')
+      expect(useStore.getState().pendingPrompt).toBe('Analyze a CSV and create interactive charts')
     })
   })
 
@@ -104,23 +116,23 @@ describe('EmptyState', () => {
 
     it('shows starter suggestions', () => {
       render(<EmptyState />)
-      expect(screen.getByText('Analyze a dataset and create visualizations')).toBeInTheDocument()
-      expect(screen.getByText('Build a REST API with FastAPI')).toBeInTheDocument()
-      expect(screen.getByText('Debug code and explain the issue')).toBeInTheDocument()
+      expect(screen.getByText('Run code in a sandbox, inspect files, and generate artifacts')).toBeInTheDocument()
+      expect(screen.getByText('Build a web app with live preview and hot-reload')).toBeInTheDocument()
+      expect(screen.getByText('Create an interactive form to collect structured input')).toBeInTheDocument()
     })
 
     it('does not show the welcome action cards', () => {
       render(<EmptyState />)
-      expect(screen.queryByText('Upload datasets, create visualizations, and extract insights')).not.toBeInTheDocument()
+      expect(screen.queryByText('Sandbox & Execute')).not.toBeInTheDocument()
     })
 
     it('sets pending prompt when clicking a starter', async () => {
       const user = userEvent.setup()
       render(<EmptyState />)
 
-      await user.click(screen.getByText('Analyze a dataset and create visualizations'))
+      await user.click(screen.getByText('Run code in a sandbox, inspect files, and generate artifacts'))
 
-      expect(useStore.getState().pendingPrompt).toBe('Analyze a dataset and create visualizations')
+      expect(useStore.getState().pendingPrompt).toBe('Run code in a sandbox, inspect files, and generate artifacts')
     })
   })
 })
