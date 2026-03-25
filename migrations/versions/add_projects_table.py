@@ -1,7 +1,7 @@
 """add projects table and project_id to conversations
 
-Revision ID: c3d4e5f6a7b8
-Revises: b2c3d4e5f6a7
+Revision ID: d001_projects
+Revises: c3d4e5f6a7b8
 Create Date: 2026-03-24 10:00:00.000000
 
 """
@@ -13,8 +13,8 @@ from sqlalchemy.dialects.postgresql import UUID
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'c3d4e5f6a7b8'
-down_revision: Union[str, None] = 'b2c3d4e5f6a7'
+revision: str = 'd001_projects'
+down_revision: Union[str, None] = 'c3d4e5f6a7b8'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

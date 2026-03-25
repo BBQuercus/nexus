@@ -1,7 +1,7 @@
 """Add role column to users table
 
 Revision ID: e5f6a7b8c9d0
-Revises: a001_audit_events
+Revises: d4e5f6a7b8c9
 Create Date: 2026-03-25
 
 """
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = 'e5f6a7b8c9d0'
-down_revision: Union[str, None] = 'a001_audit_events'
+down_revision: Union[str, None] = 'd4e5f6a7b8c9'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

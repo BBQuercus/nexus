@@ -1,7 +1,7 @@
 """add memories table
 
 Revision ID: d4e5f6a7b8c9
-Revises: c3d4e5f6a7b8
+Revises: a001_audit_events
 Create Date: 2026-03-24 23:00:00.000000
 
 """
@@ -14,7 +14,7 @@ from sqlalchemy.dialects.postgresql import UUID
 
 # revision identifiers, used by Alembic.
 revision: str = 'd4e5f6a7b8c9'
-down_revision: Union[str, None] = 'c3d4e5f6a7b8'
+down_revision: Union[str, None] = 'a001_audit_events'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
