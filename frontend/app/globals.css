@@ -55,6 +55,8 @@ body {
 ::-webkit-scrollbar-thumb:hover { background: var(--color-border-focus); }
 * { scrollbar-width: thin; scrollbar-color: var(--color-border-default) transparent; }
 
+.scrollbar-gutter-stable { scrollbar-gutter: stable; }
+
 /* Code */
 code {
   font-family: var(--font-code);

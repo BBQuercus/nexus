@@ -145,7 +145,7 @@ function AddMemoryForm({ onAdd, onCancel }: { onAdd: (data: { content: string; s
         rows={3}
         autoFocus
       />
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 flex-wrap">
         <select
           value={scope}
           onChange={(e) => setScope(e.target.value)}
@@ -165,11 +165,11 @@ function AddMemoryForm({ onAdd, onCancel }: { onAdd: (data: { content: string; s
           <option value="decision">Decision</option>
           <option value="instruction">Instruction</option>
         </select>
-        <div className="flex-1" />
-        <button type="button" onClick={onCancel} className="px-3 py-1 text-xs text-text-tertiary hover:text-text-primary cursor-pointer">
+        <div className="flex-1 min-w-0" />
+        <button type="button" onClick={onCancel} className="px-2 py-1 text-xs text-text-tertiary hover:text-text-primary cursor-pointer">
           Cancel
         </button>
-        <button type="submit" disabled={!content.trim()} className="px-3 py-1 text-xs bg-accent text-white rounded hover:bg-accent/90 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer">
+        <button type="submit" disabled={!content.trim()} className="px-2.5 py-1 text-xs bg-accent text-white rounded hover:bg-accent/90 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer">
           Save
         </button>
       </div>
