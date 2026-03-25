@@ -141,7 +141,9 @@ async def lifespan(app: FastAPI):
                 sa_text("UPDATE users SET role = 'admin' WHERE is_admin = true AND (role IS NULL OR role = '')")
             )
             await conn.execute(
-                sa_text("UPDATE users SET role = 'editor' WHERE (is_admin = false OR is_admin IS NULL) AND (role IS NULL OR role = '')")
+                sa_text(
+                    "UPDATE users SET role = 'editor' WHERE (is_admin = false OR is_admin IS NULL) AND (role IS NULL OR role = '')"
+                )
             )
         logger.info("role_backfill_complete")
     except Exception as e:

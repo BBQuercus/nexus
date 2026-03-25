@@ -22,7 +22,6 @@ from starlette.requests import Request
 from backend.auth import (
     create_access_token,
     create_refresh_token,
-    create_session_token,
     generate_csrf_token,
     get_current_user,
     validate_csrf,
@@ -103,14 +102,6 @@ class TestJWTTokenGeneration(unittest.TestCase):
             settings.JWT_REFRESH_TOKEN_DAYS * 86400,
             delta=5,
         )
-
-    def test_create_session_token_is_alias_for_access_token(self):
-        user_id = str(uuid.uuid4())
-        token = create_session_token(user_id, "test@example.com")
-        payload = jwt.decode(
-            token, settings.SERVER_SECRET, algorithms=[settings.JWT_ENCODING_ALGORITHM]
-        )
-        self.assertEqual(payload["type"], "access")
 
     def test_token_with_wrong_secret_fails(self):
         user_id = str(uuid.uuid4())
@@ -237,10 +228,13 @@ class TestCSRFValidation(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(ctx.exception.detail, "CSRF token missing")
 
     async def test_rejects_mismatched_csrf_tokens(self):
+        user_id = uuid.uuid4()
+        session_token = create_access_token(str(user_id), "test@example.com")
+        wrong_csrf = generate_csrf_token("wrong-user-id")
         request = _make_request(
             headers={
-                "cookie": "session=abc; csrf_token=token-a",
-                "x-csrf-token": "token-b",
+                "cookie": f"session={session_token}; csrf_token={wrong_csrf}",
+                "x-csrf-token": wrong_csrf,
             }
         )
         with self.assertRaises(HTTPException) as ctx:
@@ -249,10 +243,13 @@ class TestCSRFValidation(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(ctx.exception.detail, "CSRF token mismatch")
 
     async def test_accepts_matching_csrf_tokens(self):
+        user_id = uuid.uuid4()
+        session_token = create_access_token(str(user_id), "test@example.com")
+        valid_csrf = generate_csrf_token(str(user_id))
         request = _make_request(
             headers={
-                "cookie": "session=abc; csrf_token=valid-token",
-                "x-csrf-token": "valid-token",
+                "cookie": f"session={session_token}; csrf_token={valid_csrf}",
+                "x-csrf-token": valid_csrf,
             }
         )
         await validate_csrf(request)  # Should not raise

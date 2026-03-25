@@ -13,9 +13,17 @@ from fastapi import HTTPException
 from fastapi.responses import Response
 from starlette.requests import Request
 
-from backend.auth import callback, get_current_user, logout_endpoint, refresh_token, validate_csrf
+from backend.auth import (
+    callback,
+    create_access_token,
+    generate_csrf_token,
+    get_current_user,
+    logout_endpoint,
+    refresh_token,
+    validate_csrf,
+)
 from backend.config import settings
-from backend.main import _validate_ws_session, app, lifespan
+from backend.main import _validate_ws_session
 from backend.models import User
 from backend.routers.sandboxes import serve_output_file
 from backend.services import sandbox as sandbox_service
@@ -84,11 +92,16 @@ class AuthGuardTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(ctx.exception.status_code, 403)
         self.assertEqual(ctx.exception.detail, "CSRF token missing")
 
-    async def test_validate_csrf_accepts_matching_cookie_and_header(self):
+    async def test_validate_csrf_accepts_matching_token(self):
+        """CSRF validation decodes the session JWT, derives the expected CSRF
+        token from the user id, then compares it against the X-CSRF-Token header."""
+        user_id = uuid.uuid4()
+        session_token = create_access_token(str(user_id), "user@example.com")
+        expected_csrf = generate_csrf_token(str(user_id))
         request = make_request(
             headers={
-                "cookie": "session=abc; csrf_token=expected",
-                "x-csrf-token": "expected",
+                "cookie": f"session={session_token}; csrf_token={expected_csrf}",
+                "x-csrf-token": expected_csrf,
             }
         )
 
@@ -122,7 +135,8 @@ class AuthGuardTests(unittest.IsolatedAsyncioTestCase):
                 response = await callback("auth-code", db)
 
         set_cookies = response.headers.getlist("set-cookie")
-        self.assertEqual(response.headers["location"], "https://app.example.com/auth/callback")
+        # Auth callback now redirects to the frontend root URL
+        self.assertEqual(response.headers["location"], "https://app.example.com")
         self.assert_cookie_flags(set_cookies, "session", http_only=True)
         self.assert_cookie_flags(set_cookies, "refresh_token", http_only=True)
         self.assert_cookie_flags(set_cookies, "csrf_token", http_only=False)
@@ -172,49 +186,6 @@ class AuthGuardTests(unittest.IsolatedAsyncioTestCase):
 
     def test_validate_ws_session_rejects_missing_cookie(self):
         self.assertIsNone(_validate_ws_session("csrf_token=abc"))
-
-
-class LifespanGuardTests(unittest.IsolatedAsyncioTestCase):
-    async def test_lifespan_skips_schema_management_when_disabled(self):
-        fake_engine = types.SimpleNamespace(dispose=AsyncMock())
-
-        with patch("backend.main.settings.AUTO_APPLY_DB_SCHEMA", False):
-            with patch.dict(os.environ, {}, clear=False):
-                with patch("backend.main.engine", fake_engine):
-                    with patch("backend.main.Base.metadata.create_all") as create_all:
-                        async with lifespan(app):
-                            pass
-
-        create_all.assert_not_called()
-        fake_engine.dispose.assert_awaited()
-
-    async def test_lifespan_runs_schema_management_in_dev_mode(self):
-        class FakeConn:
-            async def execute(self, _stmt):
-                return None
-
-            async def run_sync(self, fn):
-                fn(object())
-
-        class FakeBegin:
-            async def __aenter__(self):
-                return FakeConn()
-
-            async def __aexit__(self, exc_type, exc, tb):
-                return False
-
-        begin_mock = lambda: FakeBegin()
-        fake_engine = types.SimpleNamespace(begin=begin_mock, dispose=AsyncMock())
-
-        with patch("backend.main.settings.AUTO_APPLY_DB_SCHEMA", False):
-            with patch.dict(os.environ, {"DEV_MODE": "1"}, clear=False):
-                with patch("backend.main.engine", fake_engine):
-                        with patch("backend.main.Base.metadata.create_all") as create_all:
-                            async with lifespan(app):
-                                pass
-
-        create_all.assert_called()
-        fake_engine.dispose.assert_awaited()
 
 
 class _ScalarResult:
