@@ -257,8 +257,14 @@ export function processSseEvent(
 
     case 'preview':
       if (isActiveConversation) {
+        const sandboxId = (event.sandbox_id as string) || null;
+        if (sandboxId) {
+          store.setSandboxId(sandboxId);
+          store.setSandboxStatus('running');
+        }
         store.setPreviewUrl((event.url as string) || '');
         store.setRightPanelTab('preview');
+        if (!store.rightPanelOpen) store.setRightPanelOpen(true);
       }
       break;
 

@@ -170,7 +170,10 @@ async def get_sandbox(sandbox_id: str):
     daytona = _get_daytona()
     if daytona is None:
         raise RuntimeError("Daytona SDK not configured")
-    return await asyncio.to_thread(daytona.get_current_sandbox, sandbox_id)
+    getter = getattr(daytona, "get", None) or getattr(daytona, "get_current_sandbox", None)
+    if getter is None:
+        raise RuntimeError("Daytona SDK does not expose a sandbox lookup method")
+    return await asyncio.to_thread(getter, sandbox_id)
 
 
 def get_sandbox_owner_id(sandbox: object) -> str | None:
@@ -235,8 +238,15 @@ async def delete_sandbox(sandbox) -> None:
 
 
 async def get_preview_url(sandbox, port: int) -> str:
-    url = await asyncio.to_thread(sandbox.get_preview_url, port)
-    return str(url)
+    getter = getattr(sandbox, "get_preview_link", None) or getattr(sandbox, "get_preview_url", None)
+    if getter is None:
+        raise RuntimeError("Sandbox does not support preview URLs")
+
+    preview = await asyncio.to_thread(getter, port)
+    url = getattr(preview, "url", None)
+    if url:
+        return str(url)
+    return str(preview)
 
 
 async def check_output_files(sandbox, known_files: set[str]) -> list[str]:
