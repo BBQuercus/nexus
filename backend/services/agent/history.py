@@ -94,10 +94,7 @@ def _build_multimodal_content(text: str, images: list[dict]) -> list[dict]:
             media_type = "image/png"
         # Reconstruct clean data URL with validated media type
         b64_match = re.search(r"base64,(.+)", url)
-        if b64_match:
-            clean_url = f"data:{media_type};base64,{b64_match.group(1)}"
-        else:
-            clean_url = url
+        clean_url = f"data:{media_type};base64,{b64_match.group(1)}" if b64_match else url
         parts.append({"type": "image_url", "image_url": {"url": clean_url}})
     return parts
 

@@ -256,9 +256,7 @@ async def get_document_content(
 ):
     """Return the extracted raw text for a document."""
     await _get_kb_or_404(db, kb_id, user_id)
-    result = await db.execute(
-        select(Document).where(Document.id == doc_id, Document.knowledge_base_id == kb_id)
-    )
+    result = await db.execute(select(Document).where(Document.id == doc_id, Document.knowledge_base_id == kb_id))
     doc = result.scalar_one_or_none()
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
@@ -280,9 +278,7 @@ async def get_document_chunks(
     """Return all chunks for a document, ordered by chunk_index."""
     await _get_kb_or_404(db, kb_id, user_id)
     result = await db.execute(
-        select(Chunk)
-        .where(Chunk.document_id == doc_id, Chunk.knowledge_base_id == kb_id)
-        .order_by(Chunk.chunk_index)
+        select(Chunk).where(Chunk.document_id == doc_id, Chunk.knowledge_base_id == kb_id).order_by(Chunk.chunk_index)
     )
     chunks = result.scalars().all()
     return [
