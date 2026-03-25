@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useStore } from '@/lib/store';
 import { PanelRight, PanelLeft, Network, Search, Plus, Zap } from 'lucide-react';
 import * as api from '@/lib/api';
@@ -40,6 +41,7 @@ function TreeToggleButton() {
 }
 
 export default function TopBar() {
+  const router = useRouter();
   const isStreaming = useStore((s) => s.isStreaming);
   const sandboxStatus = useStore((s) => s.sandboxStatus);
   const artifacts = useStore((s) => s.artifacts);
@@ -123,10 +125,14 @@ export default function TopBar() {
           <PanelLeft size={15} />
         </button>
 
-        <div className="flex items-center gap-2">
-          <Zap size={15} className="text-accent" />
+        <button
+          onClick={() => { setActiveConversationId(null); setMessages([]); router.push('/'); }}
+          title="Home"
+          className="flex items-center gap-2 cursor-pointer rounded-lg px-1.5 py-1 -ml-1.5 hover:bg-surface-1 transition-colors"
+        >
+          <Zap size={15} className="text-accent shrink-0" />
           <span className="text-sm font-bold tracking-[0.12em] uppercase whitespace-nowrap">Nexus</span>
-        </div>
+        </button>
 
         <div className="flex-1" />
 

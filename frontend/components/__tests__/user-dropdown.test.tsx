@@ -21,6 +21,7 @@ vi.mock('lucide-react', () => {
     Shield: stub,
     Users: stub,
     BookOpen: stub,
+    Home: stub,
   }
 })
 

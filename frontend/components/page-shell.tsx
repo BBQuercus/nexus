@@ -23,6 +23,7 @@ export default function PageShell({
   sidebar: React.ReactNode;
   title: string;
 }) {
+  const router = useRouter();
   const sidebarOpen = useStore((s) => s.sidebarOpen);
   const setSidebarOpen = useStore((s) => s.setSidebarOpen);
   const isMobile = useIsMobile();
@@ -75,10 +76,14 @@ export default function PageShell({
         >
           <PanelLeft size={15} />
         </button>
-        <div className="flex items-center gap-2">
-          <Zap size={15} className="text-accent" />
+        <button
+          onClick={() => router.push('/')}
+          title="Home"
+          className="flex items-center gap-2 cursor-pointer rounded-lg px-1.5 py-1 -ml-1.5 hover:bg-surface-1 transition-colors"
+        >
+          <Zap size={15} className="text-accent shrink-0" />
           <span className="text-sm font-bold tracking-[0.12em] uppercase whitespace-nowrap">Nexus</span>
-        </div>
+        </button>
         <div className="h-4 w-px bg-border-default mx-3" />
         <span className="text-[11px] text-text-tertiary uppercase tracking-wider">{title}</span>
         <div className="flex-1" />
