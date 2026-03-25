@@ -6,6 +6,7 @@ import {
   Image, Blocks, ArrowRight,
 } from 'lucide-react';
 import { useStore } from '@/lib/store';
+import { IMAGE_MODELS } from '@/lib/types';
 
 const ACTION_CARDS = [
   {
@@ -46,17 +47,35 @@ const ACTION_CARDS = [
   },
 ];
 
-const CAPABILITIES = [
-  { label: 'Python Sandbox', icon: <Terminal size={11} />, prompt: 'Start a Python sandbox workflow for data analysis, automation, or scripting. Use the terminal, create files as needed, and leave me with runnable output.' },
-  { label: 'Knowledge Base', icon: <Database size={11} />, prompt: 'Help me structure a knowledge-grounded workflow. I want to work with uploaded documents, retrieve the right context, and produce answers with sources.' },
-  { label: 'Live Preview', icon: <Globe size={11} />, prompt: 'Build a modern web app I can iterate on in live preview. Start with a strong foundation, implement the core experience, and keep the UI polished.' },
-  { label: 'Charts', icon: <BarChart3 size={11} />, prompt: 'Create interactive data visualizations. Use Vega-Lite to build charts from data I provide or generate sample data to demonstrate different chart types.' },
-  { label: 'SQL on Files', icon: <Blocks size={11} />, prompt: 'Load my CSV or Excel files into DuckDB and run SQL queries. Show the schema, suggest interesting queries, and visualize the results.' },
-  { label: 'Interactive Forms', icon: <ClipboardList size={11} />, prompt: 'Create an interactive form with multiple field types: text, dropdowns, ratings, sliders, and conditional sections. Then analyze my responses.' },
-  { label: 'Multi-Model Compare', icon: <GitCompare size={11} />, prompt: '/compare Tell me how to approach building a SaaS product from scratch' },
-  { label: 'Image Generation', icon: <Image size={11} />, prompt: 'Generate an image: a futuristic cityscape at sunset with flying vehicles and holographic billboards, in a cinematic style.' },
-  { label: 'AI Memory', icon: <Brain size={11} />, prompt: 'Remember that I prefer concise answers, code examples over explanations, and that I work primarily with TypeScript and Python.' },
-];
+interface Capability {
+  label: string;
+  icon: React.ReactNode;
+  prompt: string;
+  action?: () => void; // If set, runs this instead of just setting prompt
+}
+
+function makeCapabilities(): Capability[] {
+  return [
+    { label: 'Python Sandbox', icon: <Terminal size={11} />, prompt: 'Start a Python sandbox workflow for data analysis, automation, or scripting. Use the terminal, create files as needed, and leave me with runnable output.' },
+    { label: 'Knowledge Base', icon: <Database size={11} />, prompt: 'Help me structure a knowledge-grounded workflow. I want to work with uploaded documents, retrieve the right context, and produce answers with sources.' },
+    { label: 'Live Preview', icon: <Globe size={11} />, prompt: 'Build a modern web app I can iterate on in live preview. Start with a strong foundation, implement the core experience, and keep the UI polished.' },
+    { label: 'Charts', icon: <BarChart3 size={11} />, prompt: 'Create interactive data visualizations. Use Vega-Lite to build charts from data I provide or generate sample data to demonstrate different chart types.' },
+    { label: 'SQL on Files', icon: <Blocks size={11} />, prompt: 'Load my CSV or Excel files into DuckDB and run SQL queries. Show the schema, suggest interesting queries, and visualize the results.' },
+    { label: 'Interactive Forms', icon: <ClipboardList size={11} />, prompt: 'Create an interactive form with multiple field types: text, dropdowns, ratings, sliders, and conditional sections. Then analyze my responses.' },
+    { label: 'Multi-Model Compare', icon: <GitCompare size={11} />, prompt: '/compare Tell me how to approach building a SaaS product from scratch' },
+    {
+      label: 'Image Generation',
+      icon: <Image size={11} />,
+      prompt: 'A futuristic cityscape at sunset with flying vehicles and holographic billboards, cinematic style',
+      action: () => {
+        window.dispatchEvent(new CustomEvent('nexus:set-compose', {
+          detail: { mode: 'image', imageModel: IMAGE_MODELS[0]?.id, prompt: 'A futuristic cityscape at sunset with flying vehicles and holographic billboards, cinematic style' },
+        }));
+      },
+    },
+    { label: 'AI Memory', icon: <Brain size={11} />, prompt: 'Remember that I prefer concise answers, code examples over explanations, and that I work primarily with TypeScript and Python.' },
+  ];
+}
 
 const QUICK_SUGGESTIONS = [
   'Analyze a CSV and create interactive charts',
@@ -84,6 +103,15 @@ export default function EmptyState() {
 
 function WelcomeScreen() {
   const setPendingPrompt = useStore((s) => s.setPendingPrompt);
+  const capabilities = makeCapabilities();
+
+  const handleCapability = (cap: Capability) => {
+    if (cap.action) {
+      cap.action();
+    } else {
+      setPendingPrompt(cap.prompt);
+    }
+  };
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 gap-6 sm:gap-8 overflow-y-auto py-6 sm:py-8">
@@ -130,10 +158,10 @@ function WelcomeScreen() {
 
       {/* Capabilities */}
       <div className="flex flex-wrap justify-center gap-1.5 max-w-2xl stagger-children">
-        {CAPABILITIES.map((t) => (
+        {capabilities.map((t) => (
           <button
             key={t.label}
-            onClick={() => setPendingPrompt(t.prompt)}
+            onClick={() => handleCapability(t)}
             className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] tracking-wide uppercase bg-surface-1 border border-border-default rounded-lg text-text-tertiary hover:text-accent hover:border-accent/30 transition-all cursor-pointer glow-hover"
           >
             {t.icon}
@@ -160,6 +188,15 @@ function WelcomeScreen() {
 
 function ReturningUserScreen() {
   const setPendingPrompt = useStore((s) => s.setPendingPrompt);
+  const capabilities = makeCapabilities();
+
+  const handleCapability = (cap: Capability) => {
+    if (cap.action) {
+      cap.action();
+    } else {
+      setPendingPrompt(cap.prompt);
+    }
+  };
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 gap-6 sm:gap-10 overflow-y-auto py-6 sm:py-8">
@@ -185,10 +222,10 @@ function ReturningUserScreen() {
 
       {/* Capabilities */}
       <div className="flex flex-wrap justify-center gap-1.5 max-w-xl stagger-children">
-        {CAPABILITIES.map((t) => (
+        {capabilities.map((t) => (
           <button
             key={t.label}
-            onClick={() => setPendingPrompt(t.prompt)}
+            onClick={() => handleCapability(t)}
             className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] tracking-wide uppercase bg-surface-1 border border-border-default rounded-lg text-text-tertiary hover:text-accent hover:border-accent/30 transition-all cursor-pointer glow-hover"
           >
             {t.icon}
