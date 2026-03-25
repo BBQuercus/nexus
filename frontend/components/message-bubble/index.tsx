@@ -170,11 +170,11 @@ export default function MessageBubble({ message }: { message: Message }) {
         {provenanceSources.length > 1 && <ProvenanceRow sources={provenanceSources} />}
         <CitationSection citations={message.citations} />
         {message.cost && <CostBadge data={message.cost} />}
-        {executionSteps.length > 0 && (
+        {confidenceLevel !== 'high' && executionSteps.length > 0 && (
           <div className="flex items-center gap-1.5 mt-1">
             <ConfidenceDot level={confidenceLevel} />
             <span className="text-[10px] text-text-tertiary font-mono">
-              {confidenceLevel === 'high' ? 'High confidence' : confidenceLevel === 'medium' ? 'Medium confidence' : 'Low confidence'}
+              {confidenceLevel === 'medium' ? 'Results may vary — retrieval used' : 'Low confidence — tool failures detected'}
             </span>
           </div>
         )}
