@@ -3,9 +3,8 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useStore } from '@/lib/store';
 import { useIsMobile } from '@/lib/useMediaQuery';
-import { Terminal, FolderOpen, Eye, Layers, Network, BookOpen, Brain, X, StopCircle, Play, Trash2 } from 'lucide-react';
+import { FolderOpen, Eye, Layers, Network, BookOpen, Brain, X, StopCircle, Play, Trash2 } from 'lucide-react';
 import * as api from '@/lib/api';
-import TerminalPanel from './terminal-panel';
 import FilesPanel from './files-panel';
 import PreviewPanel from './preview-panel';
 import ArtifactCenter from './artifact-center';
@@ -14,7 +13,6 @@ import SourcesPanel from './sources-panel';
 import { MemoryPanel } from './memory-panel';
 
 const ALL_TABS = [
-  { key: 'terminal' as const, label: 'Terminal', icon: <Terminal size={12} />, needsSandbox: true },
   { key: 'files' as const, label: 'Files', icon: <FolderOpen size={12} />, needsSandbox: true },
   { key: 'preview' as const, label: 'Preview', icon: <Eye size={12} />, needsSandbox: true },
   { key: 'artifacts' as const, label: 'Artifacts', icon: <Layers size={12} />, needsSandbox: false },
@@ -199,25 +197,27 @@ export default function RightPanel() {
         </div>
       )}
 
-      <div className="flex gap-0.5 p-1.5 border-b border-border-default shrink-0">
-        {visibleTabs.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setRightPanelTab(tab.key)}
-            className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-[11px] font-medium tracking-wide uppercase rounded-lg transition-colors cursor-pointer ${
-              activeTab === tab.key
-                ? 'text-accent bg-accent/8'
-                : 'text-text-tertiary hover:text-text-secondary hover:bg-surface-1'
-            }`}
-          >
-            {tab.icon}
-            <span className="hidden sm:inline">{tab.label}</span>
-          </button>
-        ))}
+      <div className="flex gap-0.5 p-1.5 border-b border-border-default shrink-0 min-w-0">
+        <div className="flex gap-0.5 flex-1 min-w-0 overflow-x-auto">
+          {visibleTabs.map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setRightPanelTab(tab.key)}
+              className={`flex items-center justify-center gap-1.5 px-2 py-1.5 text-[11px] font-medium tracking-wide uppercase rounded-lg transition-colors cursor-pointer shrink-0 ${
+                activeTab === tab.key
+                  ? 'text-accent bg-accent/8'
+                  : 'text-text-tertiary hover:text-text-secondary hover:bg-surface-1'
+              }`}
+            >
+              {tab.icon}
+              <span className="hidden sm:inline whitespace-nowrap">{tab.label}</span>
+            </button>
+          ))}
+        </div>
         {/* Close button */}
         <button
           onClick={() => setRightPanelOpen(false)}
-          className="flex items-center justify-center px-2 py-1.5 text-text-tertiary hover:text-text-secondary rounded-lg cursor-pointer transition-colors"
+          className="flex items-center justify-center px-2 py-1.5 text-text-tertiary hover:text-text-secondary rounded-lg cursor-pointer transition-colors shrink-0"
         >
           <X size={14} />
         </button>
@@ -226,7 +226,6 @@ export default function RightPanel() {
       <SandboxStatus />
 
       <div className="flex-1 min-h-0 overflow-hidden">
-        {activeTab === 'terminal' && <TerminalPanel />}
         {activeTab === 'files' && <FilesPanel />}
         {activeTab === 'preview' && <PreviewPanel />}
         {activeTab === 'artifacts' && <ArtifactCenter />}
