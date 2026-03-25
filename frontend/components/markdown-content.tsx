@@ -78,7 +78,7 @@ function HtmlSegment({ html }: { html: string }) {
   return <div ref={ref} dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
-export default function MarkdownContent({
+export default memo(function MarkdownContent({
   text,
   className,
   postProcess,
@@ -126,4 +126,4 @@ export default function MarkdownContent({
       )}
     </div>
   );
-}
+});

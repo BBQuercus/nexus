@@ -147,12 +147,24 @@ function StreamingChartCard({ spec, title }: { spec: Record<string, unknown>; ti
  * buffer grows large so the animation never falls far behind the stream.
  * This prevents the "half rendered then pops" effect.
  */
+/**
+ * Reveals text smoothly using requestAnimationFrame.
+ * Uses adaptive speed: base rate is fast, but accelerates when the
+ * buffer grows large so the animation never falls far behind the stream.
+ *
+ * Markdown is only re-parsed at ~10fps (100ms intervals) to avoid
+ * expensive re-renders on every animation frame. The text reveal
+ * still runs at full rAF speed for smooth cursor movement.
+ */
 function SmoothMarkdown({ text, showCursor }: { text: string; showCursor: boolean }) {
   const [displayed, setDisplayed] = useState('');
+  // Throttled text for markdown rendering — updates at ~10fps
+  const [renderedText, setRenderedText] = useState('');
   const targetRef = useRef(text);
   const displayedRef = useRef('');
   const rafRef = useRef<number>(0);
   const lastTimeRef = useRef(0);
+  const lastRenderRef = useRef(0);
 
   // Base speed: ~600 chars/sec — fast enough to keep up with most streams
   const BASE_CHARS_PER_MS = 0.6;
@@ -160,6 +172,8 @@ function SmoothMarkdown({ text, showCursor }: { text: string; showCursor: boolea
   const BUFFER_THRESHOLD = 80;
   // Max multiplier for catch-up speed
   const MAX_SPEED_MULT = 8;
+  // Only re-parse markdown this often (ms) during streaming
+  const RENDER_INTERVAL_MS = 100;
 
   targetRef.current = text;
 
@@ -182,10 +196,19 @@ function SmoothMarkdown({ text, showCursor }: { text: string; showCursor: boolea
       const next = target.slice(0, nextLen);
       displayedRef.current = next;
       setDisplayed(next);
+
+      // Throttle markdown re-parsing to ~10fps
+      if (time - lastRenderRef.current >= RENDER_INTERVAL_MS) {
+        lastRenderRef.current = time;
+        setRenderedText(next);
+      }
+    } else if (displayedRef.current && displayedRef.current !== renderedText) {
+      // Flush final state when stream catches up
+      setRenderedText(displayedRef.current);
     }
 
     rafRef.current = requestAnimationFrame(tick);
-  }, []);
+  }, [renderedText]);
 
   useEffect(() => {
     rafRef.current = requestAnimationFrame(tick);
@@ -197,13 +220,14 @@ function SmoothMarkdown({ text, showCursor }: { text: string; showCursor: boolea
     if (text.length < displayedRef.current.length) {
       displayedRef.current = '';
       setDisplayed('');
+      setRenderedText('');
     }
   }, [text]);
 
   return (
     <div className="markdown-content text-sm text-text-primary break-words leading-relaxed">
-      {displayed && (
-        <MarkdownContent text={displayed} />
+      {renderedText && (
+        <MarkdownContent text={renderedText} />
       )}
       {showCursor && <span className="inline-block w-0.5 h-4 bg-accent ml-0.5 align-text-bottom animate-pulse" />}
     </div>
