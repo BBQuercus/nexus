@@ -169,7 +169,7 @@ export default function ChatMessages() {
 
   return (
     <div className="relative flex-1 min-h-0">
-      <div ref={containerRef} className="absolute inset-0 overflow-y-auto px-3 sm:px-6 py-4 sm:py-6">
+      <div ref={containerRef} className="absolute inset-0 overflow-y-auto px-3 sm:px-6 py-4 sm:py-6 scrollbar-gutter-stable">
         {loading && messages.length === 0 ? (
           <MessageSkeleton />
         ) : (
