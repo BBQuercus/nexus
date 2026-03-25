@@ -22,6 +22,7 @@ vi.mock('lucide-react', () => {
     Users: stub,
     BookOpen: stub,
     Home: stub,
+    Compass: stub,
   }
 })
 

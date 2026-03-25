@@ -14,6 +14,7 @@ from fastapi.responses import Response
 from starlette.requests import Request
 
 from backend.auth import callback, get_current_user, logout_endpoint, refresh_token, validate_csrf
+from backend.config import settings
 from backend.main import _validate_ws_session, app, lifespan
 from backend.models import User
 from backend.routers.sandboxes import serve_output_file
@@ -40,6 +41,15 @@ def make_request(method: str = "POST", headers: dict[str, str] | None = None) ->
 
 
 class AuthGuardTests(unittest.IsolatedAsyncioTestCase):
+    def assert_cookie_flags(self, cookies: list[str], name: str, *, http_only: bool) -> None:
+        cookie = next(cookie for cookie in cookies if cookie.startswith(f"{name}="))
+        if http_only:
+            self.assertIn("HttpOnly", cookie)
+        else:
+            self.assertNotIn("HttpOnly", cookie)
+        if settings.cookie_secure:
+            self.assertIn("Secure", cookie)
+
     def make_token(self, user_id: uuid.UUID, token_type: str) -> str:
         return jwt.encode(
             {"sub": str(user_id), "email": "user@example.com", "type": token_type},
@@ -113,9 +123,9 @@ class AuthGuardTests(unittest.IsolatedAsyncioTestCase):
 
         set_cookies = response.headers.getlist("set-cookie")
         self.assertEqual(response.headers["location"], "https://app.example.com/auth/callback")
-        self.assertTrue(any(cookie.startswith("session=") and "HttpOnly" in cookie and "Secure" in cookie for cookie in set_cookies))
-        self.assertTrue(any(cookie.startswith("refresh_token=") and "HttpOnly" in cookie and "Secure" in cookie for cookie in set_cookies))
-        self.assertTrue(any(cookie.startswith("csrf_token=") and "HttpOnly" not in cookie for cookie in set_cookies))
+        self.assert_cookie_flags(set_cookies, "session", http_only=True)
+        self.assert_cookie_flags(set_cookies, "refresh_token", http_only=True)
+        self.assert_cookie_flags(set_cookies, "csrf_token", http_only=False)
         db.commit.assert_awaited()
 
     async def test_refresh_token_uses_cookie_and_rotates_session_cookies(self):
@@ -130,8 +140,8 @@ class AuthGuardTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(payload["ok"], True)
         self.assertIn("expires_in", payload)
         set_cookies = response.headers.getlist("set-cookie")
-        self.assertTrue(any(cookie.startswith("session=") and "HttpOnly" in cookie and "Secure" in cookie for cookie in set_cookies))
-        self.assertTrue(any(cookie.startswith("refresh_token=") and "HttpOnly" in cookie and "Secure" in cookie for cookie in set_cookies))
+        self.assert_cookie_flags(set_cookies, "session", http_only=True)
+        self.assert_cookie_flags(set_cookies, "refresh_token", http_only=True)
 
     async def test_logout_clears_all_auth_related_cookies(self):
         response = Response()
