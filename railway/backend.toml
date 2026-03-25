@@ -14,7 +14,7 @@ watchPatterns = [
 [deploy]
 healthcheckPath = "/ready"
 healthcheckTimeout = 120
-preDeployCommand = "uv run alembic upgrade head"
+preDeployCommand = "./scripts/run_backend_migrations.sh"
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 10
 runtime = "V2"
