@@ -14,16 +14,7 @@ vi.mock('next/navigation', () => ({
 
 vi.mock('lucide-react', () => {
   const stub = (props: Record<string, unknown>) => <span {...props} />
-  return {
-    LogOut: stub,
-    User: stub,
-    Keyboard: stub,
-    Shield: stub,
-    Users: stub,
-    BookOpen: stub,
-    Home: stub,
-    Compass: stub,
-  }
+  return new Proxy({}, { get: () => stub })
 })
 
 vi.mock('@/lib/api', () => ({
