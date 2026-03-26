@@ -10,6 +10,7 @@ import FormRenderer from './form-renderer';
 import MarkdownContent from './markdown-content';
 import RunComparison from './run-comparison';
 import { buildFormSubmissionMessage } from '@/lib/form-submission';
+import { getThinkingMessage, getToolMessage } from '@/lib/thinking-messages';
 
 function StreamingExecBlock({ tool }: { tool: ToolCall }) {
   const lang = tool.language || tool.name || 'code';
@@ -234,28 +235,53 @@ function SmoothMarkdown({ text, showCursor }: { text: string; showCursor: boolea
   );
 }
 
+function ThinkingIndicator({ toolCalls }: { toolCalls: ToolCall[] }) {
+  const [elapsed, setElapsed] = useState(0);
+  const [seed] = useState(() => Math.floor(Math.random() * 1000));
+  const startRef = useRef(Date.now());
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setElapsed(Date.now() - startRef.current);
+    }, 800);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Check if there's a running tool that has a specific message
+  const runningTool = toolCalls.find((t) => t.isRunning);
+  const toolMsg = runningTool ? getToolMessage(runningTool.name, seed) : null;
+  const message = toolMsg || getThinkingMessage(elapsed, seed);
+
+  return (
+    <div className="flex items-center gap-3 py-3 animate-fade-in-up" style={{ animationDuration: '0.2s' }}>
+      <div className="w-7 h-7 rounded-lg flex items-center justify-center border border-accent/20 bg-accent/5">
+        <Zap size={13} className="text-accent animate-pulse" />
+      </div>
+      <div className="flex flex-col gap-0.5">
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] font-mono text-accent tracking-widest uppercase">Thinking</span>
+          <div className="flex gap-0.5">
+            <span className="w-1 h-1 rounded-full bg-accent animate-bounce" style={{ animationDelay: '0ms' }} />
+            <span className="w-1 h-1 rounded-full bg-accent animate-bounce" style={{ animationDelay: '150ms' }} />
+            <span className="w-1 h-1 rounded-full bg-accent animate-bounce" style={{ animationDelay: '300ms' }} />
+          </div>
+        </div>
+        <span
+          key={message}
+          className="text-[10px] text-text-tertiary thinking-indicator transition-opacity duration-300"
+        >
+          {message}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function BranchContent({ state, showCursor }: { state: StreamingState; showCursor: boolean }) {
   const hasContent = state.content || state.reasoning || state.toolCalls.length > 0 || state.images.length > 0 || state.files.length > 0 || state.tables.length > 0 || state.charts.length > 0 || state.forms.length > 0;
 
   if (!hasContent) {
-    return (
-      <div className="flex items-center gap-3 py-3 animate-fade-in-up" style={{ animationDuration: '0.2s' }}>
-        <div className="w-7 h-7 rounded-lg flex items-center justify-center border border-accent/20 bg-accent/5">
-          <Zap size={13} className="text-accent animate-pulse" />
-        </div>
-        <div className="flex flex-col gap-0.5">
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] font-mono text-accent tracking-widest uppercase">Thinking</span>
-            <div className="flex gap-0.5">
-              <span className="w-1 h-1 rounded-full bg-accent animate-bounce" style={{ animationDelay: '0ms' }} />
-              <span className="w-1 h-1 rounded-full bg-accent animate-bounce" style={{ animationDelay: '150ms' }} />
-              <span className="w-1 h-1 rounded-full bg-accent animate-bounce" style={{ animationDelay: '300ms' }} />
-            </div>
-          </div>
-          <span className="text-[10px] text-text-tertiary thinking-indicator">Nexus is thinking...</span>
-        </div>
-      </div>
-    );
+    return <ThinkingIndicator toolCalls={state.toolCalls} />;
   }
 
   return (
