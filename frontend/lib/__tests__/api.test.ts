@@ -3,6 +3,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 // Mock auth module before importing api
 vi.mock('@/lib/auth', () => ({
   getCsrfToken: vi.fn(() => 'csrf-test'),
+  refreshAccessToken: vi.fn(() => Promise.resolve(null)),
+  startTokenRefreshTimer: vi.fn(),
 }))
 
 // Mock toast module

@@ -37,7 +37,7 @@ describe('ErrorBoundary', () => {
         <ThrowingComponent shouldThrow={true} />
       </ErrorBoundary>
     )
-    expect(screen.getByText('Something went wrong')).toBeInTheDocument()
+    expect(screen.getByText('This section hit an error')).toBeInTheDocument()
     expect(screen.getByText('Test error message')).toBeInTheDocument()
   })
 
@@ -74,7 +74,7 @@ describe('ErrorBoundary', () => {
       </ErrorBoundary>
     )
 
-    expect(screen.getByText('Something went wrong')).toBeInTheDocument()
+    expect(screen.getByText('This section hit an error')).toBeInTheDocument()
 
     // Fix the error condition
     shouldThrow = false
@@ -93,7 +93,7 @@ describe('ErrorBoundary', () => {
         <div>Safe content</div>
       </ErrorBoundary>
     )
-    expect(screen.queryByText('Something went wrong')).not.toBeInTheDocument()
+    expect(screen.queryByText('This section hit an error')).not.toBeInTheDocument()
     expect(screen.getByText('Safe content')).toBeInTheDocument()
   })
 })
