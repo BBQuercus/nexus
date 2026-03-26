@@ -3,6 +3,7 @@
 import { useRef, useEffect } from 'react';
 import { ArrowUp, Square, Paperclip, ImagePlus } from 'lucide-react';
 import type { SlashCommand, ComposeMode } from './types';
+import { validateFileSize } from './types';
 import { VoiceInputButton } from './voice-input';
 
 interface InputFieldProps {
@@ -80,7 +81,14 @@ export function InputField({
         const item = items[i];
         if (item.type.startsWith('image/')) {
           const file = item.getAsFile();
-          if (file) imageFiles.push(file);
+          if (file) {
+            const err = validateFileSize(file);
+            if (err) {
+              import('@/components/toast').then(m => m.toast.error(err));
+            } else {
+              imageFiles.push(file);
+            }
+          }
         }
       }
       if (imageFiles.length > 0) {
@@ -168,12 +176,26 @@ export function InputField({
         className="flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-tertiary resize-none outline-none disabled:opacity-50 max-h-[200px] self-center"
       />
 
-      <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(e) => { if (e.target.files) setPendingFiles((prev) => [...prev, ...Array.from(e.target.files!)]); }} />
+      <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(e) => {
+        if (!e.target.files) return;
+        const files = Array.from(e.target.files);
+        const valid: File[] = [];
+        for (const f of files) {
+          const err = validateFileSize(f);
+          if (err) {
+            import('@/components/toast').then(m => m.toast.error(err));
+          } else {
+            valid.push(f);
+          }
+        }
+        if (valid.length > 0) setPendingFiles((prev) => [...prev, ...valid]);
+        e.target.value = ''; // reset so same file can be re-selected
+      }} />
 
       <button
         onClick={onAttachFiles}
         className="p-1.5 text-text-tertiary hover:text-text-secondary shrink-0 cursor-pointer rounded-lg hover:bg-surface-2 transition-colors"
-        title="Attach files"
+        title="Attach files (max 25MB, data files 100MB)"
       >
         <Paperclip size={14} />
       </button>

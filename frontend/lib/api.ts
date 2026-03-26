@@ -613,6 +613,13 @@ export async function registerAccount(email: string, password: string, name?: st
   });
 }
 
+export async function requestPasswordReset(email: string): Promise<{ ok: boolean; message: string }> {
+  return apiFetch<{ ok: boolean; message: string }>('/auth/forgot-password', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  });
+}
+
 // ── Knowledge Bases ──
 
 function kbFromSnake(raw: Record<string, unknown>): KnowledgeBase {

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getLoginUrl, setLastProvider, clearLastProvider, type OAuthProvider } from '@/lib/auth';
-import { passwordLogin, registerAccount, getCurrentUser } from '@/lib/api';
+import { passwordLogin, registerAccount, requestPasswordReset, getCurrentUser } from '@/lib/api';
 import { useStore } from '@/lib/store';
 import { Zap, AlertCircle, Loader2 } from 'lucide-react';
 import { toast } from '@/components/toast';
@@ -38,7 +38,7 @@ function LoginContent() {
   const setUser = useStore((s) => s.setUser);
   const setAuthStatus = useStore((s) => s.setAuthStatus);
 
-  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [mode, setMode] = useState<'login' | 'register' | 'forgot'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -64,6 +64,12 @@ function LoginContent() {
     setLoading(true);
 
     try {
+      if (mode === 'forgot') {
+        const result = await requestPasswordReset(email);
+        toast.success(result.message);
+        setMode('login');
+        return;
+      }
       if (mode === 'register') {
         await registerAccount(email, password, name || undefined);
       } else {
@@ -177,15 +183,26 @@ function LoginContent() {
             required
             className="w-full px-3 py-2 bg-bg border border-border-default text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-accent transition-colors"
           />
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            minLength={8}
-            className="w-full px-3 py-2 bg-bg border border-border-default text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-accent transition-colors"
-          />
+          {mode !== 'forgot' && (
+            <input
+              type="password"
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              minLength={8}
+              className="w-full px-3 py-2 bg-bg border border-border-default text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-accent transition-colors"
+            />
+          )}
+          {mode === 'login' && (
+            <button
+              type="button"
+              onClick={() => { setMode('forgot'); setFormError(''); }}
+              className="self-end text-[11px] text-text-tertiary hover:text-accent transition-colors cursor-pointer -mt-1"
+            >
+              Forgot password?
+            </button>
+          )}
           <button
             type="submit"
             disabled={loading}
@@ -194,7 +211,7 @@ function LoginContent() {
             {loading ? (
               <Loader2 size={14} className="animate-spin" />
             ) : (
-              <span>{mode === 'register' ? 'Create Account' : 'Sign In'}</span>
+              <span>{mode === 'forgot' ? 'Send Reset Link' : mode === 'register' ? 'Create Account' : 'Sign In'}</span>
             )}
           </button>
         </form>
@@ -203,7 +220,7 @@ function LoginContent() {
           onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setFormError(''); }}
           className="text-xs text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer"
         >
-          {mode === 'login' ? "Don't have an account? Sign up" : 'Already have an account? Sign in'}
+          {mode === 'forgot' ? 'Back to sign in' : mode === 'login' ? "Don't have an account? Sign up" : 'Already have an account? Sign in'}
         </button>
       </div>
     </div>
