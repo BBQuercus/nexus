@@ -74,7 +74,7 @@ async def test_check_rate_limit_uses_redis(monkeypatch):
         await rate_limit.check_rate_limit("user-1", limit=3, window_seconds=60, category="chat")
 
     assert exc.value.status_code == 429
-    assert "Rate limit exceeded" in exc.value.detail
+    assert "too quickly" in exc.value.detail
 
 
 @pytest.mark.asyncio

@@ -129,8 +129,8 @@ async def record_audit_event(
 
     _audit_buffer.append(event)
 
-    if len(_audit_buffer) >= _BUFFER_FLUSH_THRESHOLD:
-        await flush_audit_buffer()
+    # Flush immediately to avoid losing events on crash
+    await flush_audit_buffer()
 
 
 async def flush_audit_buffer():

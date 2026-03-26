@@ -37,9 +37,9 @@ export function getCsrfToken(): string | null {
 
 /**
  * Attempt to refresh the access token using the refresh token.
- * Returns true on success, false on failure.
+ * Returns the new expiry (seconds from now) on success, or null on failure.
  */
-export async function refreshAccessToken(): Promise<boolean> {
+export async function refreshAccessToken(): Promise<number | null> {
   try {
     const csrfToken = getCsrfToken();
     const resp = await fetch(toApiUrl('/auth/refresh'), {
@@ -48,41 +48,46 @@ export async function refreshAccessToken(): Promise<boolean> {
       credentials: 'include',
     });
 
-    if (!resp.ok) {
-      return false;
-    }
+    if (!resp.ok) return null;
 
-    return true;
+    const data = await resp.json();
+    return data.expires_in ?? null;
   } catch {
-    return false;
+    return null;
   }
 }
 
-let _refreshTimer: ReturnType<typeof setInterval> | null = null;
-let _onSessionExpiringSoon: (() => void) | null = null;
+let _refreshTimer: ReturnType<typeof setTimeout> | null = null;
+
+// Margin before expiry to trigger refresh (2 minutes)
+const REFRESH_MARGIN_S = 120;
 
 /**
- * Start a background timer that refreshes the token before it expires
- * and warns the user when the session is about to expire.
+ * Schedule a token refresh based on the backend-reported expiry time.
+ * Falls back to 30 minutes if no expiry is provided.
  */
-export function startTokenRefreshTimer(onExpiringSoon?: () => void): void {
+export function startTokenRefreshTimer(expiresInSeconds?: number): void {
   if (typeof window === 'undefined') return;
-  _onSessionExpiringSoon = onExpiringSoon || null;
 
-  // Clear any existing timer
-  if (_refreshTimer) clearInterval(_refreshTimer);
+  if (_refreshTimer) clearTimeout(_refreshTimer);
 
-  _refreshTimer = setInterval(async () => {
-    const success = await refreshAccessToken();
-    if (!success && _onSessionExpiringSoon) {
-      _onSessionExpiringSoon();
+  const delay = expiresInSeconds
+    ? Math.max(10, expiresInSeconds - REFRESH_MARGIN_S) * 1000
+    : 30 * 60_000;
+
+  _refreshTimer = setTimeout(async () => {
+    const newExpiry = await refreshAccessToken();
+    if (newExpiry) {
+      startTokenRefreshTimer(newExpiry);
     }
-  }, 30 * 60_000);
+    // If refresh fails, don't retry — the next API call will get a 401
+    // and attempt a silent refresh there.
+  }, delay);
 }
 
 export function stopTokenRefreshTimer(): void {
   if (_refreshTimer) {
-    clearInterval(_refreshTimer);
+    clearTimeout(_refreshTimer);
     _refreshTimer = null;
   }
 }

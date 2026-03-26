@@ -39,7 +39,7 @@ class TestRateLimiter(unittest.TestCase):
             self.limiter.check("user-1", limit=3, window_seconds=60)
 
         self.assertEqual(ctx.exception.status_code, 429)
-        self.assertIn("Rate limit exceeded", ctx.exception.detail)
+        self.assertIn("too quickly", ctx.exception.detail)
         self.assertEqual(ctx.exception.headers["Retry-After"], "60")
 
     def test_prunes_old_entries_after_window_expires(self):

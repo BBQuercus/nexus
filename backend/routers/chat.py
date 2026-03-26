@@ -659,7 +659,7 @@ async def send_message(
         except Exception:
             pass
 
-    return EventSourceResponse(event_generator())
+    return EventSourceResponse(event_generator(), ping=15)
 
 
 @router.post("/{conversation_id}/images")
@@ -917,7 +917,7 @@ async def regenerate_message(
             except Exception:
                 pass
 
-    return EventSourceResponse(event_generator())
+    return EventSourceResponse(event_generator(), ping=15)
 
 
 @router.get("/{conversation_id}/tree")

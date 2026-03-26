@@ -22,6 +22,7 @@ from backend.middleware import (
     GlobalExceptionMiddleware,
     MetricsMiddleware,
     RequestIdMiddleware,
+    RequestTimeoutMiddleware,
     SecurityHeadersMiddleware,
 )
 from backend.models import FrontendError, User
@@ -199,6 +200,9 @@ app.add_middleware(RequestIdMiddleware)
 
 # MetricsMiddleware records request count and duration for Prometheus
 app.add_middleware(MetricsMiddleware)
+
+# RequestTimeoutMiddleware aborts long-running requests
+app.add_middleware(RequestTimeoutMiddleware)
 
 # Include routers
 app.include_router(auth_router)

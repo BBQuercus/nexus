@@ -114,13 +114,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   // Token refresh timer
   useEffect(() => {
     if (authStatus !== 'authenticated') return;
-    const userName = useStore.getState().user?.name?.split(' ')[0];
-    startTokenRefreshTimer(() => {
-      const msg = userName
-        ? `Your session expires soon, ${userName}. Save your work or it will refresh automatically.`
-        : 'Your session expires soon. Save your work or it will refresh automatically.';
-      toast.warning(msg);
-    });
+    startTokenRefreshTimer();
     return () => stopTokenRefreshTimer();
   }, [authStatus]);
 
