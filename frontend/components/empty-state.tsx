@@ -154,17 +154,13 @@ function ReturningUserScreen() {
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center px-4 md:px-6 gap-6 md:gap-10 overflow-y-auto py-6 md:py-8 cascade-sections">
-      {/* Logo */}
-      <div className="relative flex flex-col items-center gap-4">
-        <div className="relative">
-          <div className="absolute inset-0 w-14 h-14 -m-2 rounded-lg bg-accent/5 animate-pulse" />
-          <Zap size={28} className="text-accent z-10" />
-        </div>
-
+      {/* Logo + greeting */}
+      <div className="flex flex-col items-center gap-5">
+        <Zap size={32} className="text-accent" />
         {greeting ? (
-          <p className="text-2xl md:text-3xl font-bold tracking-tight text-text-primary">{greeting}</p>
+          <p className="text-2xl md:text-3xl font-bold tracking-tight text-text-primary text-center">{greeting}</p>
         ) : (
-          <p className="text-2xl md:text-3xl font-bold tracking-tight text-text-primary">
+          <p className="text-2xl md:text-3xl font-bold tracking-tight text-text-primary text-center">
             What are we building today?
           </p>
         )}
