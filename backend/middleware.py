@@ -81,7 +81,7 @@ class RequestTimeoutMiddleware:
 
         try:
             await asyncio.wait_for(self.app(scope, receive, send), timeout=timeout)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             # Only send error if response hasn't started yet
             body = json.dumps({
                 "error": "request_timeout",
