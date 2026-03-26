@@ -186,13 +186,25 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "web_search",
-            "description": "Search the web for information. Returns titles, URLs, and snippets.",
+            "description": (
+                "Search the web using various engines. Use 'google' for general queries, "
+                "'google_news' for recent news, 'google_scholar' for academic papers, "
+                "'youtube' for videos, 'google_maps' for places/businesses, "
+                "'google_shopping' for products/prices, 'bing' or 'duckduckgo' as alternatives. "
+                "Returns titles, URLs, snippets, and engine-specific metadata."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
                     "query": {
                         "type": "string",
                         "description": "The search query",
+                    },
+                    "engine": {
+                        "type": "string",
+                        "description": "Search engine to use",
+                        "enum": ["google", "google_news", "google_scholar", "youtube", "google_maps", "google_shopping", "bing", "duckduckgo"],
+                        "default": "google",
                     },
                     "num_results": {
                         "type": "integer",
