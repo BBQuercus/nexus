@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { useStore } from '@/lib/store'
-import type { Conversation } from '@/lib/types'
+import { DEFAULT_MODEL_ID, type Conversation } from '@/lib/types'
 
 // Mock localStorage
 const localStorageMock = (() => {
@@ -40,6 +40,10 @@ describe('useStore', () => {
 
     it('has empty messages', () => {
       expect(useStore.getState().messages).toEqual([])
+    })
+
+    it('uses the configured default model', () => {
+      expect(useStore.getState().activeModel).toBe(DEFAULT_MODEL_ID)
     })
 
     it('has isStreaming false', () => {

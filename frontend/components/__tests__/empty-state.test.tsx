@@ -4,6 +4,8 @@ import userEvent from '@testing-library/user-event'
 import EmptyState from '@/components/empty-state'
 import { useStore } from '@/lib/store'
 import type { Conversation } from '@/lib/types'
+import { LANDING_PROMPTS, resolveCompareModels } from '@/lib/landing-prompts'
+import { MODELS } from '@/lib/types'
 
 // Mock lucide-react with explicit icon stubs
 vi.mock('lucide-react', () => {
@@ -34,6 +36,7 @@ async function renderReady(ui: React.ReactElement) {
 
 describe('EmptyState', () => {
   beforeEach(() => {
+    vi.restoreAllMocks()
     useStore.getState().reset()
   })
 
@@ -62,13 +65,9 @@ describe('EmptyState', () => {
 
     it('displays capability buttons', async () => {
       await renderReady(<EmptyState />)
-      expect(screen.getByText('Python Sandbox')).toBeInTheDocument()
-      expect(screen.getByText('Knowledge Base')).toBeInTheDocument()
-      expect(screen.getByText('Charts')).toBeInTheDocument()
-      expect(screen.getByText('SQL on Files')).toBeInTheDocument()
-      expect(screen.getByText('Interactive Forms')).toBeInTheDocument()
-      expect(screen.getByText('Multi-Model Compare')).toBeInTheDocument()
-      expect(screen.getByText('AI Memory')).toBeInTheDocument()
+      for (const prompt of LANDING_PROMPTS) {
+        expect(screen.getByText(prompt.label)).toBeInTheDocument()
+      }
     })
 
     it('does not display quick suggestion chips', async () => {
@@ -82,6 +81,41 @@ describe('EmptyState', () => {
       await renderReady(<EmptyState />)
       await user.click(screen.getByText('Python Sandbox'))
       expect(useStore.getState().pendingPrompt).toContain('Python sandbox workflow')
+    })
+
+    it('dispatches compare compose state for the compare card', async () => {
+      const user = userEvent.setup()
+      const dispatchSpy = vi.spyOn(window, 'dispatchEvent')
+      await renderReady(<EmptyState />)
+
+      await user.click(screen.getByText('Multi-Model Compare'))
+
+      expect(dispatchSpy).toHaveBeenCalledWith(expect.objectContaining({
+        type: 'nexus:set-compose',
+        detail: expect.objectContaining({
+          prompt: 'Tell me how to approach building a SaaS product from scratch',
+          compareModels: resolveCompareModels(
+            LANDING_PROMPTS.find((prompt) => prompt.id === 'multi-model-compare')!,
+            MODELS,
+          ),
+        }),
+      }))
+    })
+
+    it('dispatches image compose state for the image card', async () => {
+      const user = userEvent.setup()
+      const dispatchSpy = vi.spyOn(window, 'dispatchEvent')
+      await renderReady(<EmptyState />)
+
+      await user.click(screen.getByText('Image Generation'))
+
+      expect(dispatchSpy).toHaveBeenCalledWith(expect.objectContaining({
+        type: 'nexus:set-compose',
+        detail: expect.objectContaining({
+          mode: 'image',
+          prompt: 'A futuristic cityscape at sunset with flying vehicles and holographic billboards, cinematic style',
+        }),
+      }))
     })
 
   })

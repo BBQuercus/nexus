@@ -7,8 +7,10 @@ import {
 } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { IMAGE_MODELS, MODELS } from '@/lib/types';
+import { LANDING_PROMPTS, resolveCompareModels } from '@/lib/landing-prompts';
 
 interface Capability {
+  id: string;
   label: string;
   icon: React.ReactNode;
   prompt: string;
@@ -16,39 +18,49 @@ interface Capability {
 }
 
 function makeCapabilities(): Capability[] {
-  return [
-    { label: 'Python Sandbox', icon: <Terminal size={11} />, prompt: 'Start a Python sandbox workflow for data analysis, automation, or scripting. Use the terminal, create files as needed, and leave me with runnable output.' },
-    { label: 'Knowledge Base', icon: <Database size={11} />, prompt: 'Help me structure a knowledge-grounded workflow. I want to work with uploaded documents, retrieve the right context, and produce answers with sources.' },
-    { label: 'Live Preview', icon: <Globe size={11} />, prompt: 'Build a modern web app I can iterate on in live preview. Start with a strong foundation, implement the core experience, and keep the UI polished.' },
-    { label: 'Charts', icon: <BarChart3 size={11} />, prompt: 'Create interactive data visualizations. Use Vega-Lite to build charts from data I provide or generate sample data to demonstrate different chart types.' },
-    { label: 'SQL on Files', icon: <Blocks size={11} />, prompt: 'Load my CSV or Excel files into DuckDB and run SQL queries. Show the schema, suggest interesting queries, and visualize the results.' },
-    { label: 'Interactive Forms', icon: <ClipboardList size={11} />, prompt: 'Create an interactive form with multiple field types: text, dropdowns, ratings, sliders, and conditional sections. Then analyze my responses.' },
-    {
-      label: 'Multi-Model Compare',
-      icon: <GitCompare size={11} />,
-      prompt: 'Tell me how to approach building a SaaS product from scratch',
-      action: () => {
-        const nonLegacy = MODELS.filter((m) => !m.legacy);
-        const first = nonLegacy.find((m) => m.provider === 'anthropic') || nonLegacy[0];
-        const second = nonLegacy.find((m) => m.provider === 'openai') || nonLegacy[1];
-        const ids = first && second ? [first.id, second.id] : nonLegacy.slice(0, 2).map((m) => m.id);
+  const iconMap: Record<string, React.ReactNode> = {
+    Terminal: <Terminal size={11} />,
+    Database: <Database size={11} />,
+    Globe: <Globe size={11} />,
+    BarChart3: <BarChart3 size={11} />,
+    Blocks: <Blocks size={11} />,
+    ClipboardList: <ClipboardList size={11} />,
+    GitCompare: <GitCompare size={11} />,
+    Image: <Image size={11} />,
+    Brain: <Brain size={11} />,
+  };
+
+  return LANDING_PROMPTS.map((entry) => {
+    const capability: Capability = {
+      id: entry.id,
+      label: entry.label,
+      icon: iconMap[entry.icon] || <Zap size={11} />,
+      prompt: entry.prompt,
+    };
+
+    if (entry.action_type === 'compare') {
+      capability.action = () => {
         window.dispatchEvent(new CustomEvent('nexus:set-compose', {
-          detail: { compareModels: ids, prompt: 'Tell me how to approach building a SaaS product from scratch' },
+          detail: {
+            compareModels: resolveCompareModels(entry, MODELS),
+            prompt: entry.prompt,
+          },
         }));
-      },
-    },
-    {
-      label: 'Image Generation',
-      icon: <Image size={11} />,
-      prompt: 'A futuristic cityscape at sunset with flying vehicles and holographic billboards, cinematic style',
-      action: () => {
+      };
+    } else if (entry.action_type === 'image') {
+      capability.action = () => {
         window.dispatchEvent(new CustomEvent('nexus:set-compose', {
-          detail: { mode: 'image', imageModel: IMAGE_MODELS[0]?.id, prompt: 'A futuristic cityscape at sunset with flying vehicles and holographic billboards, cinematic style' },
+          detail: {
+            mode: 'image',
+            imageModel: IMAGE_MODELS[0]?.id,
+            prompt: entry.prompt,
+          },
         }));
-      },
-    },
-    { label: 'AI Memory', icon: <Brain size={11} />, prompt: 'Remember that I prefer concise answers, code examples over explanations, and that I work primarily with TypeScript and Python.' },
-  ];
+      };
+    }
+
+    return capability;
+  });
 }
 
 const RETURNING_STARTERS = [
@@ -176,7 +188,7 @@ function ReturningUserScreen() {
       <div className="flex flex-wrap justify-center gap-1.5 max-w-xl">
         {capabilities.map((t) => (
           <button
-            key={t.label}
+            key={t.id}
             onClick={() => handleCapability(t)}
             className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] tracking-wide uppercase bg-surface-1 border border-border-default rounded-lg text-text-tertiary hover:text-accent hover:border-accent/30 transition-all cursor-pointer glow-hover"
           >
