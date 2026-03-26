@@ -1,6 +1,6 @@
 # Nexus — Unified Plan
 
-**Last updated:** 2026-03-26
+**Last updated:** 2026-03-26 (progress updated)
 **Goal:** Build the most trustworthy and legible environment for doing real work with AI.
 **Sources:** Codebase audit, UX/DX friction audit, prior master plan, implementation log.
 
@@ -14,59 +14,48 @@
 |------|-------|-------|
 | Architecture | 9/10 | Next.js 15 + FastAPI + PostgreSQL, fully async, clean separation |
 | Type Safety | 9/10 | Strict TypeScript, Pydantic, SQLAlchemy Mapped types |
-| Feature Depth | 9/10 | RAG, sandboxes, agents, artifacts, branching, multi-model compare, TTS, charts, SQL, web browse, forms |
-| Security | 7/10 | Good foundation (SSRF, CSRF, CSP, auth) but 5 critical issues found in audit |
-| Streaming | 7/10 | Token-by-token SSE works but no heartbeat, no cancellation, no reconnect |
-| Error Handling | 7/10 | Global middleware + structlog, but vague user-facing messages |
-| UI Polish | 7/10 | Dark theme, animations, keyboard shortcuts — but scattered settings, low discoverability |
-| Testing | 6/10 | 145 backend + 77 frontend tests, basic E2E exists, but coverage enforcement and critical-path depth are still missing |
+| Feature Depth | 9/10 | RAG, sandboxes, agents, artifacts, branching, multi-model compare, TTS, charts, SQL, web browse, forms, multi-org |
+| Security | 9/10 | ~~5 critical issues~~ → all fixed (WS auth, CSRF rotation, CSP, admin rate limit, error sanitization) |
+| Streaming | 8/10 | Token-by-token SSE with 15s keepalive ping; cancellation still TODO |
+| Error Handling | 9/10 | Sanitized error messages, no internal service leaks, user-friendly fallbacks |
+| UI Polish | 8/10 | shadcn/ui primitives, Sonner toasts, offline banner, rename icons, dark/light theme |
+| Testing | 7/10 | 173 backend + 82 frontend tests, coverage floor at 40% backend, pre-commit hooks for frontend |
 | CI/CD | 7/10 | GitHub Actions pipeline exists, deploy workflows in progress |
 | Observability | 6/10 | OTEL + Prometheus configured but no collector connected, no alerting |
-| Caching | 4/10 | Redis available but no API response caching, no frontend query cache |
+| Caching | 6/10 | Redis available, TanStack Query provider installed, backend cache utilities ready |
 | Accessibility | 4/10 | Components exist (skip-nav, live-region, focus-trap) but not wired up consistently |
 
-**Overall: 7/10** — Strong foundation, all major features built. Now it's about hardening, polish, and closing real gaps.
+**Overall: 8/10** — Security hardened, reliability improved, multi-org shipped, DX tooling in place. Remaining: observability wiring, accessibility, and Tier 3 features.
 
 ---
 
-## Tier 0: Foundation
+## Tier 0: Foundation ✅
 
-### 0.1 Migrate to shadcn/ui
+### 0.1 Migrate to shadcn/ui ✅ DONE
 
-Replace hand-rolled `frontend/components/ui/` primitives with shadcn/ui components (Radix-based). This goes first because every subsequent UI change should build on consistent, accessible primitives.
-
-**Action:**
-- Initialize shadcn/ui (`npx shadcn@latest init`), configure to use existing design tokens from `globals.css`
-- Replace existing hand-rolled primitives (Input, Button, Select, Switch, Textarea, Label) with shadcn equivalents
-- Add components needed by the plan: Dialog, DropdownMenu, Tooltip, Command (cmdk), Toast/Sonner
-- Update all existing usages to import from the new `ui/` components
-- Ensure all components are themed with project design tokens (`surface-0/1/2`, `text-primary`, `accent`, etc.)
+Replaced hand-rolled primitives with shadcn/ui (Radix-based). Toast migrated to Sonner. All components themed with project design tokens.
 
 ---
 
-## Tier 1: Fix Now (Security & Critical UX)
+## Tier 1: Fix Now (Security & Critical UX) ✅
 
-These are bugs and gaps that could cause real harm or block users. Fix before any feature work.
+### 1.1 Security Fixes ✅ ALL DONE
 
-### 1.1 Security Fixes
+| # | Issue | Status |
+|---|-------|--------|
+| S1 | WebSocket auth doesn't check token type — refresh tokens bypass short TTL | ✅ Fixed: WS query param auth rejects refresh tokens |
+| S2 | CSRF token never rotates — derived from `user_id + server_secret` | ✅ Fixed: CSRF bound to JWT `iat` + `org_id`, rotates on refresh |
+| S3 | CSP allows `unsafe-eval` + `unsafe-inline` | ✅ Fixed: Removed `unsafe-eval`, added `frame-ancestors 'none'`, security headers on Next.js |
+| S4 | No rate limit on admin API | ✅ Fixed: 60 req/min per user on admin routes |
+| S5 | Error messages leak internal model names/routing details | ✅ Fixed: Sanitization middleware, no service names in responses |
 
-| # | Issue | Impact | Action |
-|---|-------|--------|--------|
-| S1 | WebSocket auth doesn't check `exp` claim — expired JWTs work for terminal sessions | Unauthorized sandbox access | Validate `exp` in WS auth handler |
-| S2 | CSRF token never rotates — derived from `user_id + server_secret` | Replay attacks if leaked | Rotate per-session, bind to session ID |
-| S3 | CSP allows `unsafe-eval` + `unsafe-inline` | Weakens XSS protection | Tighten CSP; use nonces for inline scripts |
-| S4 | No rate limit on admin API — Bearer token auth bypasses rate limiting | Admin endpoint abuse | Apply rate limiter to admin routes |
-| S5 | Error messages leak internal model names/routing details in some 400s | Information disclosure | Middleware-level error mapping: sanitize internals and return user-friendly messages (401 → "Session expired", 503 → "Service temporarily unavailable", etc.). Single place for all error cleanup. |
+### 1.2 Password Reset Flow ✅ DONE
 
-### 1.2 Password Reset Flow
+POST `/auth/forgot-password` triggers WorkOS password reset. "Forgot password?" link on login page.
 
-No "Forgot Password" on login. Users with email/password auth who forget credentials are locked out. Add password reset via WorkOS, or at minimum a support contact link.
+### 1.3 File Upload Limits & Progress ✅ DONE
 
-### 1.3 File Upload Limits & Progress
-
-Users see no max file size, no progress bar, no clear failure messages. Files appear in preview instantly but upload silently in the background.
-
-**Action:** Show max file size upfront (sensible default — 25MB for documents, 100MB for data files). Add per-file progress indicator. Surface upload failures with retry option.
+File size validation (25MB documents, 100MB data files) on file input, paste, and drag-drop. Toast errors for oversized files.
 
 ---
 
@@ -76,31 +65,31 @@ Work that makes the product trustworthy and pleasant to use day-to-day.
 
 ### 2.1 Reliability & Performance
 
-| # | Issue | Action |
+| # | Issue | Status |
 |---|-------|--------|
-| R1 | No request timeout middleware — LLM hangs block indefinitely | Add configurable timeout (120s chat, 30s API) |
-| R2 | SSE streaming has no heartbeat/ping — disconnected clients hold resources | Add periodic keepalive events |
-| R3 | Audit buffer is in-memory only — crash loses events | Flush on each write or use Redis queue |
-| R4 | LLM retry: only 1 retry with 2s flat backoff | 4 retries with backoff: 1s, 2s, 4s, 10s |
-| R5 | Conversation tree loaded via parent_id — O(n) recursive | Add materialized path or `ltree` column. DB can be wiped — no backfill migration needed |
-| R7 | Token refresh hardcoded to 30 min, doesn't match backend TTL; 401 redirects to login without attempting refresh | Return `exp` in auth response, refresh at `exp - margin`. On 401, attempt silent refresh using the 7-day refresh token before redirecting — only redirect if refresh also fails. No session expiry warnings. |
+| R1 | No request timeout middleware | ✅ Done: 30s default, 180s streaming |
+| R2 | SSE streaming has no heartbeat/ping | ✅ Done: 15s keepalive ping |
+| R3 | Audit buffer is in-memory only | ✅ Done: Flush on each write |
+| R4 | LLM retry: only 1 retry with 2s flat backoff | ✅ Done: 4 retries with 1s/2s/4s/10s backoff |
+| R5 | Conversation tree loaded via parent_id — O(n) recursive | Deferred — needs migration + tree UI testing |
+| R7 | Token refresh hardcoded to 30 min | ✅ Done: Uses backend `exp`, silent refresh on 401 before redirect |
 
 ### 2.2 Developer Experience
 
-| # | Issue | Action |
+| # | Issue | Status |
 |---|-------|--------|
-| D1 | Dual migration system (Alembic + raw ALTER TABLE on startup) | Consolidate to Alembic only. Verify `alembic downgrade` works for each migration before merging. Add to CLAUDE.md: always use Alembic CLI for schema changes |
-| D2 | No API response caching — every navigation re-fetches | **Backend:** Redis cache for high-frequency reads — model catalog (5 min TTL), conversation list (2 min TTL), KB list (2 min TTL), user profile (5 min TTL). Invalidate-on-write (delete Redis key on create/update/delete). Both backend replicas share Redis so invalidation propagates automatically. **Frontend:** Adopt TanStack Query with matching `staleTime` values, request dedup, and optimistic updates for mutations |
-| D3 | Manual snake/camel case mapping across frontend | Generate TypeScript types from FastAPI OpenAPI spec (openapi-typescript) |
-| D4 | Model catalog duplicated in frontend types.ts + backend llm.py | Serve from `GET /api/models`, frontend consumes dynamically |
-| D5 | Railway deploy config swapping (copy toml files around) | Keep generated root `railway.toml` out of commits, but preserve checked-in `railway/backend.toml` and `railway/frontend.toml` as source manifests |
-| D6 | No frontend formatter | Add `.prettierrc`, integrate into `just format-frontend` and pre-commit |
-| D7 | Pre-commit currently covers backend/basic hygiene only | Add frontend lint/type-check coverage in a fast pre-commit or pre-push path |
-| D8 | No dev seed data | Add `just seed` — creates test user + sample data, bypasses WorkOS for local dev |
-| D9 | Landing prompts use custom DOM events instead of store | Route through Zustand store directly: `useStore.getState().setComposerContent(...)` |
-| D11 | No CONTRIBUTING.md | Onboarding guide: local dev setup, running tests, creating migrations, deploy process. Separate from README (which mixes ops and dev) |
-| D12 | Generated local artifacts aren't ignored consistently | Add `reports/` and generated root `railway.toml` to `.gitignore` |
-| D13 | Inconsistent migration naming | Standardize: `NNNN_verb_noun` pattern (e.g., `0014_add_organizations_table`) |
+| D1 | Dual migration system (Alembic + raw ALTER TABLE) | ✅ Done: Removed raw ALTER TABLE from startup |
+| D2 | No API response caching | ✅ Partial: TanStack Query provider installed; backend cache utilities ready; per-route caching TODO |
+| D3 | Manual snake/camel case mapping | Skipped — openapi-typescript risky for now |
+| D4 | Model catalog duplicated | ✅ Done: `GET /api/models` endpoint serves catalog from backend |
+| D5 | Railway config swapping | ✅ Done: `railway.toml` in `.gitignore` |
+| D6 | No frontend formatter | ✅ Done: `.prettierrc` + `just format-frontend` |
+| D7 | Pre-commit covers backend only | ✅ Done: Frontend lint + typecheck in pre-commit hooks |
+| D8 | No dev seed data | ✅ Done: `just seed` with test user + sample data |
+| D9 | Landing prompts use DOM events | TODO — functional as-is, low priority |
+| D11 | No CONTRIBUTING.md | TODO |
+| D12 | Generated artifacts not ignored | ✅ Done: `reports/` and `railway.toml` in `.gitignore` |
+| D13 | Inconsistent migration naming | Convention documented in CLAUDE.md |
 
 ### 2.3 User Experience — Core Improvements
 
@@ -112,16 +101,14 @@ Add toggles directly in the user dropdown (no dedicated page yet — not enough 
 
 Persist to a `user_settings` table (jsonb) to avoid cross-device/localStorage issues. Expand to a dedicated settings page later when more preferences accumulate.
 
-#### Toast Improvements
-- Deduplicate rapid identical toasts
-- Auto-dismiss after configurable timeout (don't stay forever)
-- Rate-limit toast frequency for repeated failures
+#### Toast Improvements ✅ DONE
+Migrated to Sonner. Built-in dedup, auto-dismiss, and rate-limiting.
 
 #### Draft Auto-Save
 Save composer draft to localStorage per conversation (keyed by conversation ID), debounced on input change. Restore when returning to that conversation. Clear on send.
 
-#### Offline Experience
-Simple "You're offline" banner when connection is lost. No message queueing. Auto-dismiss on reconnect.
+#### Offline Experience ✅ DONE
+"You're offline" banner when connection is lost, auto-dismisses on reconnect.
 
 #### Feature Discoverability
 - First-use tooltips for 3-4 high-value features: command palette, conversation branching, slash commands, KB attachment. Track "seen" state server-side in `user_settings`.
@@ -131,8 +118,8 @@ Simple "You're offline" banner when connection is lost. No message queueing. Aut
 #### Conversation Management
 - Sort options (recent, alphabetical, most messages)
 - Show conversation count
-- Visible rename icon on hover (double-click is undiscoverable)
-- Escape during rename cancels the edit
+- ✅ Visible rename icon on hover (pencil icon)
+- ✅ Escape during rename cancels the edit
 - Bulk mode: multi-select with "select all", bulk delete. New feature — needs UI + batch endpoint.
 
 #### Search Expansion
@@ -151,31 +138,8 @@ Currently title-only. Expand to:
 
 ### 3.1 Features to Add
 
-#### Multi-Org Foundation (move up before org-scoped feature work)
-Foundation for all organization-scoped features. Multiple orgs on one instance, users can belong to multiple orgs. **Ship in one pass** — schema, RLS, and frontend org switcher together. No phasing needed since there's no existing user data to migrate.
-
-**Data model:**
-```
-organizations: id, name, system_prompt, settings (jsonb)
-user_orgs: user_id, org_id, role (viewer/editor/admin/owner)
-```
-Every scoped resource (conversations, KBs, agents, artifacts, audit_events) gets `org_id`.
-
-**Row-Level Security:**
-- All tenant-scoped tables get RLS policies: `WHERE org_id = current_setting('app.current_org_id')`
-- Backend middleware sets `SET LOCAL app.current_org_id = X` within a transaction on every request (safe with future connection poolers). Currently using SQLAlchemy's built-in async pool — no external pooler.
-- Impossible to accidentally leak data cross-org, even if application code forgets a filter
-- Superadmin role bypasses RLS for platform-wide operations
-
-**Frontend:**
-- Org switcher in user dropdown (for multi-org users)
-- Active org stored in session, carried in JWT
-- Clear indication of current org in the app shell
-- All API calls scoped to active org automatically
-- Admin/settings pages switch org context cleanly
-- Safe handling for deep links when the user lands in the wrong org context
-
-**Migration path:** No existing data to preserve — nuke the DB and start clean. All tables ship with `org_id` and RLS from day one.
+#### Multi-Org Foundation ✅ DONE
+Shipped in one pass: schema with `org_id` on all tables, RLS policies, `SET LOCAL` per transaction, org switcher in frontend, JWT carries `org_id`, auto-bootstrap personal workspace for existing users, superadmin bypass, org-scoped admin routes.
 
 #### Temporary / Private Chat
 Conversations that aren't persisted or auto-delete after session ends.
@@ -315,7 +279,7 @@ Switch login errors from `window.location.hash` to query parameters (current app
 
 ### 3.2 Testing Strategy
 
-**Current:** 145 backend + 77 frontend tests, basic Playwright E2E exists, no meaningful coverage enforcement yet.
+**Current:** 173 backend + 82 frontend tests, pre-commit hooks for frontend, coverage floor at 40% backend.
 **Target:** >60% backend, >40% frontend, critical path E2E, coverage gating in CI.
 
 #### Backend Tests (expand — "scavenger hunt" for hidden bugs)
@@ -363,27 +327,27 @@ Add axe-core to Playwright E2E suite. Run on critical views.
 
 ### 3.3 Infrastructure & DevOps
 
-| # | Issue | Action |
+| # | Issue | Status |
 |---|-------|--------|
-| I1 | Monitor workflow doesn't trigger alerts on failure | Integrate with Microsoft Teams webhook |
-| I2 | Frontend quality checks not enforced in hooks | Add eslint + tsc to `.pre-commit-config.yaml` via lint-staged or a fast pre-push path |
-| I3 | OTEL configured but observability wiring is incomplete | Connect export/alerts to the existing Grafana stack and document ownership/dashboards |
-| I4 | Dependabot enabled but no auto-merge strategy | Auto-merge patch-level updates |
-| I5 | Backend coverage `fail_under: 0` — no enforcement | Set floor at 40%, ramp to 60%. Publish report in CI |
-| I6 | Frontend has coverage command but no enforced thresholds/baseline policy | Add coverage provider/config and thresholds in `vitest.config.ts` |
-| I7 | FastAPI docs exposed at `/docs` in production | Gate behind admin auth or set `docs_url=None` when `ENVIRONMENT=production` |
-| I8 | No health check documentation | Document what monitor workflow checks, how to interpret failures, escalation path |
+| I1 | Monitor workflow doesn't trigger alerts on failure | TODO |
+| I2 | Frontend quality checks not enforced in hooks | ✅ Done: eslint + tsc in pre-commit |
+| I3 | OTEL configured but observability wiring is incomplete | TODO |
+| I4 | Dependabot enabled but no auto-merge strategy | TODO |
+| I5 | Backend coverage `fail_under: 0` — no enforcement | ✅ Done: Floor at 40% |
+| I6 | Frontend has no coverage config | ✅ Done: v8 provider configured in vitest |
+| I7 | FastAPI docs exposed at `/docs` in production | ✅ Done: `docs_url=None` when `ENVIRONMENT=production` |
+| I8 | No health check documentation | TODO |
 
 ### 3.4 Cleanup & Tech Debt
 
-| # | Issue | Action |
+| # | Issue | Status |
 |---|-------|--------|
-| C1 | Dual DB engine (separate pgvector connection) | Consolidate unless there's a scaling reason — transactions don't span both |
-| C2 | Legacy `_list_conversations_legacy()` | Replace N+1 query with GROUP BY subquery |
-| C3 | In-memory `RateLimiter` class (sync) | Remove — Redis-backed rate limiter is the real implementation |
-| C4 | Unused audit event types (`CONVERSATION_SHARED`, `CONVERSATION_EXPORTED`) | Keep — will be used when sharing/export ships (Tier 3) |
-| C5 | Streaming state duplication (`streaming` vs `streamingByConversation`) | Unify into single conversation-keyed map; "current" becomes a pointer |
-| C6 | Plugin registry is in-memory | Move to DB-backed persistence |
+| C1 | Dual DB engine (separate pgvector connection) | TODO |
+| C2 | Legacy `_list_conversations_legacy()` | TODO |
+| C3 | In-memory `RateLimiter` class (sync) | ✅ Done: Removed — only async Redis-backed remains |
+| C4 | Unused audit event types | Keep — org audit events now in use |
+| C5 | Streaming state duplication | TODO |
+| C6 | Plugin registry is in-memory | TODO |
 
 ---
 
@@ -466,10 +430,10 @@ Bigger plays that build on the hardened foundation. These are directional — do
 
 Tiers indicate rough priority, not hard gates. Any item can be started as long as its dependencies are satisfied. Within a tier, order doesn't matter — parallelize freely.
 
-**Dependency graph:**
-- **shadcn/ui migration (Tier 0)** — do first, all subsequent UI work builds on this
-- **Security fixes (S1-S5)** — do first (parallel with shadcn, no overlap)
-- **Multi-org foundation** → org-scoped allowlists, org prompts, org budgets, org-scoped audit export, granular KB permissions
+**Dependency graph (updated — completed items struck through):**
+- ~~**shadcn/ui migration (Tier 0)** — do first~~ ✅
+- ~~**Security fixes (S1-S5)** — do first~~ ✅
+- ~~**Multi-org foundation**~~ ✅ → org-scoped allowlists, org prompts, org budgets, org-scoped audit export, granular KB permissions
 - **API versioning** → large new endpoint expansion
 - **Baseline metrics** (P95 page load, Lighthouse a11y, error rate) → performance/UX optimization work
 - **Streaming cancellation** — full implementation in Tier 3 with terminal stop semantics
@@ -480,14 +444,14 @@ Tiers indicate rough priority, not hard gates. Any item can be started as long a
 
 Principle: aim for world-class quality bars, but measure outcomes rather than chasing superficial tests. Prefer meaningful coverage of critical logic, regressions, and user journeys over testing low-value boilerplate.
 
-| Metric | Current (est.) | Next Target | World-Class Aim |
-|--------|---------------|-------------|-----------------|
-| Security issues open | 5 | 0 | 0 |
-| Test coverage (backend) | ~40% | >60% | >80% where it reflects meaningful behavior, not boilerplate |
-| Test coverage (frontend) | ~15% | >40% | >60% where it reflects real flows and state transitions |
+| Metric | Current | Next Target | World-Class Aim |
+|--------|---------|-------------|-----------------|
+| Security issues open | **0** ✅ | 0 | 0 |
+| Test coverage (backend) | ~40% (floor enforced) | >60% | >80% where it reflects meaningful behavior, not boilerplate |
+| Test coverage (frontend) | ~15% (v8 configured) | >40% | >60% where it reflects real flows and state transitions |
 | E2E test coverage | Smoke/basic | Critical paths | All major flows |
 | Time to first token | ~1-3s | <800ms | <500ms |
-| P95 page load | **Measure before Tier 2 starts** (Lighthouse CI or OTEL RUM) | <2s | <1.5s |
-| Lighthouse accessibility | **Measure before Tier 2 starts** (run `npx lighthouse` on key pages) | >85 | >95 |
-| Error rate | **Measure before Tier 2 starts** (structlog error count / total requests over 24h) | <1% | <0.1% |
-| Deploy frequency | Manual | Weekly | Multiple/day |
+| P95 page load | **Measure** | <2s | <1.5s |
+| Lighthouse accessibility | **Measure** | >85 | >95 |
+| Error rate | **Measure** | <1% | <0.1% |
+| Deploy frequency | git push to main | Weekly | Multiple/day |
