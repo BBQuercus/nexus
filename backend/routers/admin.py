@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.auth import get_current_user
 from backend.db import get_db
 from backend.logging_config import get_logger
+from backend.rate_limit import check_rate_limit
 from backend.models import (
     Conversation,
     Feedback,
@@ -32,6 +33,7 @@ async def get_admin_user(
     db: AsyncSession = Depends(get_db),
 ) -> User:
     """Verify the current user is an admin. Returns the User object."""
+    await check_rate_limit(str(user_id), limit=60, window_seconds=60, category="admin")
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if not user:

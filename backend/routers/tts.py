@@ -7,6 +7,9 @@ from pydantic import BaseModel
 
 from backend.auth import get_current_user
 from backend.config import settings
+from backend.logging_config import get_logger
+
+logger = get_logger("tts")
 
 router = APIRouter(prefix="/api/tts", tags=["tts"])
 
@@ -22,7 +25,7 @@ async def text_to_speech(
     user_id: uuid.UUID = Depends(get_current_user),
 ):
     if not settings.AZURE_SPEECH_KEY:
-        raise HTTPException(status_code=501, detail="TTS not configured (AZURE_SPEECH_KEY missing)")
+        raise HTTPException(status_code=501, detail="Text-to-speech is not configured")
 
     tts_url = f"https://{settings.AZURE_SPEECH_LOCATION}.tts.speech.microsoft.com/cognitiveservices/v1"
 
@@ -46,9 +49,11 @@ async def text_to_speech(
                 headers={"Content-Disposition": "inline; filename=speech.mp3"},
             )
     except httpx.HTTPStatusError as e:
+        logger.error("tts_http_error", status=e.response.status_code, body=e.response.text[:200])
         raise HTTPException(
-            status_code=e.response.status_code,
-            detail=f"Azure TTS error: {e.response.text}",
+            status_code=502,
+            detail="Text-to-speech service returned an error. Please try again.",
         ) from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"TTS error: {str(e)}") from e
+        logger.error("tts_error", error=str(e))
+        raise HTTPException(status_code=500, detail="Text-to-speech is temporarily unavailable. Please try again.") from e

@@ -716,8 +716,8 @@ async def generate_image(
             response.raise_for_status()
             image_data = response.json()
     except httpx.HTTPStatusError as e:
-        detail = e.response.text or e.response.reason_phrase or "LiteLLM image request failed"
-        raise HTTPException(status_code=e.response.status_code, detail=f"Image generation failed: {detail}") from e
+        logger.error("image_generation_http_error", status=e.response.status_code, body=e.response.text[:200])
+        raise HTTPException(status_code=502, detail="Image generation failed. Please try again.") from e
     except httpx.TimeoutException as e:
         raise HTTPException(status_code=504, detail="Image generation is taking too long. Try a simpler prompt or try again.") from e
     except Exception as e:

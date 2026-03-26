@@ -742,8 +742,11 @@ async def sandbox_terminal(websocket: WebSocket, sandbox_id: str, token: str | N
                 settings.SERVER_SECRET,
                 algorithms=[settings.JWT_ENCODING_ALGORITHM],
             )
-            uid = payload.get("sub")
-            user_id = uuid.UUID(uid) if uid else None
+            if payload.get("type", "access") != "access":
+                user_id = None
+            else:
+                uid = payload.get("sub")
+                user_id = uuid.UUID(uid) if uid else None
         except Exception:
             user_id = None
     if not user_id:
