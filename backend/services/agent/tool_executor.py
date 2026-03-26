@@ -146,9 +146,10 @@ async def execute_tool_call(
             results = await web_search(
                 args.get("query", ""),
                 args.get("num_results", 5),
+                engine=args.get("engine", "google"),
             )
             tool_output = json.dumps(results, indent=2)
-            yield sse_event("search_results", {"results": results, "tool_call_id": tool_call_id})
+            yield sse_event("search_results", {"results": results, "engine": args.get("engine", "google"), "tool_call_id": tool_call_id})
             yield sse_event("tool_output", {"tool": func_name, "output": tool_output, "tool_call_id": tool_call_id})
 
         elif func_name == "preview_app":
@@ -503,6 +504,7 @@ async def _knowledge_search(
 
         async with vector_async_session() as vector_db:
             retrieval_log = RetrievalLog(
+                org_id=ctx.conversation.org_id,
                 query=args.get("query", ctx.user_message),
                 chunks_retrieved=[
                     {
