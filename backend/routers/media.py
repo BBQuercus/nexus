@@ -52,9 +52,9 @@ async def transcribe_audio(
         detail = e.response.text or e.response.reason_phrase or "LiteLLM transcription request failed"
         raise HTTPException(status_code=e.response.status_code, detail=f"Transcription failed: {detail}") from e
     except httpx.TimeoutException as e:
-        raise HTTPException(status_code=504, detail=f"Transcription timed out: {type(e).__name__}") from e
+        raise HTTPException(status_code=504, detail="Audio transcription timed out. Try a shorter recording.") from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Transcription error: {type(e).__name__}: {e!r}") from e
+        raise HTTPException(status_code=500, detail="Audio transcription is temporarily unavailable. Please try again.") from e
 
 
 @router.post("/speak")
@@ -90,9 +90,9 @@ async def speak_text(
         detail = e.response.text or e.response.reason_phrase or "LiteLLM audio generation request failed"
         raise HTTPException(status_code=e.response.status_code, detail=f"Audio generation failed: {detail}") from e
     except httpx.TimeoutException as e:
-        raise HTTPException(status_code=504, detail=f"Audio generation timed out: {type(e).__name__}") from e
+        raise HTTPException(status_code=504, detail="Audio generation timed out. Try shorter text or try again.") from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Audio generation error: {type(e).__name__}: {e!r}") from e
+        raise HTTPException(status_code=500, detail="Audio generation is temporarily unavailable. Please try again.") from e
 
     try:
         audio = data["choices"][0]["message"]["audio"]
@@ -105,4 +105,4 @@ async def speak_text(
             headers={"Content-Disposition": f'inline; filename="speech.{ext}"'},
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Audio parsing error: {e}") from e
+        raise HTTPException(status_code=500, detail="Received an unexpected response from the audio service. Please try again.") from e

@@ -4,11 +4,13 @@ import { useState, useRef, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useStore } from '@/lib/store';
 import { logout as apiLogout } from '@/lib/api';
-import { LogOut, User, Keyboard, Shield, Users, BookOpen, Home, Compass } from 'lucide-react';
+import { LogOut, User, Keyboard, Shield, Users, BookOpen, Home, Compass, Bug } from 'lucide-react';
+import BugReportDialog from './bug-report-dialog';
 
 export default function UserDropdown({ compact = false }: { compact?: boolean }) {
   const user = useStore((s) => s.user);
   const [open, setOpen] = useState(false);
+  const [bugReportOpen, setBugReportOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const pathname = usePathname();
@@ -33,13 +35,17 @@ export default function UserDropdown({ compact = false }: { compact?: boolean })
 
   const handleLogout = async () => {
     setOpen(false);
+    const firstName = user?.name?.split(' ')[0];
     const confirmed = await useStore.getState().showConfirm({
       title: 'Log out?',
-      message: 'You will need to sign in again.',
+      message: firstName
+        ? `See you later, ${firstName}. You'll need to sign in again.`
+        : 'You will need to sign in again.',
       confirmLabel: 'Log out',
       variant: 'danger',
     });
     if (!confirmed) return;
+    useStore.getState().setAuthStatus('loading');
     try { await apiLogout(); } catch {}
     useStore.getState().reset();
     window.location.href = '/login';
@@ -156,8 +162,15 @@ export default function UserDropdown({ compact = false }: { compact?: boolean })
             )}
           </div>
 
-          {/* Logout */}
+          {/* Bug report & Logout */}
           <div className="border-t border-border-default py-1">
+            <button
+              onClick={() => { setOpen(false); setBugReportOpen(true); }}
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-text-secondary hover:text-text-primary hover:bg-surface-1 cursor-pointer transition-colors"
+            >
+              <Bug size={13} className="text-text-tertiary shrink-0" />
+              <span className="flex-1 text-left">Report a bug</span>
+            </button>
             <button
               onClick={handleLogout}
               className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-error/80 hover:text-error hover:bg-error/5 cursor-pointer transition-colors"
@@ -168,6 +181,7 @@ export default function UserDropdown({ compact = false }: { compact?: boolean })
           </div>
         </div>
       )}
+      <BugReportDialog open={bugReportOpen} onClose={() => setBugReportOpen(false)} />
     </div>
   );
 }

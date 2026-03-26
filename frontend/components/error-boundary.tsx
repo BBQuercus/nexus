@@ -36,7 +36,7 @@ export default class ErrorBoundary extends Component<Props, State> {
           </div>
           <div>
             <p className="text-sm font-medium text-text-primary">
-              {this.props.fallbackMessage || 'Something went wrong'}
+              {this.props.fallbackMessage || 'This section hit an error'}
             </p>
             {this.state.error && (
               <p className="mt-1 text-xs text-text-tertiary font-mono max-w-md truncate">

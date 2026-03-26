@@ -6,6 +6,7 @@ import { getLoginUrl, setLastProvider, clearLastProvider, type OAuthProvider } f
 import { passwordLogin, registerAccount, getCurrentUser } from '@/lib/api';
 import { useStore } from '@/lib/store';
 import { Zap, AlertCircle, Loader2 } from 'lucide-react';
+import { toast } from '@/components/toast';
 
 
 function signInOAuth(provider: OAuthProvider) {
@@ -44,13 +45,14 @@ function LoginContent() {
   const [formError, setFormError] = useState('');
   const [loading, setLoading] = useState(false);
   const [authError, setAuthError] = useState('');
+  const [oauthRedirecting, setOauthRedirecting] = useState<OAuthProvider | null>(null);
 
   // Read error from URL hash fragment (not query params) to avoid Next.js hydration issues
   useEffect(() => {
     const hash = window.location.hash; // e.g. "#error=auth_failed"
     if (hash.includes('error=')) {
       clearLastProvider();
-      setAuthError('Authentication failed. Please try again.');
+      setAuthError('Sign-in was cancelled or failed. Please try again.');
       // Clean up the hash
       history.replaceState(null, '', window.location.pathname);
     }
@@ -72,6 +74,8 @@ function LoginContent() {
       const user = await getCurrentUser();
       setUser(user);
       setAuthStatus('authenticated');
+      const firstName = user.name?.split(' ')[0];
+      toast.success(firstName ? `Welcome back, ${firstName}!` : 'Welcome back!');
       router.replace('/');
     } catch (err: unknown) {
       const msg = (err as { message?: string })?.message || 'Something went wrong';
@@ -81,7 +85,30 @@ function LoginContent() {
     }
   }
 
+  function handleOAuth(provider: OAuthProvider) {
+    setOauthRedirecting(provider);
+    setFormError('');
+    setAuthError('');
+    signInOAuth(provider);
+  }
+
   const displayError = formError || authError;
+
+  if (oauthRedirecting) {
+    const providerLabel = oauthRedirecting === 'microsoft' ? 'Microsoft' : 'GitHub';
+    return (
+      <div className="relative flex items-center justify-center h-screen bg-bg dot-texture overflow-hidden">
+        <div className="absolute inset-0 scan-line pointer-events-none" />
+        <div className="animate-fade-in-up flex flex-col items-center gap-4">
+          <Zap size={20} className="text-accent" />
+          <div className="w-32 h-0.5 shimmer" />
+          <span className="text-[10px] text-text-tertiary font-mono tracking-widest uppercase">
+            Redirecting to {providerLabel}
+          </span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative flex items-center justify-center h-screen bg-bg dot-texture overflow-hidden">
@@ -108,7 +135,7 @@ function LoginContent() {
         {/* OAuth buttons */}
         <div className="w-full flex flex-col gap-2">
           <button
-            onClick={() => signInOAuth('microsoft')}
+            onClick={() => handleOAuth('microsoft')}
             className="w-full flex items-center justify-center gap-2.5 px-6 py-2.5 bg-surface-1 border border-border-default text-sm text-text-primary font-medium hover:bg-surface-2 transition-all cursor-pointer"
           >
             <MicrosoftIcon size={18} />
@@ -116,7 +143,7 @@ function LoginContent() {
           </button>
 
           <button
-            onClick={() => signInOAuth('github')}
+            onClick={() => handleOAuth('github')}
             className="w-full flex items-center justify-center gap-2.5 px-6 py-2.5 bg-surface-1 border border-border-default text-sm text-text-primary font-medium hover:bg-surface-2 transition-all cursor-pointer"
           >
             <GitHubIcon size={18} />

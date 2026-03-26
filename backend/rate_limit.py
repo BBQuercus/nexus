@@ -48,7 +48,7 @@ async def check_rate_limit(
             if current_count >= limit:
                 raise HTTPException(
                     status_code=429,
-                    detail=f"Rate limit exceeded. Max {limit} requests per {window_seconds}s.",
+                    detail=f"You're sending requests too quickly. Please wait a moment (limit: {limit} per {window_seconds}s).",
                     headers={"Retry-After": str(window_seconds)},
                 )
             return
@@ -65,7 +65,7 @@ async def check_rate_limit(
     if len(_memory_requests[mem_key]) >= limit:
         raise HTTPException(
             status_code=429,
-            detail=f"Rate limit exceeded. Max {limit} requests per {window_seconds}s.",
+            detail=f"You're sending requests too quickly. Please wait a moment (limit: {limit} per {window_seconds}s).",
             headers={"Retry-After": str(window_seconds)},
         )
     _memory_requests[mem_key].append(now_mono)
@@ -87,7 +87,7 @@ class RateLimiter:
         if len(self._requests[key]) >= limit:
             raise HTTPException(
                 status_code=429,
-                detail=f"Rate limit exceeded. Max {limit} requests per {window_seconds}s.",
+                detail=f"You're sending requests too quickly. Please wait a moment (limit: {limit} per {window_seconds}s).",
                 headers={"Retry-After": str(window_seconds)},
             )
         self._requests[key].append(now)

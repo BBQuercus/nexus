@@ -475,12 +475,12 @@ export function useStreaming() {
         // User stopped — keep partial content
       } else {
         console.error('Stream error:', err);
-        toast.error('Connection lost. Refreshing conversation...');
+        toast.error('Connection interrupted — reloading your conversation...');
         // SSE stream recovery: reload conversation state from server
         try {
           await reloadConversation(convId);
         } catch {
-          toast.error('Failed to recover conversation state.');
+          toast.error('Couldn\'t restore the conversation. Please reload the page.');
         }
       }
     }
@@ -552,11 +552,11 @@ export function useStreaming() {
     } catch (err) {
       if ((err as Error).name !== 'AbortError') {
         console.error('Regenerate stream error:', err);
-        toast.error('Connection lost during regeneration. Refreshing...');
+        toast.error('Connection interrupted during regeneration. Reloading...');
         try {
           await reloadConversation(conversationId);
         } catch {
-          toast.error('Failed to recover conversation state.');
+          toast.error('Couldn\'t restore the conversation. Please reload the page.');
         }
       }
     }

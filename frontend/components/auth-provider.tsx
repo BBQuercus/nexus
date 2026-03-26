@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useStore } from '@/lib/store';
 import { getCurrentUser } from '@/lib/api';
@@ -10,11 +10,32 @@ import {
   stopTokenRefreshTimer,
   getLastProvider,
   getLoginUrl,
+  type OAuthProvider,
 } from '@/lib/auth';
 import { toast } from '@/components/toast';
 import { Zap } from 'lucide-react';
 
 const PUBLIC_PATHS = ['/login'];
+
+function TransitionScreen({ message }: { message: string }) {
+  return (
+    <div className="relative flex flex-col items-center justify-center h-screen bg-bg dot-texture overflow-hidden">
+      <div className="absolute inset-0 scan-line pointer-events-none" />
+      <div className="animate-fade-in-up flex flex-col items-center gap-4">
+        <Zap size={20} className="text-accent" />
+        <div className="w-32 h-0.5 shimmer" />
+        <span className="text-[10px] text-text-tertiary font-mono tracking-widest uppercase">
+          {message}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+const PROVIDER_LABELS: Record<string, string> = {
+  microsoft: 'Microsoft',
+  github: 'GitHub',
+};
 
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -22,6 +43,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   const setUser = useStore((s) => s.setUser);
   const setAuthStatus = useStore((s) => s.setAuthStatus);
   const authStatus = useStore((s) => s.authStatus);
+  const [redirectingTo, setRedirectingTo] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -33,7 +55,13 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         if (cancelled) return;
         setUser(user);
         setAuthStatus('authenticated');
+        // Show welcome toast if returning from OAuth flow
+        const justAuthenticated = sessionStorage.getItem('nexus_oauth_attempted');
         sessionStorage.removeItem('nexus_oauth_attempted');
+        if (justAuthenticated) {
+          const firstName = user.name?.split(' ')[0];
+          toast.success(firstName ? `Welcome back, ${firstName}!` : 'Welcome back!');
+        }
         return;
       } catch {
         // Session expired or missing — try silent refresh
@@ -76,7 +104,8 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
     if (lastProvider && lastProvider !== 'password' && !alreadyTried) {
       sessionStorage.setItem('nexus_oauth_attempted', '1');
-      window.location.href = getLoginUrl(lastProvider);
+      setRedirectingTo(PROVIDER_LABELS[lastProvider] || lastProvider);
+      window.location.href = getLoginUrl(lastProvider as OAuthProvider);
     } else {
       router.replace('/login');
     }
@@ -85,8 +114,12 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   // Token refresh timer
   useEffect(() => {
     if (authStatus !== 'authenticated') return;
+    const userName = useStore.getState().user?.name?.split(' ')[0];
     startTokenRefreshTimer(() => {
-      toast.warning('Session expiring soon. Please save your work.');
+      const msg = userName
+        ? `Your session expires soon, ${userName}. Save your work or it will refresh automatically.`
+        : 'Your session expires soon. Save your work or it will refresh automatically.';
+      toast.warning(msg);
     });
     return () => stopTokenRefreshTimer();
   }, [authStatus]);
@@ -96,18 +129,14 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     return <>{children}</>;
   }
 
+  // Auto OAuth re-redirect — show provider name
+  if (redirectingTo) {
+    return <TransitionScreen message={`Redirecting to ${redirectingTo}`} />;
+  }
+
   // Loading state for protected pages
   if (authStatus === 'loading') {
-    return (
-      <div className="relative flex flex-col items-center justify-center h-screen bg-bg dot-texture overflow-hidden">
-        <div className="absolute inset-0 scan-line pointer-events-none" />
-        <div className="animate-fade-in-up flex flex-col items-center gap-4">
-          <Zap size={20} className="text-accent" />
-          <div className="w-32 h-0.5 shimmer" />
-          <span className="text-[10px] text-text-tertiary font-mono tracking-widest uppercase">Initializing</span>
-        </div>
-      </div>
-    );
+    return <TransitionScreen message="Authenticating" />;
   }
 
   // Don't render protected content until authenticated

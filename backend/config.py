@@ -26,6 +26,8 @@ class Settings(BaseSettings):
     PGVECTOR_DATABASE_URL: str = ""
 
     SERVER_SECRET: str
+    ADMIN_API_TOKEN: str = ""
+    ADMIN_API_USER_ID: str = ""
 
     JWT_ENCODING_ALGORITHM: str = "HS256"
     JWT_ACCESS_TOKEN_MINUTES: int = 60  # 1 hour access token
@@ -51,6 +53,8 @@ class Settings(BaseSettings):
 
     # Redis
     REDIS_URL: str = "redis://localhost:6379/0"
+
+    TEAMS_WEBHOOK_URL: str = ""
 
     ENVIRONMENT: str = "development"
     COOKIE_SECURE: bool = False
