@@ -158,22 +158,14 @@ function ReturningUserScreen() {
       <div className="relative flex flex-col items-center gap-4">
         <div className="relative">
           <div className="absolute inset-0 w-14 h-14 -m-2 rounded-lg bg-accent/5 animate-pulse" />
-          <div className="relative flex items-center gap-2 z-10">
-            <Zap size={24} className="text-accent" />
-            <span className="text-2xl md:text-3xl font-bold tracking-[0.15em] uppercase">Nexus</span>
-          </div>
-        </div>
-
-        <div className="relative w-32 h-px">
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-accent/40 to-transparent" />
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-accent to-transparent opacity-60 animate-pulse" />
+          <Zap size={28} className="text-accent z-10" />
         </div>
 
         {greeting ? (
-          <p className="text-text-secondary text-sm">{greeting}</p>
+          <p className="text-2xl md:text-3xl font-bold tracking-tight text-text-primary">{greeting}</p>
         ) : (
-          <p className="text-text-tertiary text-xs tracking-[0.2em] uppercase">
-            Agents, tools, and sandboxed execution
+          <p className="text-2xl md:text-3xl font-bold tracking-tight text-text-primary">
+            What are we building today?
           </p>
         )}
       </div>
