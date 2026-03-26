@@ -65,47 +65,63 @@ function makeCapabilities(): Capability[] {
 
 
 const GREETINGS_MORNING = [
-  (name: string) => `Morning, ${name}. Coffee first or code first?`,
-  (name: string) => `Good morning, ${name}. What are we building today?`,
-  (name: string) => `Rise and shine, ${name}. Let\u2019s get to work.`,
-  (name: string) => `Hey ${name}, fresh start today. What\u2019s the plan?`,
-  (name: string) => `Top of the morning, ${name}.`,
-  (name: string) => `New day, new code. What\u2019s first, ${name}?`,
-  (name: string) => `Morning, ${name}. Let\u2019s ship something.`,
-  (name: string) => `Hey ${name}, the IDE is warm. Let\u2019s go.`,
+  (name: string) => `Good morning, ${name}`,
+  (name: string) => `Morning, ${name}. What are we building?`,
+  (name: string) => `Hey ${name}, fresh start today`,
+  (name: string) => `Morning, ${name}. Let\u2019s ship something`,
+  (name: string) => `Good morning, ${name}. Ready when you are`,
+  (name: string) => `Hey ${name}, what\u2019s on the agenda?`,
+  (name: string) => `Morning, ${name}. Coffee\u2019s ready, what\u2019s first?`,
+  (name: string) => `New day, ${name}. What do you need?`,
+  (name: string) => `Good morning, ${name}. Pick up where you left off?`,
+  (name: string) => `Morning, ${name}. What can I help with?`,
+  (name: string) => `Hey ${name}, let\u2019s make today count`,
+  (name: string) => `Good morning, ${name}. What\u2019s the plan?`,
 ];
 
 const GREETINGS_AFTERNOON = [
-  (name: string) => `Good afternoon, ${name}. What\u2019s next?`,
-  (name: string) => `Hey ${name}, ready for round two?`,
-  (name: string) => `Afternoon, ${name}. Let\u2019s keep the momentum going.`,
-  (name: string) => `What are we tackling this afternoon, ${name}?`,
-  (name: string) => `Back at it, ${name}. What do you need?`,
-  (name: string) => `Hey ${name}, halfway through the day. Let\u2019s make it count.`,
+  (name: string) => `Good afternoon, ${name}`,
+  (name: string) => `Hey ${name}, what\u2019s next?`,
+  (name: string) => `Afternoon, ${name}. How can I help?`,
+  (name: string) => `Hey ${name}, what are we working on?`,
   (name: string) => `Afternoon, ${name}. Pick up where you left off?`,
-  (name: string) => `Post-lunch productivity, ${name}. What\u2019s the move?`,
+  (name: string) => `Back at it, ${name}. What do you need?`,
+  (name: string) => `Hey ${name}, let\u2019s keep going`,
+  (name: string) => `Good afternoon, ${name}. Ready when you are`,
+  (name: string) => `Afternoon, ${name}. What can I do for you?`,
+  (name: string) => `Hey ${name}, how\u2019s the day going?`,
+  (name: string) => `Afternoon, ${name}. What\u2019s on your mind?`,
+  (name: string) => `Hey ${name}, need a hand with anything?`,
 ];
 
 const GREETINGS_EVENING = [
-  (name: string) => `Good evening, ${name}. Burning the midnight oil?`,
-  (name: string) => `Evening, ${name}. One more thing before you call it?`,
-  (name: string) => `Hey ${name}, still going strong.`,
-  (name: string) => `Late night session, ${name}? Let\u2019s make it count.`,
+  (name: string) => `Good evening, ${name}`,
+  (name: string) => `Evening, ${name}. Still going strong?`,
+  (name: string) => `Hey ${name}, winding down or just getting started?`,
+  (name: string) => `Evening, ${name}. What can I help with?`,
+  (name: string) => `Hey ${name}, one more thing or calling it a day?`,
   (name: string) => `Evening, ${name}. Quick fix or deep dive?`,
-  (name: string) => `Hey ${name}, the best code is written after dark.`,
-  (name: string) => `Night owl mode, ${name}. What are we working on?`,
-  (name: string) => `Quiet hours, ${name}. Perfect time to focus.`,
+  (name: string) => `Hey ${name}, the evening\u2019s all yours`,
+  (name: string) => `Good evening, ${name}. What do you need?`,
+  (name: string) => `Evening, ${name}. Quiet hours, good focus`,
+  (name: string) => `Hey ${name}, what are we tackling tonight?`,
+  (name: string) => `Evening, ${name}. Ready when you are`,
+  (name: string) => `Hey ${name}, how can I help tonight?`,
 ];
 
 const GREETINGS_LATE_NIGHT = [
-  (name: string) => `Still up, ${name}? Respect.`,
-  (name: string) => `${name}, it\u2019s past midnight. This better be good.`,
-  (name: string) => `The witching hour, ${name}. Let\u2019s debug something.`,
-  (name: string) => `Can\u2019t sleep, ${name}? Might as well ship.`,
-  (name: string) => `3 AM energy, ${name}. What\u2019s keeping you up?`,
-  (name: string) => `Late night, ${name}. No judgement, just code.`,
-  (name: string) => `${name}, you and the servers are the only ones awake.`,
-  (name: string) => `Midnight ${name}. Peak focus time.`,
+  (name: string) => `Hey ${name}, burning the midnight oil?`,
+  (name: string) => `Still up, ${name}? What do you need?`,
+  (name: string) => `Late night, ${name}. What are we working on?`,
+  (name: string) => `Hey ${name}, can\u2019t sleep? Let\u2019s build something`,
+  (name: string) => `${name}, the quiet hours are the productive ones`,
+  (name: string) => `Late night session, ${name}. How can I help?`,
+  (name: string) => `Hey ${name}, night owl mode activated`,
+  (name: string) => `Still going, ${name}? I\u2019m here`,
+  (name: string) => `Hey ${name}, what\u2019s keeping you up?`,
+  (name: string) => `Late night, ${name}. Perfect time to focus`,
+  (name: string) => `${name}, just us and the servers. What do you need?`,
+  (name: string) => `Hey ${name}, ready when you are`,
 ];
 
 function pickGreeting(name: string): string {
@@ -156,7 +172,7 @@ function ReturningUserScreen() {
     <div className="flex-1 flex flex-col items-center justify-center px-4 md:px-6 gap-6 md:gap-10 overflow-y-auto py-6 md:py-8 cascade-sections">
       {/* Logo + greeting */}
       <div className="flex flex-col items-center gap-5">
-        <Zap size={32} className="text-accent animate-[glow-pulse_3s_ease-in-out_infinite]" />
+        <Zap size={32} className="text-accent animate-[glow-pulse_4s_ease-in-out_infinite]" />
         {greeting ? (
           <p className="text-2xl md:text-3xl font-bold tracking-tight text-text-primary text-center">{greeting}</p>
         ) : (
