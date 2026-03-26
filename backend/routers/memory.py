@@ -7,8 +7,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.auth import get_current_user
-from backend.db import get_db
+from backend.auth import get_current_org, get_current_user, get_org_db
 from backend.models import Memory
 from backend.services.memory import get_relevant_memories
 
@@ -59,7 +58,8 @@ def _serialize_memory(m: Memory) -> dict:
 async def create_memory(
     body: CreateMemoryRequest,
     user_id: uuid.UUID = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    org_id: uuid.UUID = Depends(get_current_org),
+    db: AsyncSession = Depends(get_org_db),
 ):
     """Create a new memory."""
     valid_scopes = {"global", "project", "conversation"}
@@ -74,6 +74,7 @@ async def create_memory(
 
     mem = Memory(
         user_id=user_id,
+        org_id=org_id,
         scope=body.scope,
         category=body.category,
         content=body.content.strip(),
@@ -94,7 +95,7 @@ async def list_memories(
     project_id: uuid.UUID | None = Query(None),
     active: bool | None = Query(None),
     user_id: uuid.UUID = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_org_db),
 ):
     """List user's memories with optional filters."""
     stmt = select(Memory).where(Memory.user_id == user_id)
@@ -119,7 +120,7 @@ async def update_memory(
     memory_id: uuid.UUID,
     body: UpdateMemoryRequest,
     user_id: uuid.UUID = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_org_db),
 ):
     """Update an existing memory."""
     result = await db.execute(select(Memory).where(Memory.id == memory_id, Memory.user_id == user_id))
@@ -147,7 +148,7 @@ async def update_memory(
 async def delete_memory(
     memory_id: uuid.UUID,
     user_id: uuid.UUID = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_org_db),
 ):
     """Hard delete a memory."""
     result = await db.execute(select(Memory).where(Memory.id == memory_id, Memory.user_id == user_id))
@@ -166,7 +167,7 @@ async def get_relevant(
     project_id: uuid.UUID | None = Query(None),
     limit: int = Query(10, ge=1, le=50),
     user_id: uuid.UUID = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_org_db),
 ):
     """Get memories relevant to a context string."""
     memories = await get_relevant_memories(

@@ -1,4 +1,4 @@
-import type { Conversation, Message, Artifact, AgentPersona, User, FileNode, ConversationTree, KnowledgeBase, KBDocument, Citation, Project, SearchResult } from './types';
+import type { Conversation, Message, Artifact, AgentPersona, User, FileNode, ConversationTree, KnowledgeBase, KBDocument, Citation, Project, SearchResult, Organization, OrgMembership } from './types';
 import { getCsrfToken } from './auth';
 import { toApiUrl } from './runtime';
 
@@ -102,8 +102,9 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
       throw new ApiError(response.status, message, errorBody, requestId);
     }
 
-    // Toast for all other API errors (except error reporting itself)
-    if (!path.includes('/api/errors')) {
+    // Toast for all other API errors (except error reporting and stale conversation loads)
+    const isStaleConversationLoad = response.status === 404 && path.match(/\/api\/conversations\/[^/]+$/);
+    if (!path.includes('/api/errors') && !isStaleConversationLoad) {
       const friendly = _friendlyError(response.status, message, path);
       getToast()?.error(friendly);
     }
@@ -943,4 +944,85 @@ export async function updateMemory(id: string, params: {
 
 export async function deleteMemory(id: string): Promise<void> {
   return apiFetch<void>(`/api/memory/${id}`, { method: 'DELETE' });
+}
+
+// ── Organizations ──
+
+export interface OrgWithRole extends Organization {
+  role: string;
+  memberCount: number;
+}
+
+export async function listOrgs(): Promise<OrgWithRole[]> {
+  return apiFetch<OrgWithRole[]>('/api/orgs');
+}
+
+export async function getOrg(orgId: string): Promise<Organization> {
+  return apiFetch<Organization>(`/api/orgs/${orgId}`);
+}
+
+export async function createOrg(params: { name: string; slug?: string }): Promise<Organization> {
+  return apiFetch<Organization>('/api/orgs', {
+    method: 'POST',
+    body: JSON.stringify(params),
+  });
+}
+
+export async function updateOrg(orgId: string, params: {
+  name?: string;
+  slug?: string;
+  systemPrompt?: string;
+  settings?: Record<string, any>;
+}): Promise<Organization> {
+  return apiFetch<Organization>(`/api/orgs/${orgId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      name: params.name,
+      slug: params.slug,
+      system_prompt: params.systemPrompt,
+      settings: params.settings,
+    }),
+  });
+}
+
+export async function deleteOrg(orgId: string): Promise<void> {
+  return apiFetch<void>(`/api/orgs/${orgId}`, { method: 'DELETE' });
+}
+
+export interface OrgMemberInfo {
+  userId: string;
+  email: string;
+  name: string;
+  avatarUrl?: string;
+  role: string;
+  joinedAt?: string;
+}
+
+export async function listOrgMembers(orgId: string): Promise<OrgMemberInfo[]> {
+  return apiFetch<OrgMemberInfo[]>(`/api/orgs/${orgId}/members`);
+}
+
+export async function inviteOrgMember(orgId: string, params: { email: string; role?: string }): Promise<{ ok: boolean; userId: string }> {
+  return apiFetch<{ ok: boolean; userId: string }>(`/api/orgs/${orgId}/members`, {
+    method: 'POST',
+    body: JSON.stringify(params),
+  });
+}
+
+export async function updateOrgMemberRole(orgId: string, userId: string, role: string): Promise<void> {
+  return apiFetch<void>(`/api/orgs/${orgId}/members/${userId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ role }),
+  });
+}
+
+export async function removeOrgMember(orgId: string, userId: string): Promise<void> {
+  return apiFetch<void>(`/api/orgs/${orgId}/members/${userId}`, { method: 'DELETE' });
+}
+
+export async function switchOrg(orgId: string): Promise<{ ok: boolean }> {
+  return apiFetch<{ ok: boolean }>('/auth/switch-org', {
+    method: 'POST',
+    body: JSON.stringify({ org_id: orgId }),
+  });
 }

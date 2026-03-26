@@ -68,6 +68,18 @@ class AuditAction(StrEnum):
     SECURITY_RATE_LIMITED = "security.rate_limited"
     SECURITY_SSRF_BLOCKED = "security.ssrf_blocked"
 
+    # Organizations
+    ORG_CREATED = "org.created"
+    ORG_UPDATED = "org.updated"
+    ORG_DELETED = "org.deleted"
+    MEMBER_INVITED = "org.member_invited"
+    MEMBER_REMOVED = "org.member_removed"
+    MEMBER_ROLE_CHANGED = "org.member_role_changed"
+    ORG_SWITCHED = "org.switched"
+
+    # Settings (generic)
+    SETTINGS_CHANGED = "settings.changed"
+
 
 class AuditEvent(BaseModel):
     """An immutable audit event."""
@@ -77,6 +89,7 @@ class AuditEvent(BaseModel):
     action: AuditAction
     actor_id: str | None = None  # User who performed the action
     actor_email: str | None = None  # For human-readable logs
+    org_id: str | None = None  # Organization context
     resource_type: str | None = None  # What was acted on (conversation, agent, etc.)
     resource_id: str | None = None  # ID of the resource
     details: dict[str, Any] = {}  # Action-specific details
@@ -96,6 +109,7 @@ _BUFFER_FLUSH_THRESHOLD = 50
 async def record_audit_event(
     action: AuditAction,
     actor_id: str | None = None,
+    org_id: str | None = None,
     resource_type: str | None = None,
     resource_id: str | None = None,
     details: dict | None = None,
@@ -109,6 +123,7 @@ async def record_audit_event(
         timestamp=datetime.now(UTC),
         action=action,
         actor_id=actor_id,
+        org_id=org_id,
         resource_type=resource_type,
         resource_id=resource_id,
         details=details or {},
@@ -150,11 +165,12 @@ async def flush_audit_buffer():
             for event in events_to_flush:
                 await session.execute(
                     text("""
-                        INSERT INTO audit_events (id, timestamp, action, actor_id, resource_type, resource_id, details, ip_address, user_agent, request_id)
-                        VALUES (:id, :timestamp, :action, :actor_id, :resource_type, :resource_id, :details::jsonb, :ip_address, :user_agent, :request_id)
+                        INSERT INTO audit_events (id, org_id, timestamp, action, actor_id, resource_type, resource_id, details, ip_address, user_agent, request_id)
+                        VALUES (:id, :org_id::uuid, :timestamp, :action, :actor_id, :resource_type, :resource_id, :details::jsonb, :ip_address, :user_agent, :request_id)
                     """),
                     {
                         "id": event.id,
+                        "org_id": event.org_id,
                         "timestamp": event.timestamp,
                         "action": event.action.value,
                         "actor_id": event.actor_id,

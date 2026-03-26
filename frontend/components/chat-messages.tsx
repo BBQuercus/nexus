@@ -186,8 +186,16 @@ export default function ChatMessages() {
           if (cancelled || useStore.getState().activeConversationId !== conversationId) return;
           setConversationTree(tree);
         } catch {}
-      } catch (e) {
+      } catch (e: unknown) {
         console.error('Failed to load conversation:', e);
+        // If conversation no longer exists (404), clear stale selection
+        if (e && typeof e === 'object' && 'status' in e && (e as { status: number }).status === 404) {
+          if (!cancelled) {
+            useStore.getState().setActiveConversationId(null);
+            useStore.getState().setMessages([]);
+            try { localStorage.removeItem('nexus:activeConversationId'); } catch {}
+          }
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }

@@ -42,8 +42,10 @@ describe('UserDropdown', () => {
     const user = userEvent.setup()
     render(<UserDropdown />)
 
+    // Open the dropdown trigger
     await user.click(screen.getByRole('button', { name: /test user/i }))
-    await user.click(screen.getByRole('button', { name: /agents/i }))
+    // Radix DropdownMenu uses role="menuitem"
+    await user.click(screen.getByRole('menuitem', { name: /agents/i }))
 
     expect(push).toHaveBeenCalledWith('/agents')
   })
@@ -54,7 +56,7 @@ describe('UserDropdown', () => {
     render(<UserDropdown />)
 
     await user.click(screen.getByRole('button', { name: /test user/i }))
-    await user.click(screen.getByRole('button', { name: /knowledge bases/i }))
+    await user.click(screen.getByRole('menuitem', { name: /knowledge bases/i }))
 
     expect(push).not.toHaveBeenCalled()
   })

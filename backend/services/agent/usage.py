@@ -25,6 +25,7 @@ async def save_assistant_message(
     total_output_tokens: int,
     model: str,
     leaf_message_id: uuid.UUID | None,
+    org_id: uuid.UUID | None = None,
 ) -> Message:
     """Save the assistant message to the database and return it."""
     # Compute parent_id and branch_index for the assistant message
@@ -36,25 +37,25 @@ async def save_assistant_message(
         )
         assistant_branch_index = sibling_result.scalar() or 0
 
-    assistant_msg_obj = Message(
-        conversation_id=conversation_id,
-        role="assistant",
-        content=assistant_content,
-        reasoning=assistant_reasoning or None,
-        tool_calls=enriched_tool_calls if enriched_tool_calls else None,
-        images=collected_images if collected_images else None,
-        charts=collected_charts if collected_charts else None,
-        attachments=([{"type": "files", "files": collected_files}] if collected_files else None),
-        citations=rag_citations if rag_citations else None,
-        token_count=(total_input_tokens + total_output_tokens)
-        if (total_input_tokens + total_output_tokens) > 0
-        else None,
-        cost_usd=llm_service.calculate_cost(model, total_input_tokens, total_output_tokens)
-        if total_input_tokens > 0
-        else None,
-        parent_id=assistant_parent_id,
-        branch_index=assistant_branch_index,
-    )
+    msg_kwargs: dict = {
+        "conversation_id": conversation_id,
+        "role": "assistant",
+        "content": assistant_content,
+        "reasoning": assistant_reasoning or None,
+        "tool_calls": enriched_tool_calls if enriched_tool_calls else None,
+        "images": collected_images if collected_images else None,
+        "charts": collected_charts if collected_charts else None,
+        "attachments": ([{"type": "files", "files": collected_files}] if collected_files else None),
+        "citations": rag_citations if rag_citations else None,
+        "token_count": (total_input_tokens + total_output_tokens) if (total_input_tokens + total_output_tokens) > 0 else None,
+        "cost_usd": llm_service.calculate_cost(model, total_input_tokens, total_output_tokens) if total_input_tokens > 0 else None,
+        "parent_id": assistant_parent_id,
+        "branch_index": assistant_branch_index,
+    }
+    if org_id is not None:
+        msg_kwargs["org_id"] = org_id
+
+    assistant_msg_obj = Message(**msg_kwargs)
     db.add(assistant_msg_obj)
     await db.flush()
     return assistant_msg_obj
@@ -86,6 +87,7 @@ async def save_artifacts(
     assistant_content: str,
     all_tool_calls_raw: list[dict],
     runtime_artifacts: list[dict],
+    org_id: uuid.UUID | None = None,
 ) -> list:
     """Extract and save artifacts, return the list of artifact data."""
     artifacts_data = [
@@ -93,14 +95,17 @@ async def save_artifacts(
         *runtime_artifacts,
     ]
     for art_data in artifacts_data:
-        artifact = Artifact(
-            conversation_id=conversation_id,
-            message_id=message_id,
-            type=art_data["type"],
-            label=art_data["label"],
-            content=art_data["content"],
-            metadata_=art_data.get("metadata"),
-        )
+        art_kwargs: dict = {
+            "conversation_id": conversation_id,
+            "message_id": message_id,
+            "type": art_data["type"],
+            "label": art_data["label"],
+            "content": art_data["content"],
+            "metadata_": art_data.get("metadata"),
+        }
+        if org_id is not None:
+            art_kwargs["org_id"] = org_id
+        artifact = Artifact(**art_kwargs)
         db.add(artifact)
     return artifacts_data
 
@@ -112,15 +117,19 @@ async def log_usage(
     model: str,
     total_input_tokens: int,
     total_output_tokens: int,
+    org_id: uuid.UUID | None = None,
 ) -> None:
     """Log token usage to the database."""
     if total_input_tokens > 0 or total_output_tokens > 0:
-        usage_log = UsageLog(
-            user_id=conversation.user_id,
-            conversation_id=conversation_id,
-            model=model,
-            input_tokens=total_input_tokens,
-            output_tokens=total_output_tokens,
-            cost_usd=llm_service.calculate_cost(model, total_input_tokens, total_output_tokens),
-        )
+        usage_kwargs: dict = {
+            "user_id": conversation.user_id,
+            "conversation_id": conversation_id,
+            "model": model,
+            "input_tokens": total_input_tokens,
+            "output_tokens": total_output_tokens,
+            "cost_usd": llm_service.calculate_cost(model, total_input_tokens, total_output_tokens),
+        }
+        if org_id is not None:
+            usage_kwargs["org_id"] = org_id
+        usage_log = UsageLog(**usage_kwargs)
         db.add(usage_log)

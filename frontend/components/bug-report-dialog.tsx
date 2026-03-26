@@ -1,10 +1,15 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Bug, X, Send, Loader2, ImagePlus, Clipboard, Trash2 } from 'lucide-react';
+import { Bug, Send, Loader2, ImagePlus, Clipboard, Trash2 } from 'lucide-react';
 import { toast } from '@/components/toast';
 import { getCsrfToken } from '@/lib/auth';
 import { toApiUrl } from '@/lib/runtime';
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from './ui/dialog';
 
 const SEVERITY_OPTIONS = [
   { value: 'low', label: 'Low', color: 'bg-green-500/15 text-green-400 border-green-500/20' },
@@ -35,22 +40,13 @@ export default function BugReportDialog({ open, onClose }: { open: boolean; onCl
   const [submitting, setSubmitting] = useState(false);
   const titleRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const formRef = useRef<HTMLDivElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
     if (open) {
       setTimeout(() => titleRef.current?.focus(), 100);
     }
   }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', handleKey);
-    return () => document.removeEventListener('keydown', handleKey);
-  }, [open, onClose]);
 
   const addImageFiles = useCallback(async (files: FileList | File[]) => {
     const fileArr = Array.from(files).filter((f) => f.type.startsWith('image/'));
@@ -159,39 +155,25 @@ export default function BugReportDialog({ open, onClose }: { open: boolean; onCl
     }
   };
 
-  if (!open) return null;
-
   return (
-    <div
-      className="fixed inset-0 z-[80] flex items-center justify-center"
-      onDragEnter={(e) => { e.stopPropagation(); }}
-      onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
-      onDrop={(e) => { e.preventDefault(); e.stopPropagation(); }}
-    >
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-
-      {/* Dialog */}
-      <div
-        ref={formRef}
-        onDrop={handleDrop}
-        onDragOver={handleDragOver}
-        className="relative w-full max-w-lg mx-4 bg-surface-0 border border-border-default rounded-lg shadow-2xl shadow-black/40 animate-fade-in-up"
-        style={{ animationDuration: '0.15s' }}
-      >
+    <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) onClose(); }}>
+      <DialogContent className="max-w-lg p-0 gap-0" hideClose>
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border-default">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <div className="flex items-center gap-2.5">
             <Bug size={16} className="text-accent" />
-            <h2 className="text-sm font-semibold text-text-primary">Report a Bug</h2>
+            <DialogTitle>Report a Bug</DialogTitle>
           </div>
-          <button onClick={onClose} className="p-1 text-text-tertiary hover:text-text-primary rounded transition-colors cursor-pointer">
-            <X size={16} />
-          </button>
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="px-5 py-4 space-y-4 max-h-[70vh] overflow-y-auto">
+        <form
+          ref={formRef}
+          onSubmit={handleSubmit}
+          onDrop={handleDrop}
+          onDragOver={handleDragOver}
+          className="px-5 py-4 space-y-4 max-h-[70vh] overflow-y-auto"
+        >
           {/* Title */}
           <div>
             <label className="block text-xs font-medium text-text-secondary mb-1.5">Title *</label>
@@ -202,7 +184,7 @@ export default function BugReportDialog({ open, onClose }: { open: boolean; onCl
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Brief summary of the issue"
               required
-              className="w-full px-3 py-2 bg-bg border border-border-default rounded text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-accent transition-colors"
+              className="w-full px-3 py-2 bg-bg border border-border rounded text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-accent transition-colors"
             />
           </div>
 
@@ -218,7 +200,7 @@ export default function BugReportDialog({ open, onClose }: { open: boolean; onCl
                   className={`px-2.5 py-1 text-xs rounded border cursor-pointer transition-all ${
                     severity === opt.value
                       ? opt.color
-                      : 'bg-surface-1 text-text-tertiary border-border-default hover:border-border-focus'
+                      : 'bg-surface-1 text-text-tertiary border-border hover:border-border-focus'
                   }`}
                 >
                   {opt.label}
@@ -236,7 +218,7 @@ export default function BugReportDialog({ open, onClose }: { open: boolean; onCl
               placeholder="Describe what went wrong..."
               required
               rows={3}
-              className="w-full px-3 py-2 bg-bg border border-border-default rounded text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-accent transition-colors resize-none"
+              className="w-full px-3 py-2 bg-bg border border-border rounded text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-accent transition-colors resize-none"
             />
           </div>
 
@@ -249,7 +231,7 @@ export default function BugReportDialog({ open, onClose }: { open: boolean; onCl
             {screenshots.length > 0 && (
               <div className="flex flex-wrap gap-2 mb-2">
                 {screenshots.map((ss, i) => (
-                  <div key={i} className="relative group w-20 h-20 rounded border border-border-default overflow-hidden bg-surface-1">
+                  <div key={i} className="relative group w-20 h-20 rounded border border-border overflow-hidden bg-surface-1">
                     <img src={ss.dataUrl} alt={ss.name} className="w-full h-full object-cover" />
                     <button
                       type="button"
@@ -267,7 +249,7 @@ export default function BugReportDialog({ open, onClose }: { open: boolean; onCl
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="flex items-center gap-2 px-3 py-2 w-full border border-dashed border-border-default rounded text-xs text-text-tertiary hover:text-text-secondary hover:border-border-focus transition-colors cursor-pointer"
+                className="flex items-center gap-2 px-3 py-2 w-full border border-dashed border-border rounded text-xs text-text-tertiary hover:text-text-secondary hover:border-border-focus transition-colors cursor-pointer"
               >
                 <ImagePlus size={14} />
                 <span>Add screenshot</span>
@@ -299,7 +281,7 @@ export default function BugReportDialog({ open, onClose }: { open: boolean; onCl
               onChange={(e) => setSteps(e.target.value)}
               placeholder="1. Go to...&#10;2. Click on...&#10;3. See error"
               rows={3}
-              className="w-full px-3 py-2 bg-bg border border-border-default rounded text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-accent transition-colors resize-none"
+              className="w-full px-3 py-2 bg-bg border border-border rounded text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-accent transition-colors resize-none"
             />
           </div>
 
@@ -311,7 +293,7 @@ export default function BugReportDialog({ open, onClose }: { open: boolean; onCl
               onChange={(e) => setExpected(e.target.value)}
               placeholder="What should have happened instead?"
               rows={2}
-              className="w-full px-3 py-2 bg-bg border border-border-default rounded text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-accent transition-colors resize-none"
+              className="w-full px-3 py-2 bg-bg border border-border rounded text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-accent transition-colors resize-none"
             />
           </div>
 
@@ -321,7 +303,7 @@ export default function BugReportDialog({ open, onClose }: { open: boolean; onCl
         </form>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-border-default">
+        <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-border">
           <button
             type="button"
             onClick={onClose}
@@ -342,7 +324,7 @@ export default function BugReportDialog({ open, onClose }: { open: boolean; onCl
             <span>Submit Report</span>
           </button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

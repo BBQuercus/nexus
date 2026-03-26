@@ -4,8 +4,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.auth import get_current_user
-from backend.db import get_db
+from backend.auth import get_current_user, get_org_db
 from backend.models import Artifact, Conversation, Message
 
 router = APIRouter(prefix="/api/search", tags=["search"])
@@ -36,7 +35,7 @@ async def search(
     scope: str = Query("all", pattern="^(all|conversations|messages|artifacts)$"),
     limit: int = Query(20, ge=1, le=100),
     user_id: uuid.UUID = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_org_db),
 ):
     results: dict = {
         "conversations": [],

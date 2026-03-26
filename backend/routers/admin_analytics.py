@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.db import get_db
+from backend.auth import get_org_db
 from backend.services.rbac import Role, require_role
 
 router = APIRouter(prefix="/api/admin/analytics", tags=["admin-analytics"])
@@ -16,7 +16,7 @@ router = APIRouter(prefix="/api/admin/analytics", tags=["admin-analytics"])
 @router.get("/usage")
 async def get_usage_stats(
     user_id: uuid.UUID = Depends(require_role(Role.ADMIN)),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_org_db),
     days: int = Query(30, le=365),
 ):
     """Get usage statistics. Admin only."""
@@ -71,7 +71,7 @@ async def get_usage_stats(
 @router.get("/users")
 async def get_user_stats(
     user_id: uuid.UUID = Depends(require_role(Role.ADMIN)),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_org_db),
     limit: int = Query(50, le=200),
 ):
     """Get per-user usage statistics. Admin only."""

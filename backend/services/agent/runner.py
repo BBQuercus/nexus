@@ -277,6 +277,7 @@ async def run_agent_loop(
         total_output_tokens=total_output_tokens,
         model=model,
         leaf_message_id=leaf_message_id,
+        org_id=conversation.org_id,
     )
 
     # Link retrieval logs
@@ -290,10 +291,11 @@ async def run_agent_loop(
         assistant_content=assistant_content,
         all_tool_calls_raw=all_tool_calls_raw,
         runtime_artifacts=ctx.runtime_artifacts,
+        org_id=conversation.org_id,
     )
 
     # Log usage
-    await log_usage(db, conversation, conversation_id, model, total_input_tokens, total_output_tokens)
+    await log_usage(db, conversation, conversation_id, model, total_input_tokens, total_output_tokens, org_id=conversation.org_id)
 
     await db.commit()
 

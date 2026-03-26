@@ -9,8 +9,7 @@ from sqlalchemy import text as sa_text
 from sqlalchemy.exc import DBAPIError, ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.auth import get_current_user
-from backend.db import get_db
+from backend.auth import get_current_org, get_current_user, get_org_db
 from backend.logging_config import get_logger
 from backend.models import Chunk, Document, KnowledgeBase
 from backend.services.audit import AuditAction, record_audit_event
@@ -93,10 +92,12 @@ def _is_missing_table_error(exc: Exception, table: str) -> bool:
 async def create_knowledge_base(
     body: CreateKBRequest,
     user_id: uuid.UUID = Depends(get_current_user),
+    org_id: uuid.UUID = Depends(get_current_org),
     db: AsyncSession = Depends(get_vector_db),
 ):
     kb = KnowledgeBase(
         user_id=user_id,
+        org_id=org_id,
         name=body.name,
         description=body.description,
         embedding_model=body.embedding_model,
@@ -211,6 +212,7 @@ async def upload_documents(
         file_bytes = await file.read()
 
         doc = Document(
+            org_id=kb.org_id,
             knowledge_base_id=kb.id,
             user_id=user_id,
             filename=file.filename or "unnamed",
@@ -417,7 +419,7 @@ async def upload_conversation_documents(
     files: list[UploadFile] = File(...),
     user_id: uuid.UUID = Depends(get_current_user),
     db: AsyncSession = Depends(get_vector_db),
-    primary_db: AsyncSession = Depends(get_db),
+    primary_db: AsyncSession = Depends(get_org_db),
 ):
     """Upload documents scoped to a conversation (no KB needed)."""
     from backend.models import Conversation
@@ -436,6 +438,7 @@ async def upload_conversation_documents(
         file_bytes = await file.read()
 
         doc = Document(
+            org_id=conv.org_id,
             user_id=user_id,
             conversation_id=conv_id,
             filename=file.filename or "unnamed",
@@ -469,7 +472,7 @@ async def list_conversation_documents(
     conv_id: uuid.UUID,
     user_id: uuid.UUID = Depends(get_current_user),
     db: AsyncSession = Depends(get_vector_db),
-    primary_db: AsyncSession = Depends(get_db),
+    primary_db: AsyncSession = Depends(get_org_db),
 ):
     from backend.models import Conversation
 

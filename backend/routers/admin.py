@@ -7,10 +7,8 @@ from pydantic import BaseModel
 from sqlalchemy import Date, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.auth import get_current_user
-from backend.db import get_db
+from backend.auth import get_current_org, get_current_user, get_org_db
 from backend.logging_config import get_logger
-from backend.rate_limit import check_rate_limit
 from backend.models import (
     Conversation,
     Feedback,
@@ -19,6 +17,7 @@ from backend.models import (
     UsageLog,
     User,
 )
+from backend.rate_limit import check_rate_limit
 
 logger = get_logger("admin")
 
@@ -30,16 +29,28 @@ router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 async def get_admin_user(
     user_id: uuid.UUID = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    org_id: uuid.UUID = Depends(get_current_org),
+    db: AsyncSession = Depends(get_org_db),
 ) -> User:
-    """Verify the current user is an admin. Returns the User object."""
+    """Verify the current user is an admin in the current org. Returns the User object."""
+    from backend.models import UserOrg
+
     await check_rate_limit(str(user_id), limit=60, window_seconds=60, category="admin")
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    role = user.role or ("admin" if user.is_admin else "editor")
-    if role not in ("admin", "org_admin"):
+
+    # Platform superadmins always pass
+    if user.is_superadmin:
+        return user
+
+    # Check org-level role (user_orgs has no RLS — safe to query directly)
+    membership_result = await db.execute(
+        select(UserOrg.role).where(UserOrg.user_id == user_id, UserOrg.org_id == org_id)
+    )
+    role = membership_result.scalar_one_or_none()
+    if role not in ("admin", "owner"):
         raise HTTPException(status_code=403, detail="Admin access required")
     return user
 
@@ -57,7 +68,7 @@ class UpdateUserAdminRequest(BaseModel):
 @router.get("/overview")
 async def admin_overview(
     admin: User = Depends(get_admin_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_org_db),
 ):
     """Dashboard overview: totals, active users, error rate."""
     now = datetime.now(UTC)
@@ -109,7 +120,7 @@ async def admin_list_feedback(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
     admin: User = Depends(get_admin_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_org_db),
 ):
     """List all feedback with pagination and filters."""
     query = select(Feedback).order_by(Feedback.created_at.desc())
@@ -175,7 +186,7 @@ async def admin_list_feedback(
 @router.get("/feedback/stats")
 async def admin_feedback_stats(
     admin: User = Depends(get_admin_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_org_db),
 ):
     """Feedback statistics: by model, common tags, rating distribution, trends."""
     now = datetime.now(UTC)
@@ -242,7 +253,7 @@ async def admin_feedback_stats(
 @router.get("/usage")
 async def admin_usage(
     admin: User = Depends(get_admin_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_org_db),
 ):
     """Usage analytics: messages per day, popular models, avg response time, most active users."""
     now = datetime.now(UTC)
@@ -314,9 +325,10 @@ async def admin_list_users(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
     admin: User = Depends(get_admin_user),
-    db: AsyncSession = Depends(get_db),
+    org_id: uuid.UUID = Depends(get_current_org),
+    db: AsyncSession = Depends(get_org_db),
 ):
-    """List all users with their stats."""
+    """List all users in the current org with their stats."""
     # Count total
     result = await db.execute(select(func.count(User.id)))
     total = result.scalar() or 0
@@ -335,13 +347,22 @@ async def admin_list_users(
         msg_result = await db.execute(select(func.count(UsageLog.id)).where(UsageLog.user_id == u.id))
         msg_count = msg_result.scalar() or 0
 
+        # Get the user's role in the current org
+        from backend.models import UserOrg
+
+        role_result = await db.execute(
+            select(UserOrg.role).where(UserOrg.user_id == u.id, UserOrg.org_id == org_id)
+        )
+        user_role = role_result.scalar_one_or_none() or "none"
+
         items.append(
             {
                 "id": str(u.id),
                 "email": u.email,
                 "name": u.name,
                 "avatar_url": u.avatar_url,
-                "role": u.role or ("admin" if u.is_admin else "editor"),
+                "role": user_role,
+                "isSuperadmin": u.is_superadmin,
                 "conversation_count": conv_count,
                 "message_count": msg_count,
                 "last_seen": u.last_seen_at.isoformat() if u.last_seen_at else None,
@@ -362,34 +383,46 @@ async def admin_update_user(
     user_id: uuid.UUID,
     body: UpdateUserAdminRequest,
     admin: User = Depends(get_admin_user),
-    db: AsyncSession = Depends(get_db),
+    org_id: uuid.UUID = Depends(get_current_org),
+    db: AsyncSession = Depends(get_org_db),
 ):
-    """Update a user's admin status."""
-    result = await db.execute(select(User).where(User.id == user_id))
-    user = result.scalar_one_or_none()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    """Update a user's role in the current org."""
+    from backend.models import UserOrg
 
-    valid_roles = {"viewer", "editor", "admin", "org_admin"}
+    valid_roles = {"viewer", "editor", "admin", "owner"}
     if body.role not in valid_roles:
         raise HTTPException(status_code=422, detail=f"Invalid role. Must be one of: {', '.join(sorted(valid_roles))}")
 
-    user.role = body.role
-    user.is_admin = body.role in ("admin", "org_admin")  # keep is_admin in sync during migration
+    # Find the user's membership in this org
+    result = await db.execute(
+        select(UserOrg).where(UserOrg.user_id == user_id, UserOrg.org_id == org_id)
+    )
+    membership = result.scalar_one_or_none()
+    if not membership:
+        raise HTTPException(status_code=404, detail="User not found in this organization")
+
+    old_role = membership.role
+    membership.role = body.role
     await db.flush()
 
     logger.info(
         "user_role_updated",
         target_user_id=str(user_id),
-        role=body.role,
+        org_id=str(org_id),
+        old_role=old_role,
+        new_role=body.role,
         updated_by=str(admin.id),
     )
 
+    # Get user info for response
+    user_result = await db.execute(select(User).where(User.id == user_id))
+    user = user_result.scalar_one_or_none()
+
     return {
-        "id": str(user.id),
-        "email": user.email,
-        "name": user.name,
-        "role": user.role,
+        "id": str(user.id) if user else str(user_id),
+        "email": user.email if user else "",
+        "name": user.name if user else "",
+        "role": membership.role,
     }
 
 
@@ -398,7 +431,7 @@ async def admin_list_errors(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
     admin: User = Depends(get_admin_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_org_db),
 ):
     """List frontend errors with pagination."""
     # Count total
@@ -444,7 +477,7 @@ async def admin_list_errors(
 @router.get("/models")
 async def admin_model_metrics(
     admin: User = Depends(get_admin_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_org_db),
 ):
     """Per-model metrics from usage_logs."""
     result = await db.execute(

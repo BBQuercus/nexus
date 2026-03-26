@@ -6,8 +6,7 @@ from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.auth import get_current_user
-from backend.db import get_db
+from backend.auth import get_current_org, get_current_user, get_org_db
 from backend.models import Conversation, Project
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
@@ -68,10 +67,12 @@ def _serialize_project(p: Project, conversation_count: int = 0) -> dict:
 async def create_project(
     body: CreateProjectRequest,
     user_id: uuid.UUID = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    org_id: uuid.UUID = Depends(get_current_org),
+    db: AsyncSession = Depends(get_org_db),
 ):
     project = Project(
         user_id=user_id,
+        org_id=org_id,
         name=body.name,
         description=body.description,
         icon=body.icon,
@@ -91,7 +92,7 @@ async def create_project(
 async def list_projects(
     include_archived: bool = Query(False),
     user_id: uuid.UUID = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_org_db),
 ):
     query = select(Project).where(Project.user_id == user_id)
     if not include_archived:
@@ -119,7 +120,7 @@ async def list_projects(
 async def get_project(
     project_id: uuid.UUID,
     user_id: uuid.UUID = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_org_db),
 ):
     result = await db.execute(select(Project).where(Project.id == project_id, Project.user_id == user_id))
     project = result.scalar_one_or_none()
@@ -137,7 +138,7 @@ async def update_project(
     project_id: uuid.UUID,
     body: UpdateProjectRequest,
     user_id: uuid.UUID = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_org_db),
 ):
     result = await db.execute(select(Project).where(Project.id == project_id, Project.user_id == user_id))
     project = result.scalar_one_or_none()
@@ -173,7 +174,7 @@ async def update_project(
 async def delete_project(
     project_id: uuid.UUID,
     user_id: uuid.UUID = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_org_db),
 ):
     result = await db.execute(select(Project).where(Project.id == project_id, Project.user_id == user_id))
     project = result.scalar_one_or_none()
@@ -196,7 +197,7 @@ async def move_conversation_to_project(
     project_id: uuid.UUID,
     body: MoveConversationRequest,
     user_id: uuid.UUID = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_org_db),
 ):
     # Verify project ownership
     proj_result = await db.execute(select(Project).where(Project.id == project_id, Project.user_id == user_id))
@@ -222,7 +223,7 @@ async def list_project_conversations(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
     user_id: uuid.UUID = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_org_db),
 ):
     # Verify project ownership
     proj_result = await db.execute(select(Project).where(Project.id == project_id, Project.user_id == user_id))

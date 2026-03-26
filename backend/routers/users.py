@@ -5,8 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.auth import get_current_user
-from backend.db import get_db
+from backend.auth import get_current_user, get_org_db
 from backend.models import UsageLog, User
 
 router = APIRouter(prefix="/api/users", tags=["users"])
@@ -15,7 +14,7 @@ router = APIRouter(prefix="/api/users", tags=["users"])
 @router.get("/me")
 async def get_me(
     user_id: uuid.UUID = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_org_db),
 ):
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
@@ -34,7 +33,7 @@ async def get_me(
 @router.get("/me/usage")
 async def get_usage(
     user_id: uuid.UUID = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_org_db),
 ):
     """Usage stats for the current month."""
     now = datetime.now(UTC)
@@ -72,7 +71,7 @@ async def get_usage(
 @router.get("/me/usage/history")
 async def get_usage_history(
     user_id: uuid.UUID = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_org_db),
 ):
     """Daily usage for the last 30 days."""
     now = datetime.now(UTC)
