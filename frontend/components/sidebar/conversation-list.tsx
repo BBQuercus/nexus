@@ -25,6 +25,7 @@ interface ConversationListProps {
   onPin: (id: string, e: React.MouseEvent) => void;
   onExport: (conv: Conversation, e: React.MouseEvent) => void;
   onDelete: (id: string, e: React.MouseEvent) => void;
+  onRenameStart: (conv: Conversation, e: React.MouseEvent) => void;
   onRenameChange: (value: string) => void;
   onRenameSubmit: () => void;
   onRenameCancel: () => void;
@@ -48,6 +49,7 @@ export default function ConversationList({
   onPin,
   onExport,
   onDelete,
+  onRenameStart,
   onRenameChange,
   onRenameSubmit,
   onRenameCancel,
@@ -95,6 +97,7 @@ export default function ConversationList({
               onPin={onPin}
               onExport={onExport}
               onDelete={onDelete}
+              onRenameStart={onRenameStart}
               onRenameChange={onRenameChange}
               onRenameSubmit={onRenameSubmit}
               onRenameCancel={onRenameCancel}

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { SkipNav } from '@/components/accessibility';
 import AuthProvider from '@/components/auth-provider';
+import OfflineBanner from '@/components/offline-banner';
 import QueryProvider from '@/components/query-provider';
 import { ServiceWorkerRegister } from '@/components/sw-register';
 
@@ -31,6 +32,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-screen overflow-hidden">
         <SkipNav />
         <ServiceWorkerRegister />
+        <OfflineBanner />
         <QueryProvider>
           <AuthProvider>
             {children}
