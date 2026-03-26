@@ -1,7 +1,7 @@
 // Nexus Service Worker — app shell and static asset caching only.
 // No offline chat or API caching. The app requires network for LLM calls.
 
-const CACHE_NAME = 'nexus-shell-v1';
+const CACHE_NAME = 'nexus-shell-v2';
 
 // Static assets to cache on install for fast revisits
 const SHELL_ASSETS = [

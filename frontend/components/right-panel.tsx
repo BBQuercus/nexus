@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useStore } from '@/lib/store';
-import { useIsMobile } from '@/lib/useMediaQuery';
+import { useIsDesktop } from '@/lib/useMediaQuery';
 import { FolderOpen, Eye, Layers, Network, BookOpen, Brain, X, StopCircle, Play, Trash2 } from 'lucide-react';
 import * as api from '@/lib/api';
 import FilesPanel from './files-panel';
@@ -131,7 +131,7 @@ export default function RightPanel() {
     }
   }, [visibleTabs, activeTab, setRightPanelTab]);
 
-  const isMobile = useIsMobile();
+  const isDesktop = useIsDesktop();
   const setRightPanelOpen = useStore((s) => s.setRightPanelOpen);
 
   const [width, setWidth] = useState(getInitialWidth);
@@ -181,10 +181,10 @@ export default function RightPanel() {
   return (
     <div
       className="relative flex flex-col bg-surface-0 border-l border-border-default shrink-0 h-full"
-      style={isMobile ? { width: '100%' } : { width }}
+      style={isDesktop ? { width } : { width: '100%' }}
     >
-      {/* Resize handle — hidden on mobile */}
-      {!isMobile && (
+      {/* Resize handle — only on desktop */}
+      {isDesktop && (
         <div
           onMouseDown={onMouseDown}
           className="absolute -left-[5px] top-0 bottom-0 w-[10px] cursor-col-resize z-30 flex items-stretch justify-center"

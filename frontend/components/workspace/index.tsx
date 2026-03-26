@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import { useStore } from '@/lib/store';
-import { useIsMobile } from '@/lib/useMediaQuery';
+import { useIsDesktop } from '@/lib/useMediaQuery';
 import { useVisualViewport } from '@/lib/useVisualViewport';
 import { initErrorReporter } from '@/lib/error-reporter';
 import { toast } from '@/components/toast';
@@ -39,7 +39,7 @@ export default function Workspace() {
   const resolveConfirm = useStore((s) => s.resolveConfirm);
   const setSidebarOpen = useStore((s) => s.setSidebarOpen);
 
-  const isMobile = useIsMobile();
+  const isDesktop = useIsDesktop();
   useVisualViewport();
 
   const { focusMode, focusModeRef, toggleFocusMode } = useFocusMode();
@@ -65,33 +65,44 @@ export default function Workspace() {
     return () => window.removeEventListener('nexus:open-shortcuts', handler);
   }, []);
 
-  // Onboarding tour: auto-start for new users, listen for manual trigger
+  // Onboarding tour: auto-start only for genuinely new users, listen for manual trigger
+  const user = useStore((s) => s.user);
+  const conversations = useStore((s) => s.conversations);
+
   useEffect(() => {
     const handleStartTour = () => startTour();
     window.addEventListener('nexus:start-tour', handleStartTour);
 
     if (!isTourCompleted()) {
-      const timeout = setTimeout(() => startTour(), 800);
-      return () => {
-        clearTimeout(timeout);
-        window.removeEventListener('nexus:start-tour', handleStartTour);
-      };
+      // Skip auto-tour for existing accounts: if the user has any conversations
+      // they've used the app before and don't need the intro tour.
+      const isReturningUser = conversations.length > 0;
+      if (isReturningUser) {
+        // Silently mark as completed so it never auto-triggers
+        try { localStorage.setItem('nexus-tour-completed', 'true'); } catch {}
+      } else {
+        const timeout = setTimeout(() => startTour(), 800);
+        return () => {
+          clearTimeout(timeout);
+          window.removeEventListener('nexus:start-tour', handleStartTour);
+        };
+      }
     }
 
     return () => window.removeEventListener('nexus:start-tour', handleStartTour);
-  }, []);
+  }, [conversations.length]);
 
-  // Auto-close sidebar on mobile when selecting a conversation
+  // Auto-close sidebar on non-desktop when selecting a conversation
   useEffect(() => {
-    if (isMobile && activeConversationId && sidebarOpen) {
+    if (!isDesktop && activeConversationId && sidebarOpen) {
       setSidebarOpen(false);
     }
   }, [activeConversationId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Close sidebar by default on mobile mount
+  // Close sidebar by default on non-desktop mount
   useEffect(() => {
-    if (isMobile) setSidebarOpen(false);
-  }, [isMobile]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!isDesktop) setSidebarOpen(false);
+  }, [isDesktop]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const hasConversation = !!activeConversationId;
 

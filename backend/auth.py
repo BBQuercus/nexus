@@ -291,9 +291,19 @@ async def login(provider: str | None = None):
 
 
 @router.get("/callback")
-async def callback(code: str | None = None, db: AsyncSession = Depends(get_db)):
+async def callback(
+    code: str | None = None,
+    error: str | None = None,
+    error_description: str | None = None,
+    db: AsyncSession = Depends(get_db),
+):
     """Handle WorkOS OAuth callback, upsert user, issue tokens."""
     from fastapi.responses import RedirectResponse
+
+    if error:
+        logger.error("auth_callback_provider_error", error=error, description=error_description)
+        frontend_url = _get_frontend_url()
+        return RedirectResponse(url=f"{frontend_url}/login#error=auth_failed")
 
     if not code:
         return RedirectResponse(url=_get_frontend_url())
@@ -301,16 +311,18 @@ async def callback(code: str | None = None, db: AsyncSession = Depends(get_db)):
     try:
         auth_response = exchange_code(code)
         workos_user = auth_response.user
+        logger.info("auth_callback_code_exchanged", email=getattr(workos_user, "email", "unknown"))
     except Exception as e:
-        logger.error("auth_callback_failed", error=str(e))
+        logger.error("auth_callback_failed", error=str(e), error_type=type(e).__name__)
         frontend_url = _get_frontend_url()
-        return RedirectResponse(url=f"{frontend_url}/login?error=auth_failed")
+        return RedirectResponse(url=f"{frontend_url}/login#error=auth_failed")
 
     user = await _upsert_workos_user(workos_user, db)
 
     frontend_url = _get_frontend_url()
-    response = RedirectResponse(url=frontend_url)
+    response = RedirectResponse(url=frontend_url, status_code=302)
     _set_session_cookies(response, user)
+    logger.info("auth_callback_success", user_id=str(user.id), redirect_to=frontend_url)
     return response
 
 

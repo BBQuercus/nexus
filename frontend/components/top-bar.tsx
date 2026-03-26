@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useStore } from '@/lib/store';
-import { useIsMobile } from '@/lib/useMediaQuery';
+import { useIsDesktop } from '@/lib/useMediaQuery';
 import { PanelRight, PanelLeft, Search, Plus, Zap } from 'lucide-react';
 import * as api from '@/lib/api';
 import UserDropdown from './user-dropdown';
@@ -11,7 +11,7 @@ import UserDropdown from './user-dropdown';
 
 export default function TopBar() {
   const router = useRouter();
-  const isMobile = useIsMobile();
+  const isDesktop = useIsDesktop();
   const isStreaming = useStore((s) => s.isStreaming);
   const rightPanelOpen = useStore((s) => s.rightPanelOpen);
   const setRightPanelOpen = useStore((s) => s.setRightPanelOpen);
@@ -105,9 +105,9 @@ export default function TopBar() {
         </div>
       </div>
 
-      {/* Full header bar — transitions height to collapse when sidebar is closed. Hidden on mobile (sidebar has its own header). */}
+      {/* Full header bar — only on desktop (>=1280px). Mobile/tablet use overlay sidebar with its own header. */}
       <div className={`relative flex items-center pl-3 pr-20 bg-surface-0 border-b shrink-0 z-10 transition-[height,border-color,opacity] duration-200 ease-in-out overflow-hidden ${
-        isMobile ? 'h-0 border-transparent opacity-0' : (sidebarOpen ? 'h-12 border-border-default opacity-100' : 'h-0 border-transparent opacity-0')
+        isDesktop && sidebarOpen ? 'h-12 border-border-default opacity-100' : 'h-0 border-transparent opacity-0'
       }`}>
         {isStreaming && (
           <div className="absolute bottom-0 left-0 right-0 h-px overflow-hidden">

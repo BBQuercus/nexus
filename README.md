@@ -67,6 +67,9 @@ Frontend:
 Recommended observability variables:
 
 - `OTEL_EXPORTER_OTLP_ENDPOINT`
+- `OTEL_EXPORTER_OTLP_PROTOCOL`
+- `OTEL_EXPORTER_OTLP_HEADERS`
+- `OTEL_EXPORTER_OTLP_INSECURE`
 - `RELEASE_VERSION`
 - `BUILD_SHA`
 
@@ -110,7 +113,7 @@ Baseline monitoring is built around four layers:
 - Prometheus metrics via `/metrics`
 - OpenTelemetry export via `OTEL_EXPORTER_OTLP_ENDPOINT`
 
-The scheduled monitor workflow runs `scripts/smoke_check.py` against dev and production every 15 minutes. Point `OTEL_EXPORTER_OTLP_ENDPOINT` at Grafana Cloud, Honeycomb, Datadog, or another OTLP collector to capture traces outside Railway.
+The scheduled monitor workflow runs `scripts/smoke_check.py` against dev and production every 15 minutes. `OTEL_EXPORTER_OTLP_PROTOCOL` supports both `grpc` and `http/protobuf`, which lets the backend send traces to a public Tempo endpoint even when the collector lives in a different Railway project. Use `OTEL_EXPORTER_OTLP_HEADERS` for multi-tenant collectors and `OTEL_EXPORTER_OTLP_INSECURE=true` only for plaintext collectors.
 
 ## Manual deploys
 
