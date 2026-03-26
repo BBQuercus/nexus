@@ -169,21 +169,40 @@ function groupByProvider(models: ModelOption[]) {
   }, {} as Record<ModelProvider, ModelOption[]>);
 }
 
-export function RetryWithModelMenu({ messageId, onClose }: { messageId: string; onClose: () => void }) {
+export function RetryWithModelMenu({ messageId, onClose, triggerRef }: { messageId: string; onClose: () => void; triggerRef: React.RefObject<HTMLButtonElement | null> }) {
   const activeConversationId = useStore((s) => s.activeConversationId);
   const activeModel = useStore((s) => s.activeModel);
   const isStreaming = useStore((s) => s.isStreaming);
   const menuRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+
+  // Position the menu using fixed coordinates, opening upward or downward based on available space
+  useEffect(() => {
+    const trigger = triggerRef.current;
+    if (!trigger) return;
+    const rect = trigger.getBoundingClientRect();
+    const menuHeight = 320; // max-h-80 = 320px
+    const spaceAbove = rect.top;
+    const spaceBelow = window.innerHeight - rect.bottom;
+
+    if (spaceAbove >= menuHeight || spaceAbove > spaceBelow) {
+      // Open upward
+      setPos({ top: Math.max(8, rect.top - Math.min(menuHeight, spaceAbove - 8)), left: rect.left });
+    } else {
+      // Open downward
+      setPos({ top: rect.bottom + 4, left: rect.left });
+    }
+  }, [triggerRef]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) onClose();
+      if (menuRef.current && !menuRef.current.contains(e.target as Node) && triggerRef.current && !triggerRef.current.contains(e.target as Node)) onClose();
     };
     const keyHandler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('mousedown', handler);
     document.addEventListener('keydown', keyHandler);
     return () => { document.removeEventListener('mousedown', handler); document.removeEventListener('keydown', keyHandler); };
-  }, [onClose]);
+  }, [onClose, triggerRef]);
 
   const handleRetry = (modelId: string) => {
     if (!activeConversationId || isStreaming) return;
@@ -196,8 +215,14 @@ export function RetryWithModelMenu({ messageId, onClose }: { messageId: string; 
   const primaryModels = MODELS.filter((m) => !m.legacy);
   const grouped = groupByProvider(primaryModels);
 
+  if (!pos) return null;
+
   return (
-    <div ref={menuRef} className="absolute left-0 bottom-full mb-1.5 w-72 max-h-80 overflow-y-auto bg-surface-0 border border-border-default rounded-lg shadow-2xl shadow-black/40 z-50 animate-fade-in-up" style={{ animationDuration: '0.1s' }}>
+    <div
+      ref={menuRef}
+      className="fixed w-72 max-h-80 overflow-y-auto bg-surface-0 border border-border-default rounded-lg shadow-2xl shadow-black/40 z-50 animate-fade-in-up"
+      style={{ animationDuration: '0.1s', top: pos.top, left: pos.left }}
+    >
       {PROVIDER_ORDER.filter((p) => grouped[p]?.length).map((provider, gi) => (
         <div key={provider}>
           {gi > 0 && <div className="h-px bg-border-subtle mx-3" />}
@@ -495,6 +520,8 @@ export function AssistantMessageActions({
   showBranchInput: boolean;
   onToggleBranch: () => void;
 }) {
+  const retryTriggerRef = useRef<HTMLButtonElement>(null);
+
   return (
     <div className="relative flex items-center gap-3 mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
       <button onClick={onCopy} className="flex items-center gap-1 text-[10px] text-text-tertiary hover:text-text-secondary cursor-pointer">
@@ -508,19 +535,18 @@ export function AssistantMessageActions({
           <Volume2 size={10} /> {isGeneratingAudio ? 'Audio...' : 'Audio'}
         </button>
       )}
-      <div className="relative">
-        <button
-          onClick={onToggleRetryMenu}
-          className={`flex items-center gap-1 text-[10px] cursor-pointer transition-colors ${
-            showRetryMenu ? 'text-accent' : 'text-text-tertiary hover:text-text-secondary'
-          }`}
-        >
-          <RefreshCw size={10} /> Retry with...
-        </button>
-        {showRetryMenu && (
-          <RetryWithModelMenu messageId={message.id} onClose={onToggleRetryMenu} />
-        )}
-      </div>
+      <button
+        ref={retryTriggerRef}
+        onClick={onToggleRetryMenu}
+        className={`flex items-center gap-1 text-[10px] cursor-pointer transition-colors ${
+          showRetryMenu ? 'text-accent' : 'text-text-tertiary hover:text-text-secondary'
+        }`}
+      >
+        <RefreshCw size={10} /> Retry with...
+      </button>
+      {showRetryMenu && (
+        <RetryWithModelMenu messageId={message.id} onClose={onToggleRetryMenu} triggerRef={retryTriggerRef} />
+      )}
       <button
         onClick={onToggleBranch}
         className={`flex items-center gap-1 text-[10px] cursor-pointer transition-colors ${
