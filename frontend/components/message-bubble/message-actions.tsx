@@ -529,7 +529,9 @@ export function AssistantMessageActions({
   const retryBtnRef = useRef<HTMLButtonElement>(null);
 
   return (
-    <div className="flex items-center gap-3 mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+    <div className={`flex items-center gap-3 mt-1.5 transition-opacity ${
+      showRetryMenu ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+    }`}>
       <button onClick={onCopy} className="flex items-center gap-1 text-[10px] text-text-tertiary hover:text-text-secondary cursor-pointer">
         {copied ? <Check size={10} className="text-accent" /> : <Copy size={10} />} {copied ? 'Copied' : 'Copy'}
       </button>
