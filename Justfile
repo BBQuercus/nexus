@@ -64,8 +64,17 @@ dev:
   (cd frontend && npm run dev) &
   wait
 
+seed:
+  uv run python scripts/seed_dev_data.py
+
+format-frontend:
+  cd frontend && npx prettier --write 'app/**/*.{ts,tsx}' 'components/**/*.{ts,tsx}' 'lib/**/*.{ts,tsx}'
+
 smoke frontend_url backend_url:
   uv run python scripts/smoke_check.py --frontend-url {{frontend_url}} --backend-url {{backend_url}}
+
+landing-prompt-suite *args:
+  uv run python scripts/run_landing_prompt_suite.py {{args}}
 
 railway-deploy config service project environment:
   #!/usr/bin/env zsh
