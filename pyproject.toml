@@ -88,4 +88,4 @@ omit = ["tests/*", "migrations/*"]
 
 [tool.coverage.report]
 show_missing = true
-fail_under = 0
+fail_under = 40

@@ -11,6 +11,11 @@ export default defineConfig({
     include: ['**/__tests__/**/*.{ts,tsx}', '**/*.{test,spec}.{ts,tsx}'],
     exclude: ['**/node_modules/**', '**/e2e/**'],
     css: false,
+    coverage: {
+      provider: 'v8',
+      include: ['lib/**', 'components/**'],
+      exclude: ['**/__tests__/**', '**/e2e/**'],
+    },
   },
   resolve: {
     alias: {
