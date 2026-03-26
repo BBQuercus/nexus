@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { getLoginUrl, setLastProvider, clearLastProvider, type OAuthProvider } from '@/lib/auth';
 import { passwordLogin, registerAccount, requestPasswordReset, getCurrentUser } from '@/lib/api';
@@ -105,9 +105,22 @@ function LoginContent() {
     return (
       <div className="relative flex items-center justify-center h-screen bg-bg dot-texture overflow-hidden">
         <div className="absolute inset-0 scan-line pointer-events-none" />
-        <div className="animate-fade-in-up flex flex-col items-center gap-4">
-          <Zap size={20} className="text-accent" />
-          <div className="w-32 h-0.5 shimmer" />
+        <div className="animate-fade-in-up flex flex-col items-center gap-6">
+          {/* Pulsing rings + icon */}
+          <div className="relative w-16 h-16 flex items-center justify-center">
+            <div className="absolute inset-0 rounded-full border border-accent/20 animate-[ping_2s_ease-in-out_infinite]" />
+            <div className="absolute inset-2 rounded-full border border-accent/10 animate-[ping_2s_ease-in-out_0.4s_infinite]" />
+            <div className="relative w-10 h-10 rounded-full bg-accent/5 border border-accent/20 flex items-center justify-center">
+              {oauthRedirecting === 'microsoft' ? <MicrosoftIcon size={18} /> : <GitHubIcon size={18} />}
+            </div>
+          </div>
+
+          {/* Progress bar — crawls to ~85% while redirecting */}
+          <div className="w-48 h-[3px] rounded-full overflow-hidden bg-surface-1">
+            <div className="h-full rounded-full bg-accent auth-progress-crawl" />
+          </div>
+
+          {/* Message */}
           <span className="text-[10px] text-text-tertiary font-mono tracking-widest uppercase">
             Redirecting to {providerLabel}
           </span>
