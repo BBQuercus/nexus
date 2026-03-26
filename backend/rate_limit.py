@@ -69,30 +69,3 @@ async def check_rate_limit(
             headers={"Retry-After": str(window_seconds)},
         )
     _memory_requests[mem_key].append(now_mono)
-
-
-# Convenience functions matching old API
-class RateLimiter:
-    """Backwards-compatible rate limiter wrapper."""
-
-    def __init__(self, category: str = "default"):
-        self._category = category
-        self._requests: dict[str, list[float]] = defaultdict(list)
-
-    def check(self, user_id: str, limit: int, window_seconds: int):
-        """Synchronous check - uses in-memory only. For async, use check_rate_limit()."""
-        now = time.monotonic()
-        key = f"{user_id}"
-        self._requests[key] = [t for t in self._requests[key] if now - t < window_seconds]
-        if len(self._requests[key]) >= limit:
-            raise HTTPException(
-                status_code=429,
-                detail=f"You're sending requests too quickly. Please wait a moment (limit: {limit} per {window_seconds}s).",
-                headers={"Retry-After": str(window_seconds)},
-            )
-        self._requests[key].append(now)
-
-
-# Global instances (backwards compatible)
-chat_limiter = RateLimiter("chat")
-sandbox_limiter = RateLimiter("sandbox")
