@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import {
-  Zap, BarChart3, Code2, Database, Globe, Terminal,
-  ClipboardList, Brain, Search, GitCompare, Image, Blocks,
+  Zap, BarChart3, Database, Globe, Terminal,
+  ClipboardList, Brain, GitCompare, Image, Blocks,
 } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { IMAGE_MODELS, MODELS } from '@/lib/types';
@@ -63,12 +63,6 @@ function makeCapabilities(): Capability[] {
   });
 }
 
-const RETURNING_STARTERS = [
-  { icon: <Terminal size={16} />, text: 'Run code in a sandbox, inspect files, and generate artifacts', color: 'text-emerald-400' },
-  { icon: <Code2 size={16} />, text: 'Build a web app with live preview and hot-reload', color: 'text-blue-400' },
-  { icon: <BarChart3 size={16} />, text: 'Analyze data with SQL, Python, and interactive charts', color: 'text-cyan-400' },
-  { icon: <Search size={16} />, text: 'Research a topic with web search and cited sources', color: 'text-purple-400' },
-];
 
 const GREETINGS_MORNING = [
   (name: string) => `Morning, ${name}. Coffee first or code first?`,
@@ -198,20 +192,6 @@ function ReturningUserScreen() {
         ))}
       </div>
 
-      {/* Starters */}
-      <div className="flex flex-col gap-2 w-full max-w-md">
-        {RETURNING_STARTERS.map((s) => (
-          <button
-            key={s.text}
-            onClick={() => setPendingPrompt(s.text)}
-            className="relative flex items-center gap-3 px-4 py-3 bg-surface-0/80 border border-border-default rounded-lg text-sm text-text-secondary hover:text-text-primary hover:border-accent/20 hover:bg-surface-1 transition-all text-left cursor-pointer group overflow-hidden"
-          >
-            <span className="absolute left-0 top-0 bottom-0 w-0.5 rounded-r bg-accent scale-y-0 group-hover:scale-y-100 transition-transform origin-top" />
-            <span className={`${s.color} group-hover:text-accent transition-colors shrink-0`}>{s.icon}</span>
-            <span>{s.text}</span>
-          </button>
-        ))}
-      </div>
     </div>
   );
 }
