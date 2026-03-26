@@ -33,7 +33,7 @@ logger = get_logger("routers.chat")
 
 class CreateConversationRequest(BaseModel):
     title: str | None = None
-    model: str | None = "gpt-4.1-chn"
+    model: str | None = "azure_ai/claude-sonnet-4-5-swc"
     agent_mode: str = "code"
     agent_persona_id: uuid.UUID | None = None
     sandbox_template: str | None = None
@@ -502,7 +502,7 @@ async def send_message(
     await db.commit()
 
     # Use request overrides if provided, otherwise conversation defaults
-    model = body.model or conv.model or "gpt-4.1-chn"
+    model = body.model or conv.model or "azure_ai/claude-sonnet-4-5-swc"
     mode = body.mode or conv.agent_mode or "code"
     # Update conversation if mode/model changed
     if model != conv.model or mode != conv.agent_mode:
@@ -719,15 +719,17 @@ async def generate_image(
         detail = e.response.text or e.response.reason_phrase or "LiteLLM image request failed"
         raise HTTPException(status_code=e.response.status_code, detail=f"Image generation failed: {detail}") from e
     except httpx.TimeoutException as e:
-        raise HTTPException(status_code=504, detail=f"Image generation timed out: {type(e).__name__}") from e
+        raise HTTPException(status_code=504, detail="Image generation is taking too long. Try a simpler prompt or try again.") from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Image generation error: {type(e).__name__}: {e!r}") from e
+        logger.error("image_generation_error", error=str(e), error_type=type(e).__name__)
+        raise HTTPException(status_code=500, detail="Image generation is temporarily unavailable. Please try again.") from e
 
     try:
         first = image_data["data"][0]
         image_url = f"data:image/png;base64,{first['b64_json']}" if "b64_json" in first else first["url"]
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Invalid image response: {e}") from e
+        logger.error("image_response_parse_error", error=str(e))
+        raise HTTPException(status_code=500, detail="Received an unexpected response from the image service. Please try again.") from e
 
     assistant_msg = Message(
         conversation_id=conversation_id,
@@ -872,7 +874,7 @@ async def regenerate_message(
             raise HTTPException(status_code=400, detail="Parent user message not found")
         user_message_content = user_msg.content
 
-    model = (body.model if body and body.model else None) or conv.model or "gpt-4.1-chn"
+    model = (body.model if body and body.model else None) or conv.model or "azure_ai/claude-sonnet-4-5-swc"
     mode = conv.agent_mode or "code"
 
     persona = None

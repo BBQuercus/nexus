@@ -63,7 +63,7 @@ export default function SandboxBar() {
           <button onClick={async () => {
               const confirmed = await useStore.getState().showConfirm({
                 title: 'Delete this sandbox?',
-                message: 'All sandbox files and state will be lost.',
+                message: 'This will permanently delete the sandbox and all its files. This can\'t be undone.',
                 confirmLabel: 'Delete',
                 variant: 'danger',
               });

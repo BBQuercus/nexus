@@ -28,6 +28,23 @@ function getToast() {
   return _toast;
 }
 
+function _friendlyError(status: number, serverMessage: string, path: string): string {
+  // Use the server message if it's already user-friendly (not a raw status text)
+  if (serverMessage && serverMessage !== 'Internal Server Error' && serverMessage !== 'Bad Gateway') {
+    return serverMessage;
+  }
+  // Context-aware fallbacks based on the API path
+  if (status === 429) return "You're sending requests too quickly. Please wait a moment.";
+  if (status >= 500) {
+    if (path.includes('/messages')) return 'Failed to send message. Please try again.';
+    if (path.includes('/images')) return 'Image generation failed. Please try again.';
+    if (path.includes('/media')) return 'Media processing failed. Please try again.';
+    return 'Something unexpected happened. Please try again.';
+  }
+  if (path.includes('/conversations') && status === 404) return 'Conversation not found or no longer available.';
+  return serverMessage || 'Something went wrong. Please try again.';
+}
+
 async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = {
     ...(options.headers as Record<string, string> || {}),
@@ -66,14 +83,16 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
     // 401 → redirect to login
     if (response.status === 401) {
       if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
-        window.location.href = '/login';
+        getToast()?.info('Session expired — redirecting to sign in...');
+        setTimeout(() => { window.location.href = '/login'; }, 800);
       }
       throw new ApiError(response.status, message, errorBody, requestId);
     }
 
     // Toast for all other API errors (except error reporting itself)
     if (!path.includes('/api/errors')) {
-      getToast()?.error(message || 'Something went wrong');
+      const friendly = _friendlyError(response.status, message, path);
+      getToast()?.error(friendly);
     }
 
     throw new ApiError(response.status, message, errorBody, requestId);

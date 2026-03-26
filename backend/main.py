@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 import jwt
-from fastapi import Depends, FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import Depends, FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,7 +24,7 @@ from backend.middleware import (
     RequestIdMiddleware,
     SecurityHeadersMiddleware,
 )
-from backend.models import FrontendError
+from backend.models import FrontendError, User
 from backend.routers.admin import router as admin_router
 from backend.routers.admin_analytics import router as admin_analytics_router
 from backend.routers.agents import router as agents_router
@@ -498,6 +498,202 @@ async def report_frontend_error(
     await db.commit()
 
     return {"ok": True}
+
+
+# ── Bug Reports ──
+
+
+class BugReportScreenshot(BaseModel):
+    filename: str
+    data_url: str  # base64 data URL (data:image/png;base64,...)
+
+
+class BugReportRequest(BaseModel):
+    title: str
+    description: str
+    severity: str = "medium"  # low, medium, high, critical
+    steps_to_reproduce: str | None = None
+    expected_behavior: str | None = None
+    screenshots: list[BugReportScreenshot] = []
+    url: str | None = None
+    user_agent: str | None = None
+
+
+# In-memory screenshot cache for Teams rendering (keyed by report_id/index)
+_screenshot_cache: dict[str, tuple[bytes, str]] = {}  # id -> (data, content_type)
+_SCREENSHOT_CACHE_MAX = 200
+
+
+def _store_screenshot(data_url: str) -> str:
+    """Store a base64 data URL and return a unique ID."""
+    import base64
+
+    screenshot_id = str(uuid.uuid4())
+
+    # Parse data URL: data:image/png;base64,iVBOR...
+    try:
+        header, b64data = data_url.split(",", 1)
+        content_type = header.split(":")[1].split(";")[0] if ":" in header else "image/png"
+        raw = base64.b64decode(b64data)
+    except Exception:
+        return ""
+
+    # Evict oldest entries if cache is full
+    while len(_screenshot_cache) >= _SCREENSHOT_CACHE_MAX:
+        oldest = next(iter(_screenshot_cache))
+        del _screenshot_cache[oldest]
+
+    _screenshot_cache[screenshot_id] = (raw, content_type)
+    return screenshot_id
+
+
+@app.get("/api/bug-reports/screenshots/{screenshot_id}")
+async def get_bug_screenshot(screenshot_id: str):
+    """Serve a cached bug report screenshot (public, no auth — needed for Teams)."""
+    from fastapi.responses import Response as FastAPIResponse
+
+    entry = _screenshot_cache.get(screenshot_id)
+    if not entry:
+        raise HTTPException(status_code=404, detail="Screenshot not found or expired")
+    data, content_type = entry
+    return FastAPIResponse(content=data, media_type=content_type, headers={"Cache-Control": "public, max-age=86400"})
+
+
+@app.post("/api/bug-reports")
+async def submit_bug_report(
+    body: BugReportRequest,
+    request: Request,
+    user_id: uuid.UUID = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Receive a bug report and forward it to Microsoft Teams."""
+    from sqlalchemy import select
+
+    # Get user info for the report
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    reporter = user.name if user else str(user_id)
+    reporter_email = user.email if user else ""
+
+    severity_emoji = {"low": "\U0001f7e2", "medium": "\U0001f7e1", "high": "\U0001f7e0", "critical": "\U0001f534"}.get(
+        body.severity, "\U0001f7e1"
+    )
+
+    # Store screenshots and build public URLs
+    screenshot_urls: list[str] = []
+    base_url = str(request.base_url).rstrip("/")
+    for ss in body.screenshots[:5]:
+        ss_id = _store_screenshot(ss.data_url)
+        if ss_id:
+            screenshot_urls.append(f"{base_url}/api/bug-reports/screenshots/{ss_id}")
+
+    logger.info(
+        "bug_report_submitted",
+        user_id=str(user_id),
+        title=body.title,
+        severity=body.severity,
+        screenshot_count=len(screenshot_urls),
+    )
+
+    # Post to Teams webhook if configured
+    if settings.TEAMS_WEBHOOK_URL:
+        import httpx
+
+        # Build screenshot image blocks for the card
+        screenshot_blocks: list[dict] = []
+        if screenshot_urls:
+            screenshot_blocks.append({
+                "type": "TextBlock",
+                "text": f"**Screenshots** ({len(screenshot_urls)})",
+                "wrap": True,
+                "spacing": "Medium",
+            })
+            for url in screenshot_urls:
+                screenshot_blocks.append({
+                    "type": "Image",
+                    "url": url,
+                    "size": "Large",
+                    "altText": "Bug report screenshot",
+                })
+
+        teams_card = {
+            "type": "message",
+            "attachments": [
+                {
+                    "contentType": "application/vnd.microsoft.card.adaptive",
+                    "content": {
+                        "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+                        "type": "AdaptiveCard",
+                        "version": "1.4",
+                        "body": [
+                            {
+                                "type": "TextBlock",
+                                "size": "Medium",
+                                "weight": "Bolder",
+                                "text": f"{severity_emoji} Bug Report: {body.title}",
+                                "wrap": True,
+                            },
+                            {
+                                "type": "FactSet",
+                                "facts": [
+                                    {"title": "Reporter", "value": f"{reporter} ({reporter_email})"},
+                                    {"title": "Severity", "value": body.severity.capitalize()},
+                                    {"title": "URL", "value": body.url or "N/A"},
+                                ],
+                            },
+                            {
+                                "type": "TextBlock",
+                                "text": "**Description**",
+                                "wrap": True,
+                                "spacing": "Medium",
+                            },
+                            {
+                                "type": "TextBlock",
+                                "text": body.description,
+                                "wrap": True,
+                            },
+                            *([
+                                {
+                                    "type": "TextBlock",
+                                    "text": "**Steps to Reproduce**",
+                                    "wrap": True,
+                                    "spacing": "Medium",
+                                },
+                                {
+                                    "type": "TextBlock",
+                                    "text": body.steps_to_reproduce,
+                                    "wrap": True,
+                                },
+                            ] if body.steps_to_reproduce else []),
+                            *([
+                                {
+                                    "type": "TextBlock",
+                                    "text": "**Expected Behavior**",
+                                    "wrap": True,
+                                    "spacing": "Medium",
+                                },
+                                {
+                                    "type": "TextBlock",
+                                    "text": body.expected_behavior,
+                                    "wrap": True,
+                                },
+                            ] if body.expected_behavior else []),
+                            *screenshot_blocks,
+                        ],
+                    },
+                }
+            ],
+        }
+
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.post(settings.TEAMS_WEBHOOK_URL, json=teams_card)
+                resp.raise_for_status()
+        except Exception as e:
+            logger.error("teams_webhook_failed", error=str(e))
+            # Don't fail the request if Teams is down
+
+    return {"ok": True, "message": "Bug report submitted. Thank you for your feedback!"}
 
 
 # ── WebSocket Terminal ──

@@ -131,7 +131,7 @@ export default function CommandPalette() {
       const ta = document.querySelector('textarea') as HTMLTextAreaElement;
       if (ta) { ta.focus(); const nativeSet = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set; nativeSet?.call(ta, '/compare '); ta.dispatchEvent(new Event('input', { bubbles: true })); }
     }},
-    { id: 'logout', label: 'Log Out', icon: <LogOut size={13} />, category: 'Account', handler: async () => { try { await apiLogout(); } catch {} useStore.getState().reset(); window.location.href = '/login'; } },
+    { id: 'logout', label: 'Log Out', icon: <LogOut size={13} />, category: 'Account', handler: async () => { useStore.getState().setAuthStatus('loading'); try { await apiLogout(); } catch {} useStore.getState().reset(); window.location.href = '/login'; } },
   ], [setActiveModel, setRightPanelTab, setRightPanelOpen, rightPanelOpen]);
 
   // Build conversation search results

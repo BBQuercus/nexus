@@ -188,7 +188,7 @@ class GlobalExceptionMiddleware:
             body = json.dumps(
                 {
                     "error": "internal_server_error",
-                    "message": "An unexpected error occurred. Please try again.",
+                    "message": "Something unexpected happened. If this keeps occurring, please reload the page.",
                     "request_id": request_id,
                 }
             ).encode()

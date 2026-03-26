@@ -50,7 +50,7 @@ export default function HealthBanner() {
     return (
       <div className="flex items-center justify-center gap-2 px-3 py-1.5 bg-error/10 border-b border-error/20 text-error text-xs">
         <WifiOff size={12} />
-        <span>You are offline. Some features may be unavailable.</span>
+        <span>You&apos;re offline. Messages and files won&apos;t sync until you reconnect.</span>
       </div>
     );
   }

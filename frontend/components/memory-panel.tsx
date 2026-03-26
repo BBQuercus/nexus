@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import type { Memory } from '@/lib/types';
 import { listMemories, createMemory, updateMemory, deleteMemory } from '@/lib/api';
 import { Brain, Plus, Trash2, Check, X, Pencil, Filter, Globe, FolderOpen, MessageSquare } from 'lucide-react';
+import { toast } from '@/components/toast';
 
 const SCOPE_ICONS: Record<string, typeof Globe> = {
   global: Globe,
@@ -233,6 +234,7 @@ export function MemoryPanel({ projectId }: { projectId?: string }) {
     try {
       await deleteMemory(id);
       setMemories((prev) => prev.filter((m) => m.id !== id));
+      toast.success('Memory removed');
     } catch {
       // error toast handled by apiFetch
     }
@@ -335,7 +337,7 @@ export function MemoryPanel({ projectId }: { projectId?: string }) {
             <Brain size={24} className="mx-auto text-text-tertiary mb-2" />
             <p className="text-sm text-text-tertiary">No memories yet</p>
             <p className="text-xs text-text-tertiary mt-1">
-              Add things you want the AI to remember across conversations.
+              Teach Nexus your preferences, facts, and decisions so it remembers across conversations.
             </p>
             <button
               onClick={() => setShowAdd(true)}
