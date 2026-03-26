@@ -8,6 +8,7 @@ import { MODELS, IMAGE_MODELS } from '@/lib/types';
 import { useStreaming, reloadConversation } from '@/lib/useStreaming';
 import { toast } from '../toast';
 import type { SlashCommand, AttachedContext, ComposeMode, Verbosity, Creativity, Tone } from './types';
+import { validateFileSize } from './types';
 import { saveDraft, loadDraft, CREATIVITY_TEMPERATURE } from './types';
 import {
   Cpu, Trash2, HelpCircle, Download, ClipboardCopy, RefreshCw,
@@ -707,7 +708,12 @@ export function useChatSubmit({ textareaRef }: UseChatSubmitOptions): UseChatSub
     const handler = (e: Event) => {
       const files = (e as CustomEvent).detail?.files as File[] | undefined;
       if (files && files.length > 0) {
-        setPendingFiles((prev) => [...prev, ...files]);
+        const valid = files.filter(f => {
+          const err = validateFileSize(f);
+          if (err) { toast.error(err); return false; }
+          return true;
+        });
+        if (valid.length > 0) setPendingFiles((prev) => [...prev, ...valid]);
       }
     };
     window.addEventListener('nexus:drop-files', handler);

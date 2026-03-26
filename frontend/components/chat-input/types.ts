@@ -15,6 +15,23 @@ export interface AttachedContext {
 
 export type ComposeMode = 'chat' | 'image';
 
+// File upload limits
+export const MAX_FILE_SIZE_MB = 25;
+export const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+export const MAX_DATA_FILE_SIZE_MB = 100;
+export const MAX_DATA_FILE_SIZE_BYTES = MAX_DATA_FILE_SIZE_MB * 1024 * 1024;
+
+/** Validate file size. Returns error message or null if valid. */
+export function validateFileSize(file: File): string | null {
+  const cat = getFileCategory(file);
+  const limit = cat === 'spreadsheet' ? MAX_DATA_FILE_SIZE_BYTES : MAX_FILE_SIZE_BYTES;
+  const limitLabel = cat === 'spreadsheet' ? `${MAX_DATA_FILE_SIZE_MB}MB` : `${MAX_FILE_SIZE_MB}MB`;
+  if (file.size > limit) {
+    return `${file.name} exceeds the ${limitLabel} limit (${formatFileSize(file.size)})`;
+  }
+  return null;
+}
+
 export const RESPONSE_COUNTS = [1, 3, 5] as const;
 export const CONTEXT_WINDOW = 128_000;
 

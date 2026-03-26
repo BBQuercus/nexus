@@ -224,7 +224,7 @@ async def get_current_user(request: Request) -> uuid.UUID:
 
 
 # Auth endpoints that are called before a session exists (no CSRF cookie yet)
-_CSRF_EXEMPT_PATHS = {"/auth/password", "/auth/register", "/auth/refresh", "/auth/logout"}
+_CSRF_EXEMPT_PATHS = {"/auth/password", "/auth/register", "/auth/refresh", "/auth/logout", "/auth/forgot-password"}
 
 
 async def validate_csrf(request: Request) -> None:
@@ -431,6 +431,23 @@ async def register(body: RegisterRequest, response: Response, db: AsyncSession =
     user = await _upsert_workos_user(workos_user, db)
     _set_session_cookies(response, user)
     return {"ok": True}
+
+
+class PasswordResetRequest(BaseModel):
+    email: str
+
+
+@router.post("/forgot-password")
+async def forgot_password(body: PasswordResetRequest):
+    """Send a password reset email via WorkOS."""
+    client = _get_workos_client()
+    try:
+        client.user_management.send_password_reset_email(email=body.email)
+    except Exception as e:
+        # Log but don't reveal whether the email exists
+        logger.info("password_reset_requested", email=body.email, error=str(e))
+    # Always return success to prevent email enumeration
+    return {"ok": True, "message": "If an account exists with that email, a reset link has been sent."}
 
 
 class RefreshRequest(BaseModel):
