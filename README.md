@@ -26,6 +26,40 @@ just build
 just migrate
 ```
 
+## Landing prompt live suite
+
+The landing-page prompt suite is a manual live validator that runs the real prompt cards against a real backend, then grades the result with a smaller judge model.
+
+Local or Railway usage:
+
+```bash
+just landing-prompt-suite --base-url https://<backend>.up.railway.app \
+  --email <test-user-email> \
+  --password '<test-user-password>'
+```
+
+Useful options:
+
+- `--execution-model <model>`: primary model under test
+- `--judge-model <model>`: LLM-as-judge model
+- `--auth-mode admin-token --admin-token <token>`: use the backend admin service token instead of user login
+- `--execution-models a,b,c`: compare the same prompts across multiple execution models
+- `--include-prompts prompt-a,prompt-b`: run only selected prompt IDs
+- `--output-path reports/file.json`: write machine-readable results
+- `--register-if-needed`: create the password user on first run if the environment allows registration
+
+Recommended Railway setup:
+
+- Prefer a dedicated backend admin service token for this suite in production-like environments.
+- Set `ADMIN_API_TOKEN` and `ADMIN_API_USER_ID` on the backend service. `ADMIN_API_USER_ID` must be the UUID of a real admin or org-admin user in the deployed database.
+- Then run:
+  `just landing-prompt-suite --base-url https://<backend>.up.railway.app --auth-mode admin-token --admin-token "$NEXUS_ADMIN_API_TOKEN"`
+- Create a dedicated low-privilege test user in WorkOS password auth.
+- Store its credentials as local secrets or CI secrets, not in the repo.
+- Point `--base-url` at the deployed backend service URL, not the frontend URL.
+- Use password auth for Railway by default; the runner will keep the returned `session` and `csrf_token` cookies and send `X-CSRF-Token` automatically on state-changing requests.
+- Use bearer-token mode only if you already have a short-lived access token and explicitly pass `--auth-mode bearer --bearer-token ...`.
+
 ## Railway topology
 
 - `backend`: FastAPI service built from `Dockerfile.backend`

@@ -271,7 +271,7 @@ export interface ModelOption {
   legacy?: boolean;
 }
 
-export const DEFAULT_MODEL_ID = 'azure_ai/model_router';
+export const DEFAULT_MODEL_ID = 'azure_ai/claude-sonnet-4-5-swc';
 
 export const MODELS: ModelOption[] = [
   { name: 'Claude Sonnet 4.5', id: 'azure_ai/claude-sonnet-4-5-swc', provider: 'anthropic' },
