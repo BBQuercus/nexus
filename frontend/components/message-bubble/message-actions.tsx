@@ -1,5 +1,6 @@
 'use client';
 
+import { createPortal } from 'react-dom';
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { Copy, GitBranch, RefreshCw, Check, Download, ArrowRight, X, Link, Pencil, ThumbsUp, ThumbsDown, Volume2, SkipForward, Play, Pause, MessageSquare } from 'lucide-react';
 import { ProviderLogo } from '../provider-logos';
@@ -169,29 +170,35 @@ function groupByProvider(models: ModelOption[]) {
   }, {} as Record<ModelProvider, ModelOption[]>);
 }
 
-export function RetryWithModelMenu({ messageId, onClose, triggerRef }: { messageId: string; onClose: () => void; triggerRef: React.RefObject<HTMLButtonElement | null> }) {
+export function RetryWithModelMenu({ messageId, onClose, triggerRef }: { messageId: string; onClose: () => void; triggerRef: React.RefObject<HTMLElement | null> }) {
   const activeConversationId = useStore((s) => s.activeConversationId);
   const activeModel = useStore((s) => s.activeModel);
   const isStreaming = useStore((s) => s.isStreaming);
   const menuRef = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const [style, setStyle] = useState<React.CSSProperties>({ opacity: 0 });
 
-  // Position the menu using fixed coordinates, opening upward or downward based on available space
+  // Position relative to trigger, clamped to viewport
   useEffect(() => {
-    const trigger = triggerRef.current;
-    if (!trigger) return;
-    const rect = trigger.getBoundingClientRect();
-    const menuHeight = 320; // max-h-80 = 320px
-    const spaceAbove = rect.top;
-    const spaceBelow = window.innerHeight - rect.bottom;
+    const el = triggerRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const menuW = 288; // w-72
+    const menuMaxH = 288; // max-h-72
+    const gap = 6;
 
-    if (spaceAbove >= menuHeight || spaceAbove > spaceBelow) {
-      // Open upward
-      setPos({ top: Math.max(8, rect.top - Math.min(menuHeight, spaceAbove - 8)), left: rect.left });
-    } else {
-      // Open downward
-      setPos({ top: rect.bottom + 4, left: rect.left });
+    let top = rect.bottom + gap;
+    let left = rect.left;
+
+    // Clamp right edge
+    if (left + menuW > window.innerWidth - 8) left = window.innerWidth - menuW - 8;
+    if (left < 8) left = 8;
+
+    // If not enough space below, open upward
+    if (top + menuMaxH > window.innerHeight - 8 && rect.top > menuMaxH + gap) {
+      top = rect.top - menuMaxH - gap;
     }
+
+    setStyle({ position: 'fixed', top, left, opacity: 1 });
   }, [triggerRef]);
 
   useEffect(() => {
@@ -215,13 +222,11 @@ export function RetryWithModelMenu({ messageId, onClose, triggerRef }: { message
   const primaryModels = MODELS.filter((m) => !m.legacy);
   const grouped = groupByProvider(primaryModels);
 
-  if (!pos) return null;
-
-  return (
+  return createPortal(
     <div
       ref={menuRef}
-      className="fixed w-72 max-h-80 overflow-y-auto bg-surface-0 border border-border-default rounded-lg shadow-2xl shadow-black/40 z-50 animate-fade-in-up"
-      style={{ animationDuration: '0.1s', top: pos.top, left: pos.left }}
+      className="w-72 max-h-72 overflow-y-auto bg-surface-0 border border-border-default rounded-lg shadow-2xl shadow-black/40 z-[100] animate-fade-in-up"
+      style={{ animationDuration: '0.1s', ...style }}
     >
       {PROVIDER_ORDER.filter((p) => grouped[p]?.length).map((provider, gi) => (
         <div key={provider}>
@@ -244,7 +249,8 @@ export function RetryWithModelMenu({ messageId, onClose, triggerRef }: { message
           ))}
         </div>
       ))}
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -520,10 +526,10 @@ export function AssistantMessageActions({
   showBranchInput: boolean;
   onToggleBranch: () => void;
 }) {
-  const retryTriggerRef = useRef<HTMLButtonElement>(null);
+  const retryBtnRef = useRef<HTMLButtonElement>(null);
 
   return (
-    <div className="relative flex items-center gap-3 mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+    <div className="flex items-center gap-3 mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
       <button onClick={onCopy} className="flex items-center gap-1 text-[10px] text-text-tertiary hover:text-text-secondary cursor-pointer">
         {copied ? <Check size={10} className="text-accent" /> : <Copy size={10} />} {copied ? 'Copied' : 'Copy'}
       </button>
@@ -536,7 +542,7 @@ export function AssistantMessageActions({
         </button>
       )}
       <button
-        ref={retryTriggerRef}
+        ref={retryBtnRef}
         onClick={onToggleRetryMenu}
         className={`flex items-center gap-1 text-[10px] cursor-pointer transition-colors ${
           showRetryMenu ? 'text-accent' : 'text-text-tertiary hover:text-text-secondary'
@@ -545,7 +551,7 @@ export function AssistantMessageActions({
         <RefreshCw size={10} /> Retry with...
       </button>
       {showRetryMenu && (
-        <RetryWithModelMenu messageId={message.id} onClose={onToggleRetryMenu} triggerRef={retryTriggerRef} />
+        <RetryWithModelMenu messageId={message.id} onClose={onToggleRetryMenu} triggerRef={retryBtnRef} />
       )}
       <button
         onClick={onToggleBranch}
