@@ -1,9 +1,10 @@
 'use client';
 
 import { useRef, useEffect, useState, useCallback } from 'react';
-import { Copy, GitBranch, RefreshCw, ChevronUp, Check, Download, ArrowRight, X, Link, Pencil, ThumbsUp, ThumbsDown, Volume2, SkipForward, Play, Pause, MessageSquare } from 'lucide-react';
+import { Copy, GitBranch, RefreshCw, Check, Download, ArrowRight, X, Link, Pencil, ThumbsUp, ThumbsDown, Volume2, SkipForward, Play, Pause, MessageSquare } from 'lucide-react';
 import { ProviderLogo } from '../provider-logos';
 import { MODELS } from '@/lib/types';
+import type { ModelOption, ModelProvider } from '@/lib/types';
 import { useStore } from '@/lib/store';
 import * as api from '@/lib/api';
 import type { Message } from './types';
@@ -147,6 +148,27 @@ export function InlineEditForm({ message, onClose }: { message: Message; onClose
   );
 }
 
+const PROVIDER_LABELS: Record<ModelProvider, string> = {
+  anthropic: 'Anthropic',
+  openai: 'OpenAI',
+  meta: 'Meta',
+  microsoft: 'Microsoft',
+  xai: 'xAI',
+  moonshot: 'Moonshot',
+  deepseek: 'DeepSeek',
+  mistral: 'Mistral',
+};
+
+const PROVIDER_ORDER: ModelProvider[] = ['anthropic', 'openai', 'meta', 'microsoft', 'mistral', 'xai', 'moonshot', 'deepseek'];
+
+function groupByProvider(models: ModelOption[]) {
+  return models.reduce((acc, model) => {
+    if (!acc[model.provider]) acc[model.provider] = [];
+    acc[model.provider].push(model);
+    return acc;
+  }, {} as Record<ModelProvider, ModelOption[]>);
+}
+
 export function RetryWithModelMenu({ messageId, onClose }: { messageId: string; onClose: () => void }) {
   const activeConversationId = useStore((s) => s.activeConversationId);
   const activeModel = useStore((s) => s.activeModel);
@@ -171,23 +193,31 @@ export function RetryWithModelMenu({ messageId, onClose }: { messageId: string; 
     }));
   };
 
+  const primaryModels = MODELS.filter((m) => !m.legacy);
+  const grouped = groupByProvider(primaryModels);
+
   return (
-    <div ref={menuRef} className="absolute left-0 top-full mt-1 w-64 bg-surface-0 border border-border-default rounded-lg shadow-2xl shadow-black/40 z-50 animate-fade-in-up overflow-hidden" style={{ animationDuration: '0.1s' }}>
-      <div className="px-3 py-2 text-[10px] uppercase tracking-wider text-text-tertiary font-medium border-b border-border-default">
-        Retry with model
-      </div>
-      {MODELS.map((m) => (
-        <button
-          key={m.id}
-          onClick={() => handleRetry(m.id)}
-          className={`w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-surface-1 transition-colors cursor-pointer ${
-            m.id === activeModel ? 'bg-surface-1' : ''
-          }`}
-        >
-          <ProviderLogo provider={m.provider} size={13} className="text-text-tertiary shrink-0" />
-          <span className="text-xs text-text-primary flex-1">{m.name}</span>
-          {m.id === activeModel && <span className="text-[9px] text-text-tertiary font-mono">current</span>}
-        </button>
+    <div ref={menuRef} className="absolute left-0 bottom-full mb-1.5 w-72 max-h-80 overflow-y-auto bg-surface-0 border border-border-default rounded-lg shadow-2xl shadow-black/40 z-50 animate-fade-in-up" style={{ animationDuration: '0.1s' }}>
+      {PROVIDER_ORDER.filter((p) => grouped[p]?.length).map((provider, gi) => (
+        <div key={provider}>
+          {gi > 0 && <div className="h-px bg-border-subtle mx-3" />}
+          <div className="flex items-center gap-2 px-3 pt-2.5 pb-1.5">
+            <ProviderLogo provider={provider} size={12} className="text-text-tertiary" />
+            <span className="text-[10px] font-medium text-text-tertiary uppercase tracking-wider">{PROVIDER_LABELS[provider]}</span>
+          </div>
+          {grouped[provider].map((model) => (
+            <button
+              key={model.id}
+              onClick={() => handleRetry(model.id)}
+              className={`w-full flex items-center justify-between px-3 py-2 text-left hover:bg-surface-1 transition-colors cursor-pointer ${
+                model.id === activeModel ? 'bg-surface-1' : ''
+              }`}
+            >
+              <span className="text-xs text-text-primary">{model.name}</span>
+              {model.id === activeModel && <Check size={13} className="text-accent shrink-0" />}
+            </button>
+          ))}
+        </div>
       ))}
     </div>
   );
@@ -481,9 +511,11 @@ export function AssistantMessageActions({
       <div className="relative">
         <button
           onClick={onToggleRetryMenu}
-          className="flex items-center gap-0.5 text-[10px] text-text-tertiary hover:text-text-secondary cursor-pointer"
+          className={`flex items-center gap-1 text-[10px] cursor-pointer transition-colors ${
+            showRetryMenu ? 'text-accent' : 'text-text-tertiary hover:text-text-secondary'
+          }`}
         >
-          <ChevronUp size={9} />
+          <RefreshCw size={10} /> Retry with...
         </button>
         {showRetryMenu && (
           <RetryWithModelMenu messageId={message.id} onClose={onToggleRetryMenu} />
