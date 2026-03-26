@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { useStore } from '@/lib/store';
-import { useIsMobile, useIsDesktop } from '@/lib/useMediaQuery';
+import { useIsDesktop } from '@/lib/useMediaQuery';
 import { useRouter } from 'next/navigation';
 import { PanelLeft, Zap, ArrowLeft } from 'lucide-react';
 import UserDropdown from './user-dropdown';
@@ -26,13 +26,12 @@ export default function PageShell({
   const router = useRouter();
   const sidebarOpen = useStore((s) => s.sidebarOpen);
   const setSidebarOpen = useStore((s) => s.setSidebarOpen);
-  const isMobile = useIsMobile();
   const isDesktop = useIsDesktop();
   const sidebarIsOverlay = !isDesktop;
 
   useEffect(() => {
-    if (isMobile) setSidebarOpen(false);
-  }, [isMobile]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!isDesktop) setSidebarOpen(false);
+  }, [isDesktop]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -65,9 +64,9 @@ export default function PageShell({
         <UserDropdown compact />
       </div>
 
-      {/* Top bar — collapses when sidebar is closed */}
+      {/* Top bar — only on desktop, collapses when sidebar is closed */}
       <div className={`relative flex items-center px-3 bg-surface-0 border-b shrink-0 z-10 transition-[height,border-color,opacity] duration-200 ease-in-out overflow-hidden ${
-        sidebarOpen ? 'h-12 border-border-default opacity-100' : 'h-0 border-transparent opacity-0'
+        isDesktop && sidebarOpen ? 'h-12 border-border-default opacity-100' : 'h-0 border-transparent opacity-0'
       }`}>
         <button
           onClick={() => setSidebarOpen(false)}
@@ -95,10 +94,10 @@ export default function PageShell({
           sidebarOpen && (
             <>
               <div
-                className="fixed inset-0 bg-black/60 backdrop-blur-sm z-30 lg:hidden"
+                className="fixed inset-0 bg-black/60 backdrop-blur-sm z-30"
                 onClick={() => setSidebarOpen(false)}
               />
-              <div className="fixed left-0 top-12 bottom-0 z-40 animate-slide-in-left">
+              <div className="fixed left-0 top-0 bottom-0 z-40 animate-slide-in-left">
                 <SidebarChrome>{sidebar}</SidebarChrome>
               </div>
             </>
@@ -130,7 +129,7 @@ export default function PageShell({
 function SidebarChrome({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   return (
-    <div className="relative flex flex-col w-[min(75vw,320px)] md:w-[272px] md:min-w-[272px] bg-surface-0 border-r border-border-default shrink-0 h-full">
+    <div className="relative flex flex-col w-[min(75vw,320px)] xl:w-[272px] xl:min-w-[272px] bg-surface-0 border-r border-border-default shrink-0 h-full">
       <div className="absolute inset-0 grid-texture opacity-10 pointer-events-none" />
       <div className="relative flex-1 flex flex-col min-h-0">
         {children}

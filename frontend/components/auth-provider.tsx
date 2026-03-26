@@ -33,6 +33,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         if (cancelled) return;
         setUser(user);
         setAuthStatus('authenticated');
+        sessionStorage.removeItem('nexus_oauth_attempted');
         return;
       } catch {
         // Session expired or missing — try silent refresh
@@ -46,6 +47,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
           if (cancelled) return;
           setUser(user);
           setAuthStatus('authenticated');
+          sessionStorage.removeItem('nexus_oauth_attempted');
           return;
         } catch {
           // Refresh succeeded but /me failed — fall through
@@ -67,8 +69,13 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     if (authStatus !== 'unauthenticated' || PUBLIC_PATHS.includes(pathname)) return;
 
     const lastProvider = getLastProvider();
-    if (lastProvider && lastProvider !== 'password') {
-      // Skip login page entirely — go straight to the OAuth provider
+
+    // Guard against redirect loops: if we already tried OAuth this session
+    // and still ended up unauthenticated, don't try again automatically.
+    const alreadyTried = typeof sessionStorage !== 'undefined' && sessionStorage.getItem('nexus_oauth_attempted');
+
+    if (lastProvider && lastProvider !== 'password' && !alreadyTried) {
+      sessionStorage.setItem('nexus_oauth_attempted', '1');
       window.location.href = getLoginUrl(lastProvider);
     } else {
       router.replace('/login');

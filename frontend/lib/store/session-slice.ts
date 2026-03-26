@@ -13,10 +13,12 @@ export interface SessionSlice {
   setSidebarOpen: (open: boolean) => void;
 }
 
+const DESKTOP_MIN_WIDTH = 1280;
+
 export const createSessionSlice: StateCreator<StoreState, [], [], SessionSlice> = (set) => ({
   user: null,
   authStatus: 'loading',
-  sidebarOpen: true,
+  sidebarOpen: typeof window !== 'undefined' ? window.innerWidth >= DESKTOP_MIN_WIDTH : true,
   setUser: (user) => set({ user }),
   setAuthStatus: (authStatus) => set({ authStatus }),
   setSidebarOpen: (open) => {

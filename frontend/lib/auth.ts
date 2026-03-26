@@ -24,6 +24,11 @@ export function setLastProvider(provider: AuthProvider): void {
   document.cookie = `nexus_provider=${provider};path=/;max-age=${365 * 86400};samesite=lax`;
 }
 
+export function clearLastProvider(): void {
+  if (typeof document === 'undefined') return;
+  document.cookie = 'nexus_provider=;path=/;max-age=0;samesite=lax';
+}
+
 export function getCsrfToken(): string | null {
   if (typeof document === 'undefined') return null;
   const csrfMatch = document.cookie.match(/csrf_token=([^;]+)/);

@@ -1,12 +1,12 @@
 'use client';
 
-import { useState } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
-import { getLoginUrl, setLastProvider, type OAuthProvider } from '@/lib/auth';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { getLoginUrl, setLastProvider, clearLastProvider, type OAuthProvider } from '@/lib/auth';
 import { passwordLogin, registerAccount, getCurrentUser } from '@/lib/api';
 import { useStore } from '@/lib/store';
 import { Zap, AlertCircle, Loader2 } from 'lucide-react';
-import { Suspense } from 'react';
+
 
 function signInOAuth(provider: OAuthProvider) {
   setLastProvider(provider);
@@ -33,9 +33,7 @@ function GitHubIcon({ size = 16 }: { size?: number }) {
 }
 
 function LoginContent() {
-  const searchParams = useSearchParams();
   const router = useRouter();
-  const error = searchParams.get('error');
   const setUser = useStore((s) => s.setUser);
   const setAuthStatus = useStore((s) => s.setAuthStatus);
 
@@ -45,6 +43,18 @@ function LoginContent() {
   const [name, setName] = useState('');
   const [formError, setFormError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [authError, setAuthError] = useState('');
+
+  // Read error from URL hash fragment (not query params) to avoid Next.js hydration issues
+  useEffect(() => {
+    const hash = window.location.hash; // e.g. "#error=auth_failed"
+    if (hash.includes('error=')) {
+      clearLastProvider();
+      setAuthError('Authentication failed. Please try again.');
+      // Clean up the hash
+      history.replaceState(null, '', window.location.pathname);
+    }
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -71,7 +81,7 @@ function LoginContent() {
     }
   }
 
-  const displayError = formError || (error === 'auth_failed' ? 'Authentication failed. Please try again.' : error ? 'Something went wrong. Please try again.' : '');
+  const displayError = formError || authError;
 
   return (
     <div className="relative flex items-center justify-center h-screen bg-bg dot-texture overflow-hidden">
@@ -174,13 +184,5 @@ function LoginContent() {
 }
 
 export default function LoginPage() {
-  return (
-    <Suspense fallback={
-      <div className="flex items-center justify-center h-screen bg-bg">
-        <Zap size={20} className="text-accent animate-pulse" />
-      </div>
-    }>
-      <LoginContent />
-    </Suspense>
-  );
+  return <LoginContent />;
 }

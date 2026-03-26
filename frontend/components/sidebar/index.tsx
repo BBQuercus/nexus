@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useStore } from '@/lib/store';
-import { useIsMobile } from '@/lib/useMediaQuery';
+import { useIsDesktop } from '@/lib/useMediaQuery';
 import * as api from '@/lib/api';
 import type { Conversation } from '@/lib/types';
 import { toast } from '../toast';
@@ -21,10 +21,11 @@ function getPinnedIds(): Set<string> {
 }
 
 function MobileSidebarHeader() {
-  const isMobile = useIsMobile();
+  const isDesktop = useIsDesktop();
   const setSidebarOpen = useStore((s) => s.setSidebarOpen);
 
-  if (!isMobile) return null;
+  // Show header on mobile and tablet (overlay mode) — desktop has the top bar
+  if (isDesktop) return null;
 
   return (
     <div className="relative flex items-center h-12 px-3 border-b border-border-default shrink-0">
@@ -356,7 +357,7 @@ export default function Sidebar() {
   }, [filteredConversations, today, yesterday, weekAgo]);
 
   return (
-    <div data-tour="sidebar" className="relative flex flex-col w-[min(75vw,320px)] md:w-[272px] bg-surface-0 border-r border-border-default shrink-0 h-full min-w-0 md:min-w-[272px]">
+    <div data-tour="sidebar" className="relative flex flex-col w-[min(75vw,320px)] xl:w-[272px] bg-surface-0 border-r border-border-default shrink-0 h-full min-w-0 xl:min-w-[272px]">
       <div className="absolute inset-0 grid-texture opacity-10 pointer-events-none" />
 
       {/* Mobile header — replaces hidden top bar */}
