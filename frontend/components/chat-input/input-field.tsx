@@ -169,7 +169,7 @@ export function InputField({
               ? 'Describe the image you want to generate...'
               : isRecording
                 ? ''
-                : 'Message Nexus... (/ for commands)'
+                : 'Ask anything, run code, search the web...'
         }
         disabled={isStreaming || isGeneratingImage}
         rows={1}
@@ -228,7 +228,7 @@ export function InputField({
           onClick={composeMode === 'image' ? () => void handleGenerateImage() : handleSend}
           disabled={!canSend}
           className={`w-7 h-7 flex items-center justify-center text-sm shrink-0 cursor-pointer rounded-lg transition-all ${
-            canSend ? 'bg-accent text-bg hover:bg-accent-hover scale-100' : 'bg-surface-2 text-text-tertiary scale-95'
+            canSend ? 'bg-accent text-bg hover:bg-accent-hover scale-100 active:scale-90' : 'bg-surface-2 text-text-tertiary scale-95'
           } disabled:opacity-40 disabled:cursor-not-allowed`}
         >
           <ArrowUp size={14} strokeWidth={2.5} />
