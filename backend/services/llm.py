@@ -57,8 +57,8 @@ MODEL_PRICING: dict[str, tuple[float, float]] = {
 
 # Retryable HTTP status codes
 _RETRYABLE_STATUSES = {429, 500, 502, 503, 504}
-_MAX_RETRIES = 1
-_RETRY_BACKOFF_S = 2.0
+_MAX_RETRIES = 4
+_RETRY_BACKOFF_SCHEDULE = [1.0, 2.0, 4.0, 10.0]  # Seconds per retry attempt
 _MODELS_WITHOUT_TOOL_CHOICE = {
     "azure_ai/model_router",
     "azure_ai/gpt-5.3-chat",
@@ -150,7 +150,8 @@ async def stream_chat(
             errors_total.labels(error_type="connection_error", component="llm").inc()
 
         if attempt < _MAX_RETRIES:
-            await asyncio.sleep(_RETRY_BACKOFF_S * (attempt + 1))
+            backoff = _RETRY_BACKOFF_SCHEDULE[min(attempt, len(_RETRY_BACKOFF_SCHEDULE) - 1)]
+            await asyncio.sleep(backoff)
 
     llm_request_duration.labels(model=model).observe(time.monotonic() - request_start)
     raise LLMUnavailableError(

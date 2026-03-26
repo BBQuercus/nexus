@@ -4,6 +4,7 @@ Uses pure ASGI middleware instead of BaseHTTPMiddleware to avoid deadlocks
 with streaming responses (SSE).
 """
 
+import asyncio
 import json
 import time
 import traceback
@@ -49,6 +50,52 @@ def _normalize_path(path: str) -> str:
             re.IGNORECASE,
         )
     return _UUID_PATTERN.sub("{id}", path)
+
+
+# Paths that use SSE streaming and need longer timeouts
+_STREAMING_PATHS = {"/messages", "/regenerate"}
+
+# Default request timeout (seconds)
+REQUEST_TIMEOUT_DEFAULT = 30
+REQUEST_TIMEOUT_CHAT = 180  # Chat/streaming endpoints get more time
+
+
+class RequestTimeoutMiddleware:
+    """Abort requests that exceed a configurable timeout (pure ASGI).
+
+    SSE streaming paths get a longer timeout since they stream tokens
+    for the duration of the LLM response.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        path = scope.get("path", "")
+        is_streaming = any(p in path for p in _STREAMING_PATHS) or path.startswith("/ws/")
+        timeout = REQUEST_TIMEOUT_CHAT if is_streaming else REQUEST_TIMEOUT_DEFAULT
+
+        try:
+            await asyncio.wait_for(self.app(scope, receive, send), timeout=timeout)
+        except asyncio.TimeoutError:
+            # Only send error if response hasn't started yet
+            body = json.dumps({
+                "error": "request_timeout",
+                "message": "The request took too long. Please try again.",
+            }).encode()
+            try:
+                await send({
+                    "type": "http.response.start",
+                    "status": 504,
+                    "headers": [(b"content-type", b"application/json")],
+                })
+                await send({"type": "http.response.body", "body": body})
+            except Exception:
+                pass  # Response already started — can't send error
 
 
 class MetricsMiddleware:

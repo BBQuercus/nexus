@@ -80,9 +80,22 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
       || response.statusText;
     const requestId = response.headers.get('X-Request-Id') || undefined;
 
-    // 401 → redirect to login
+    // 401 → attempt silent refresh, then redirect if that fails
     if (response.status === 401) {
       if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+        const { refreshAccessToken, startTokenRefreshTimer } = await import('./auth');
+        const newExpiry = await refreshAccessToken();
+        if (newExpiry) {
+          // Refresh succeeded — retry the original request once
+          startTokenRefreshTimer(newExpiry);
+          const retryResp = await fetch(toApiUrl(path), { ...options, headers, credentials: 'include' });
+          if (retryResp.ok) {
+            if (retryResp.status === 204) return undefined as T;
+            const ct = retryResp.headers.get('content-type');
+            if (ct && ct.includes('application/json')) return retryResp.json() as Promise<T>;
+            return undefined as T;
+          }
+        }
         getToast()?.info('Session expired — redirecting to sign in...');
         setTimeout(() => { window.location.href = '/login'; }, 800);
       }
