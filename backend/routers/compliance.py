@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.db import get_db
+from backend.auth import get_org_db
 from backend.services.rbac import Role, require_role
 
 router = APIRouter(prefix="/api/compliance", tags=["compliance"])
@@ -16,7 +16,7 @@ router = APIRouter(prefix="/api/compliance", tags=["compliance"])
 @router.get("/audit-log")
 async def get_audit_log(
     user_id: uuid.UUID = Depends(require_role(Role.ADMIN)),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_org_db),
     action: str | None = None,
     actor_id: str | None = None,
     resource_type: str | None = None,
@@ -67,8 +67,8 @@ async def get_audit_log(
 
 @router.get("/data-export")
 async def export_data(
-    user_id: uuid.UUID = Depends(require_role(Role.ORG_ADMIN)),
-    db: AsyncSession = Depends(get_db),
+    user_id: uuid.UUID = Depends(require_role(Role.OWNER)),
+    db: AsyncSession = Depends(get_org_db),
     export_format: str = Query("json", pattern="^(json|csv)$", alias="format"),
 ):
     """Export all data for compliance. Org admin only."""

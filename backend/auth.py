@@ -9,9 +9,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
-from backend.db import get_db
+from backend.db import async_session, get_db, get_org_scoped_db
 from backend.logging_config import get_logger
-from backend.models import User
+from backend.models import Organization, User, UserOrg
 from backend.services.audit import AuditAction, record_audit_event
 
 logger = get_logger("auth")
@@ -95,7 +95,7 @@ def exchange_code(code: str):
     return client.user_management.authenticate_with_code(code=code)
 
 
-def create_access_token(user_id: str, email: str) -> str:
+def create_access_token(user_id: str, email: str, org_id: str | None = None) -> str:
     """Creates a short-lived JWT access token (1 hour)."""
     now = datetime.now(UTC)
     payload = {
@@ -105,6 +105,8 @@ def create_access_token(user_id: str, email: str) -> str:
         "exp": now + timedelta(minutes=settings.JWT_ACCESS_TOKEN_MINUTES),
         "iat": now,
     }
+    if org_id:
+        payload["org_id"] = org_id
     return jwt.encode(payload, settings.SERVER_SECRET, algorithm=settings.JWT_ENCODING_ALGORITHM)
 
 
@@ -121,13 +123,14 @@ def create_refresh_token(user_id: str, email: str) -> str:
     return jwt.encode(payload, settings.SERVER_SECRET, algorithm=settings.JWT_ENCODING_ALGORITHM)
 
 
-def generate_csrf_token(session_id: str, iat: str | int = "") -> str:
-    """Generate a CSRF token tied to the user's session and token issue time.
+def generate_csrf_token(session_id: str, iat: str | int = "", org_id: str = "") -> str:
+    """Generate a CSRF token tied to the user's session, token issue time, and org.
 
     Including ``iat`` ensures the CSRF token rotates whenever the JWT is
     refreshed, preventing replay of leaked tokens across sessions.
+    Including ``org_id`` binds the token to the active org context.
     """
-    raw = f"{session_id}:{iat}:{settings.SERVER_SECRET}"
+    raw = f"{session_id}:{iat}:{org_id}:{settings.SERVER_SECRET}"
     return hashlib.sha256(raw.encode()).hexdigest()[:32]
 
 
@@ -220,11 +223,151 @@ async def get_current_user(request: Request) -> uuid.UUID:
         raise HTTPException(status_code=401, detail="Invalid token") from None
 
 
+# ── Org Context Dependencies ──
+
+
+async def get_current_org(request: Request) -> uuid.UUID:
+    """Extract org_id from JWT claims. Used as a FastAPI dependency.
+
+    Falls back to looking up the user's default org if the JWT lacks org_id
+    (e.g. tokens issued before multi-org was deployed).
+    """
+    claims = _get_claims_from_session_cookie(request)
+    if claims is None:
+        # Try Bearer token path for admin API
+        auth_header = request.headers.get("authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:]
+            admin_user_id = _get_admin_api_user_id(token)
+            if admin_user_id is not None:
+                # Admin API doesn't have org context — try to get from query param
+                org_id_param = request.query_params.get("org_id")
+                if org_id_param:
+                    return uuid.UUID(org_id_param)
+                raise HTTPException(status_code=400, detail="Admin API requires org_id query parameter")
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    org_id = claims.get("org_id")
+    if org_id:
+        try:
+            return uuid.UUID(org_id)
+        except ValueError:
+            raise HTTPException(status_code=401, detail="Invalid organization context") from None
+
+    # Fallback: JWT has no org_id (pre-multi-org token). Look up or bootstrap the user's org.
+    user_id_str = claims.get("sub")
+    if user_id_str:
+        try:
+            uid = uuid.UUID(user_id_str)
+            async with async_session() as db:
+                result = await db.execute(
+                    select(UserOrg.org_id)
+                    .where(UserOrg.user_id == uid)
+                    .order_by(UserOrg.joined_at)
+                    .limit(1)
+                )
+                found = result.scalar_one_or_none()
+                if found:
+                    return found
+
+                # No membership at all — auto-create a personal org for this existing user
+                import re as _re
+
+                user_result = await db.execute(select(User).where(User.id == uid))
+                user = user_result.scalar_one_or_none()
+                if user:
+                    display = user.name or user.email.split("@")[0]
+                    slug = _re.sub(r"[^a-z0-9]+", "-", display.lower()).strip("-")[:80] + "-workspace"
+                    # Ensure unique slug
+                    existing_slug = await db.execute(select(Organization.id).where(Organization.slug == slug))
+                    if existing_slug.scalar_one_or_none():
+                        slug = f"{slug}-{str(uid)[:8]}"
+                    org = Organization(name=f"{display}'s Workspace", slug=slug)
+                    db.add(org)
+                    await db.flush()
+                    membership = UserOrg(user_id=uid, org_id=org.id, role="owner")
+                    db.add(membership)
+
+                    # Migrate this user's existing data from the placeholder org to their new org
+                    from sqlalchemy import update
+
+                    from backend.models import (
+                        AgentPersona,
+                        AnalyticsEvent,
+                        Artifact,
+                        Conversation,
+                        Document,
+                        Feedback,
+                        FrontendError,
+                        KnowledgeBase,
+                        Memory,
+                        Message,
+                        Project,
+                        UsageLog,
+                    )
+
+                    placeholder = uuid.UUID("00000000-0000-0000-0000-000000000001")
+                    for model in [Conversation, Project, AgentPersona, KnowledgeBase, Memory, UsageLog, FrontendError, AnalyticsEvent]:
+                        if hasattr(model, "user_id"):
+                            await db.execute(
+                                update(model).where(model.user_id == uid, model.org_id == placeholder).values(org_id=org.id)
+                            )
+                    # Child tables: messages, artifacts, documents, feedback via conversation ownership
+                    conv_ids_result = await db.execute(
+                        select(Conversation.id).where(Conversation.user_id == uid, Conversation.org_id == org.id)
+                    )
+                    conv_ids = [r[0] for r in conv_ids_result.fetchall()]
+                    if conv_ids:
+                        for child_model in [Message, Artifact, Feedback]:
+                            await db.execute(
+                                update(child_model)
+                                .where(child_model.conversation_id.in_(conv_ids), child_model.org_id == placeholder)
+                                .values(org_id=org.id)
+                            )
+                    # Documents via KB ownership
+                    kb_ids_result = await db.execute(
+                        select(KnowledgeBase.id).where(KnowledgeBase.user_id == uid, KnowledgeBase.org_id == org.id)
+                    )
+                    kb_ids = [r[0] for r in kb_ids_result.fetchall()]
+                    if kb_ids:
+                        await db.execute(
+                            update(Document)
+                            .where(Document.knowledge_base_id.in_(kb_ids), Document.org_id == placeholder)
+                            .values(org_id=org.id)
+                        )
+
+                    await db.commit()
+                    logger.info("org_auto_created_for_existing_user", user_id=user_id_str, org_id=str(org.id))
+                    return org.id
+        except Exception:
+            logger.warning("org_fallback_lookup_failed", user_id=user_id_str, exc_info=True)
+
+    raise HTTPException(status_code=401, detail="No organization context — please log out and back in")
+
+
+async def get_is_superadmin(
+    user_id: uuid.UUID = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> bool:
+    """Check if the current user is a platform superadmin."""
+    result = await db.execute(select(User.is_superadmin).where(User.id == user_id))
+    return result.scalar_one_or_none() or False
+
+
+async def get_org_db(
+    org_id: uuid.UUID = Depends(get_current_org),
+    is_superadmin: bool = Depends(get_is_superadmin),
+) -> AsyncSession:
+    """FastAPI dependency that yields an org-scoped DB session."""
+    async for session in get_org_scoped_db(org_id, is_superadmin):
+        yield session
+
+
 # ── CSRF Validation ──
 
 
 # Auth endpoints that are called before a session exists (no CSRF cookie yet)
-_CSRF_EXEMPT_PATHS = {"/auth/password", "/auth/register", "/auth/refresh", "/auth/logout", "/auth/forgot-password"}
+_CSRF_EXEMPT_PATHS = {"/auth/password", "/auth/register", "/auth/refresh", "/auth/logout", "/auth/forgot-password", "/auth/switch-org"}
 
 
 async def validate_csrf(request: Request) -> None:
@@ -254,7 +397,8 @@ async def validate_csrf(request: Request) -> None:
 
     user_id = session_claims.get("sub", "")
     iat = session_claims.get("iat", "")
-    expected_csrf = generate_csrf_token(str(user_id), iat)
+    org_id = session_claims.get("org_id", "")
+    expected_csrf = generate_csrf_token(str(user_id), iat, str(org_id))
     if csrf_header != expected_csrf:
         raise HTTPException(status_code=403, detail="CSRF token mismatch")
 
@@ -281,6 +425,8 @@ def _display_name_from_email(email: str) -> str:
 
 async def _upsert_workos_user(workos_user, db: AsyncSession) -> User:
     """Upsert a local User from a WorkOS user profile. Returns the User."""
+    import re
+
     result = await db.execute(select(User).where(User.workos_id == workos_user.id))
     user = result.scalar_one_or_none()
 
@@ -290,11 +436,28 @@ async def _upsert_workos_user(workos_user, db: AsyncSession) -> User:
             email=workos_user.email,
             name=_display_name_from_workos(workos_user) or _display_name_from_email(workos_user.email),
             avatar_url=getattr(workos_user, "profile_picture_url", None),
-            role="editor",
         )
         db.add(user)
         await db.flush()
-        logger.info("user_created", user_id=str(user.id), email=user.email)
+
+        # Bootstrap: create a personal org for the new user
+        display_name = user.name or user.email.split("@")[0]
+        slug_base = re.sub(r"[^a-z0-9]+", "-", display_name.lower()).strip("-")[:80]
+        slug = f"{slug_base}-workspace"
+        # Ensure slug uniqueness
+        existing = await db.execute(select(Organization.id).where(Organization.slug == slug))
+        if existing.scalar_one_or_none():
+            slug = f"{slug}-{str(user.id)[:8]}"
+
+        org = Organization(name=f"{display_name}'s Workspace", slug=slug)
+        db.add(org)
+        await db.flush()
+
+        membership = UserOrg(user_id=user.id, org_id=org.id, role="owner")
+        db.add(membership)
+        await db.flush()
+
+        logger.info("user_created", user_id=str(user.id), email=user.email, org_id=str(org.id))
     else:
         user.last_seen_at = datetime.now(UTC)
         user.email = workos_user.email
@@ -308,15 +471,24 @@ async def _upsert_workos_user(workos_user, db: AsyncSession) -> User:
     return user
 
 
-def _set_session_cookies(response: Response, user: User) -> None:
+async def _get_default_org_id(user_id: uuid.UUID, db: AsyncSession) -> str | None:
+    """Get the user's first org membership for session bootstrapping."""
+    result = await db.execute(
+        select(UserOrg.org_id).where(UserOrg.user_id == user_id).order_by(UserOrg.joined_at).limit(1)
+    )
+    org_id = result.scalar_one_or_none()
+    return str(org_id) if org_id else None
+
+
+def _set_session_cookies(response: Response, user: User, org_id: str | None = None) -> None:
     """Issue access + refresh + CSRF cookies on a response."""
-    access_token = create_access_token(str(user.id), user.email)
+    access_token = create_access_token(str(user.id), user.email, org_id=org_id)
     refresh_token = create_refresh_token(str(user.id), user.email)
     _set_auth_cookie(response, "session", access_token, settings.JWT_ACCESS_TOKEN_MINUTES * 60)
     _set_auth_cookie(response, "refresh_token", refresh_token, settings.JWT_REFRESH_TOKEN_DAYS * 86400)
     # Extract iat from the just-created access token to bind CSRF to this session
     access_payload = jwt.decode(access_token, settings.SERVER_SECRET, algorithms=[settings.JWT_ENCODING_ALGORITHM])
-    csrf_token = generate_csrf_token(str(user.id), access_payload.get("iat", ""))
+    csrf_token = generate_csrf_token(str(user.id), access_payload.get("iat", ""), org_id or "")
     _set_csrf_cookie(response, csrf_token, settings.JWT_REFRESH_TOKEN_DAYS * 86400)
 
 
@@ -357,11 +529,12 @@ async def callback(
         return RedirectResponse(url=f"{frontend_url}/login#error=auth_failed")
 
     user = await _upsert_workos_user(workos_user, db)
+    org_id = await _get_default_org_id(user.id, db)
 
     frontend_url = _get_frontend_url()
     response = RedirectResponse(url=frontend_url, status_code=302)
-    _set_session_cookies(response, user)
-    logger.info("auth_callback_success", user_id=str(user.id), redirect_to=frontend_url)
+    _set_session_cookies(response, user, org_id=org_id)
+    logger.info("auth_callback_success", user_id=str(user.id), org_id=org_id, redirect_to=frontend_url)
     return response
 
 
@@ -392,7 +565,8 @@ async def password_login(body: PasswordLoginRequest, response: Response, db: Asy
         raise HTTPException(status_code=401, detail="Invalid email or password") from None
 
     user = await _upsert_workos_user(workos_user, db)
-    _set_session_cookies(response, user)
+    org_id = await _get_default_org_id(user.id, db)
+    _set_session_cookies(response, user, org_id=org_id)
     return {"ok": True}
 
 
@@ -429,7 +603,8 @@ async def register(body: RegisterRequest, response: Response, db: AsyncSession =
         pass
 
     user = await _upsert_workos_user(workos_user, db)
-    _set_session_cookies(response, user)
+    org_id = await _get_default_org_id(user.id, db)
+    _set_session_cookies(response, user, org_id=org_id)
     return {"ok": True}
 
 
@@ -481,18 +656,37 @@ async def refresh_token(request: Request, response: Response, body: RefreshReque
     if not user_id:
         raise HTTPException(status_code=401, detail="Invalid token payload")
 
-    new_access = create_access_token(user_id, email)
+    # Preserve the org_id from the current session cookie if available
+    org_id: str | None = None
+    current_claims = _get_claims_from_session_cookie(request)
+    if current_claims:
+        org_id = current_claims.get("org_id")
+
+    # If no org_id from session, look up the user's default org
+    if not org_id:
+        try:
+            async with async_session() as db:
+                result = await db.execute(
+                    select(UserOrg.org_id).where(UserOrg.user_id == uuid.UUID(user_id)).order_by(UserOrg.joined_at).limit(1)
+                )
+                found = result.scalar_one_or_none()
+                if found:
+                    org_id = str(found)
+        except Exception:
+            logger.debug("org_lookup_failed_on_refresh", user_id=user_id)
+
+    new_access = create_access_token(user_id, email, org_id=org_id)
     # Also issue a new refresh token (rotation)
     new_refresh = create_refresh_token(user_id, email)
 
-    logger.info("token_refreshed", user_id=user_id)
+    logger.info("token_refreshed", user_id=user_id, org_id=org_id)
 
     if response is not None:
         _set_auth_cookie(response, "session", new_access, settings.JWT_ACCESS_TOKEN_MINUTES * 60)
         _set_auth_cookie(response, "refresh_token", new_refresh, settings.JWT_REFRESH_TOKEN_DAYS * 86400)
         # Rotate CSRF token to match the new session
         access_payload = jwt.decode(new_access, settings.SERVER_SECRET, algorithms=[settings.JWT_ENCODING_ALGORITHM])
-        csrf_token = generate_csrf_token(user_id, access_payload.get("iat", ""))
+        csrf_token = generate_csrf_token(user_id, access_payload.get("iat", ""), org_id or "")
         _set_csrf_cookie(response, csrf_token, settings.JWT_REFRESH_TOKEN_DAYS * 86400)
 
     return {
@@ -512,19 +706,114 @@ async def logout_endpoint(response: Response):
 
 @router.get("/me")
 async def me(
+    request: Request,
     user_id: uuid.UUID = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Return current user info."""
+    """Return current user info with org context."""
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+
+    # Get org memberships
+    memberships_result = await db.execute(
+        select(UserOrg, Organization)
+        .join(Organization, UserOrg.org_id == Organization.id)
+        .where(UserOrg.user_id == user_id)
+        .order_by(UserOrg.joined_at)
+    )
+    memberships = memberships_result.all()
+
+    # Determine current org from JWT
+    claims = _get_claims_from_session_cookie(request)
+    current_org_id = claims.get("org_id") if claims else None
+    current_org = None
+    current_role = "editor"
+
+    membership_list = []
+    for user_org, org in memberships:
+        entry = {
+            "orgId": str(org.id),
+            "orgName": org.name,
+            "orgSlug": org.slug,
+            "role": user_org.role,
+            "joinedAt": user_org.joined_at.isoformat() if user_org.joined_at else None,
+        }
+        membership_list.append(entry)
+        if current_org_id and str(org.id) == current_org_id:
+            current_org = {
+                "id": str(org.id),
+                "name": org.name,
+                "slug": org.slug,
+                "systemPrompt": org.system_prompt,
+                "settings": org.settings or {},
+                "createdAt": org.created_at.isoformat() if org.created_at else None,
+                "updatedAt": org.updated_at.isoformat() if org.updated_at else None,
+            }
+            current_role = user_org.role
+
+    # Fallback: if no current org in token, use first membership
+    if not current_org and membership_list:
+        first_org_membership = memberships[0]
+        user_org, org = first_org_membership
+        current_org = {
+            "id": str(org.id),
+            "name": org.name,
+            "slug": org.slug,
+            "systemPrompt": org.system_prompt,
+            "settings": org.settings or {},
+            "createdAt": org.created_at.isoformat() if org.created_at else None,
+            "updatedAt": org.updated_at.isoformat() if org.updated_at else None,
+        }
+        current_role = user_org.role
+
     return {
         "id": str(user.id),
         "email": user.email,
         "name": user.name,
         "avatarUrl": user.avatar_url,
-        "role": user.role or ("admin" if user.is_admin else "editor"),
+        "isSuperadmin": user.is_superadmin,
+        "role": current_role,
+        "currentOrg": current_org,
+        "memberships": membership_list,
         "created_at": user.created_at.isoformat() if user.created_at else None,
     }
+
+
+class SwitchOrgRequest(BaseModel):
+    org_id: str
+
+
+@router.post("/switch-org")
+async def switch_org(
+    body: SwitchOrgRequest,
+    response: Response,
+    user_id: uuid.UUID = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Switch to a different org. Validates membership and re-mints JWT."""
+    try:
+        target_org_id = uuid.UUID(body.org_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid org_id") from None
+
+    # Verify membership
+    result = await db.execute(
+        select(UserOrg).where(UserOrg.user_id == user_id, UserOrg.org_id == target_org_id)
+    )
+    membership = result.scalar_one_or_none()
+    if not membership:
+        raise HTTPException(status_code=403, detail="Not a member of this organization")
+
+    # Get user for email
+    user_result = await db.execute(select(User).where(User.id == user_id))
+    user = user_result.scalar_one()
+
+    _set_session_cookies(response, user, org_id=str(target_org_id))
+    await record_audit_event(
+        AuditAction.USER_LOGIN,
+        actor_id=str(user_id),
+        details={"action": "switch_org", "org_id": str(target_org_id)},
+    )
+    return {"ok": True}

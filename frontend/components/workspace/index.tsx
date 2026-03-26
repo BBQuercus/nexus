@@ -11,13 +11,14 @@ import ChatMessages from '../chat-messages';
 import ChatInput from '../chat-input';
 import EmptyState from '../empty-state';
 import ConfirmDialog from '../confirm-dialog';
-import ToastContainer from '../toast';
+import { Toaster } from '../toast';
 import PanelErrorBoundary from '../panel-error-boundary';
 import HealthBanner from '../health-banner';
 import InstallPrompt from '../install-prompt';
 import ShellLayout from './shell-layout';
 import { useKeyboardShortcuts } from './use-keyboard-shortcuts';
 import { useFocusMode } from './use-focus-mode';
+import { TooltipProvider } from '../ui/tooltip';
 import { Upload } from 'lucide-react';
 import { startTour, isTourCompleted } from '@/lib/onboarding-tour';
 
@@ -137,6 +138,7 @@ export default function Workspace() {
   }, []);
 
   return (
+    <TooltipProvider delayDuration={300}>
     <div
       className="relative flex flex-col w-screen bg-bg overflow-hidden noise-overlay"
       style={{ height: 'var(--viewport-height, 100dvh)' }}
@@ -218,7 +220,7 @@ export default function Workspace() {
         <DiffViewer />
       </Suspense>
       <InstallPrompt />
-      <ToastContainer />
+      <Toaster />
       <ConfirmDialog
         open={confirmDialog.open}
         title={confirmDialog.title}
@@ -229,5 +231,6 @@ export default function Workspace() {
         onCancel={() => resolveConfirm(false)}
       />
     </div>
+    </TooltipProvider>
   );
 }

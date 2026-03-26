@@ -5,8 +5,7 @@ from pydantic import BaseModel
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.auth import get_current_user
-from backend.db import get_db
+from backend.auth import get_current_org, get_current_user, get_org_db
 from backend.logging_config import get_logger
 from backend.models import Conversation, Feedback, Message
 
@@ -42,7 +41,8 @@ async def create_feedback(
     msg_id: uuid.UUID,
     body: CreateFeedbackRequest,
     user_id: uuid.UUID = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    org_id: uuid.UUID = Depends(get_current_org),
+    db: AsyncSession = Depends(get_org_db),
 ):
     """Submit feedback for a message."""
     if body.rating not in ("up", "down"):
@@ -80,6 +80,7 @@ async def create_feedback(
         # Create new feedback record
         feedback = Feedback(
             user_id=user_id,
+            org_id=org_id,
             message_id=msg_id,
             conversation_id=conv_id,
             rating=body.rating,
@@ -113,7 +114,7 @@ async def create_feedback(
 async def list_conversation_feedback(
     conv_id: uuid.UUID,
     user_id: uuid.UUID = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_org_db),
 ):
     """List all feedback for a conversation."""
     # Verify conversation belongs to user

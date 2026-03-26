@@ -108,25 +108,32 @@ async def ingest_document(
             )
 
             # 4. Store chunks with embeddings
+            # Get org_id from the document record
+            doc_result = await db.execute(
+                select(Document.org_id).where(Document.id == document_id)
+            )
+            doc_org_id = doc_result.scalar_one_or_none()
+
             chunk_records = []
             for _i, (parsed_chunk, prefix, embedding) in enumerate(
                 zip(parsed.chunks, prefixes, embeddings, strict=False)
             ):
-                chunk_records.append(
-                    Chunk(
-                        document_id=document_id,
-                        knowledge_base_id=knowledge_base_id,
-                        conversation_id=conversation_id,
-                        content=parsed_chunk.content,
-                        context_prefix=prefix or None,
-                        chunk_index=parsed_chunk.chunk_index,
-                        page_number=parsed_chunk.page_number,
-                        section_title=parsed_chunk.section_title,
-                        embedding=embedding,
-                        token_count=parsed_chunk.token_count,
-                        metadata_=parsed_chunk.metadata,
-                    )
-                )
+                chunk_kwargs: dict = {
+                    "document_id": document_id,
+                    "knowledge_base_id": knowledge_base_id,
+                    "conversation_id": conversation_id,
+                    "content": parsed_chunk.content,
+                    "context_prefix": prefix or None,
+                    "chunk_index": parsed_chunk.chunk_index,
+                    "page_number": parsed_chunk.page_number,
+                    "section_title": parsed_chunk.section_title,
+                    "embedding": embedding,
+                    "token_count": parsed_chunk.token_count,
+                    "metadata_": parsed_chunk.metadata,
+                }
+                if doc_org_id is not None:
+                    chunk_kwargs["org_id"] = doc_org_id
+                chunk_records.append(Chunk(**chunk_kwargs))
 
             db.add_all(chunk_records)
 

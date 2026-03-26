@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useStore } from '@/lib/store';
 import * as api from '@/lib/api';
 import { DEFAULT_MODEL_ID, MODELS, type AgentPersona } from '@/lib/types';
-import { X, Plus, Save, Play, Trash2, Bot } from 'lucide-react';
+import { X, Plus, Save, Play, Trash2, Bot, Search } from 'lucide-react';
 import * as icons from 'lucide-react';
 import PageShell from './page-shell';
 import ConfirmDialog from './confirm-dialog';
@@ -13,7 +13,7 @@ import IconPicker from './icon-picker';
 import { Label } from './ui/label';
 import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
-import { Select } from './ui/select';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from './ui/select';
 import { Switch } from './ui/switch';
 
 const MODEL_OPTIONS = MODELS.map((model) => ({ label: model.name, value: model.id }));
@@ -37,17 +37,16 @@ export default function AgentsView() {
 
   const [agents, setAgents] = useState<AgentPersona[] | null>(null);
   const [editing, setEditing] = useState<AgentPersona | null>(null);
+  const [search, setSearch] = useState('');
 
   useEffect(() => { api.listAgents().then(setAgents).catch(() => setAgents([])); }, []);
 
-  // Auto-select first agent once loaded
   useEffect(() => {
     if (!editing && agents && agents.length > 0) {
       setEditing({ ...agents[0] });
     }
   }, [agents]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-open editor with pre-filled data from URL params
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const params = new URLSearchParams(window.location.search);
@@ -66,6 +65,9 @@ export default function AgentsView() {
   }, []);
 
   const isInitialLoading = agents === null && editing === null;
+  const filtered = agents?.filter((a) =>
+    !search || a.name.toLowerCase().includes(search.toLowerCase()) || a.description?.toLowerCase().includes(search.toLowerCase())
+  ) || [];
 
   const handleSave = async () => {
     if (!editing || !editing.name.trim()) return;
@@ -101,31 +103,41 @@ export default function AgentsView() {
       useStore.getState().setMessages([]);
       const r = await api.listConversations();
       useStore.getState().setConversations(r.conversations);
-    } catch (e) {
-      console.error('Failed to create conversation:', e);
-    }
+    } catch (e) { console.error('Failed to create conversation:', e); }
     router.push('/');
   };
 
   const agentsSidebar = (
-    <>
-      {/* New agent button */}
-      <div className="px-3 py-2.5">
+    <div className="flex flex-col h-full">
+      {/* New agent + search */}
+      <div className="px-3 py-3 space-y-2">
         <button
           onClick={() => setEditing({ ...emptyAgent })}
           className="w-full flex items-center justify-center gap-1.5 px-2.5 py-2 text-[11px] font-medium bg-accent text-bg rounded-lg hover:bg-accent-hover cursor-pointer transition-colors"
         >
           <Plus size={12} /> New Agent
         </button>
+        {agents && agents.length > 3 && (
+          <div className="relative">
+            <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-tertiary" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Filter agents..."
+              className="w-full pl-7 pr-2.5 py-1.5 bg-bg border border-border-default rounded-lg text-[11px] text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-accent transition-colors"
+            />
+          </div>
+        )}
       </div>
 
       {/* Agent list */}
-      <div className="flex-1 overflow-y-auto px-2">
+      <div className="flex-1 overflow-y-auto px-2 pb-2">
         {agents === null ? (
-          <div className="space-y-1 px-0.5 pt-1">
+          <div className="space-y-1 px-1 pt-1">
             {[1, 2, 3].map((i) => (
               <div key={i} className="flex items-center gap-2.5 px-2.5 py-2.5 animate-pulse">
-                <div className="w-7 h-7 rounded-md bg-surface-2" />
+                <div className="w-8 h-8 rounded-lg bg-surface-2" />
                 <div className="flex-1 space-y-1.5">
                   <div className="h-3 w-24 bg-surface-2 rounded" />
                   <div className="h-2 w-16 bg-surface-2 rounded" />
@@ -133,160 +145,183 @@ export default function AgentsView() {
               </div>
             ))}
           </div>
-        ) : agents.length === 0 ? (
+        ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-text-tertiary">
-            <Bot size={24} className="mb-2 opacity-40" />
-            <div className="text-xs">No agents yet</div>
+            <Bot size={24} className="mb-2 opacity-20" />
+            <div className="text-[11px]">{search ? 'No matches' : 'No agents yet'}</div>
           </div>
         ) : (
-          agents.map((agent) => (
-            <button
-              key={agent.id}
-              onClick={() => setEditing({ ...agent })}
-              className={`w-full flex items-center gap-2.5 px-2.5 py-2.5 text-left rounded-lg transition-colors cursor-pointer mb-0.5 ${
-                editing?.id === agent.id
-                  ? 'bg-accent/8 text-text-primary border-l-2 border-accent'
-                  : 'text-text-secondary hover:bg-surface-1 hover:text-text-primary border-l-2 border-transparent'
-              }`}
-            >
-              <div className="w-7 h-7 rounded-md bg-surface-2 border border-border-default flex items-center justify-center shrink-0">
-                <AgentIcon name={agent.icon} size={14} className="text-text-tertiary" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-xs font-medium truncate">{agent.name}</div>
-                {agent.description && (
-                  <div className="text-[10px] text-text-tertiary mt-0.5 truncate">{agent.description}</div>
+          <div className="space-y-0.5">
+            {filtered.map((agent) => (
+              <button
+                key={agent.id}
+                onClick={() => setEditing({ ...agent })}
+                className={`w-full flex items-center gap-2.5 px-2.5 py-2.5 text-left rounded-lg transition-all cursor-pointer ${
+                  editing?.id === agent.id
+                    ? 'bg-accent/8 text-text-primary border-l-2 border-accent -ml-px'
+                    : 'text-text-secondary hover:bg-surface-1 hover:text-text-primary'
+                }`}
+              >
+                <div className={`w-8 h-8 rounded-lg border flex items-center justify-center shrink-0 ${
+                  editing?.id === agent.id ? 'bg-accent/10 border-accent/20' : 'bg-surface-1 border-border-default'
+                }`}>
+                  <AgentIcon name={agent.icon} size={14} className={editing?.id === agent.id ? 'text-accent' : 'text-text-tertiary'} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-medium truncate">{agent.name}</div>
+                  {agent.description && (
+                    <div className="text-[10px] text-text-tertiary mt-0.5 truncate">{agent.description}</div>
+                  )}
+                </div>
+                {agent.isPublic && (
+                  <span className="text-[9px] px-1 py-0.5 bg-accent/10 text-accent rounded shrink-0">Public</span>
                 )}
-              </div>
-            </button>
-          ))
+              </button>
+            ))}
+          </div>
         )}
       </div>
-
-    </>
+    </div>
   );
 
   return (
     <PageShell title="Agents" sidebar={agentsSidebar}>
       {editing ? (
-        <div className="flex-1 overflow-y-auto p-6">
-          <div className="max-w-2xl">
+        <div className="flex-1 overflow-y-auto p-6 animate-[fadeIn_0.15s_ease-out]">
+          <div className="max-w-2xl mx-auto">
+            {/* Header */}
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-lg bg-surface-2 border border-border-default flex items-center justify-center shrink-0">
-                  <AgentIcon name={editing.icon} size={18} className="text-text-tertiary" />
+                <div className={`w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 ${
+                  editing.id ? 'bg-surface-0 border-border-default' : 'bg-accent/10 border-accent/20'
+                }`}>
+                  <AgentIcon name={editing.icon} size={18} className={editing.id ? 'text-text-tertiary' : 'text-accent'} />
                 </div>
-                <h3 className="text-sm font-semibold text-text-primary">
-                  {editing.id ? editing.name || 'Edit Agent' : 'New Agent'}
-                </h3>
+                <div>
+                  <h2 className="text-sm font-semibold text-text-primary">
+                    {editing.id ? editing.name || 'Edit Agent' : 'New Agent'}
+                  </h2>
+                  <p className="text-[10px] text-text-tertiary">
+                    {editing.id ? 'Modify persona settings' : 'Create a new AI persona'}
+                  </p>
+                </div>
               </div>
-              <button onClick={() => setEditing(null)} className="text-text-tertiary hover:text-text-primary cursor-pointer">
+              <button onClick={() => setEditing(null)} className="p-1.5 text-text-tertiary hover:text-text-primary hover:bg-surface-1 rounded-lg cursor-pointer transition-colors">
                 <X size={14} />
               </button>
             </div>
 
-            <div className="space-y-5">
-              <div className="grid grid-cols-[1fr_1fr] gap-4">
+            {/* Identity Section */}
+            <div className="bg-surface-0 border border-border-default rounded-xl p-5 mb-4">
+              <h3 className="text-[11px] text-text-tertiary uppercase tracking-wider font-medium mb-4">Identity</h3>
+              <div className="space-y-4">
+                <div className="grid grid-cols-[1fr_auto] gap-4">
+                  <div>
+                    <Label htmlFor="agent-name" className="text-xs font-medium text-text-secondary mb-1.5">Name</Label>
+                    <Input
+                      id="agent-name"
+                      value={editing.name}
+                      onChange={(e) => setEditing({ ...editing, name: e.target.value })}
+                      placeholder="Agent name"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs font-medium text-text-secondary mb-1.5">Icon</Label>
+                    <IconPicker
+                      value={editing.icon}
+                      onChange={(icon) => setEditing({ ...editing, icon })}
+                    />
+                  </div>
+                </div>
                 <div>
-                  <Label htmlFor="agent-name">Name</Label>
+                  <Label htmlFor="agent-desc" className="text-xs font-medium text-text-secondary mb-1.5">Description</Label>
                   <Input
-                    id="agent-name"
-                    value={editing.name}
-                    onChange={(e) => setEditing({ ...editing, name: e.target.value })}
-                    placeholder="Agent name"
+                    id="agent-desc"
+                    value={editing.description}
+                    onChange={(e) => setEditing({ ...editing, description: e.target.value })}
+                    placeholder="Brief description of what this agent does"
                   />
                 </div>
+              </div>
+            </div>
+
+            {/* Configuration Section */}
+            <div className="bg-surface-0 border border-border-default rounded-xl p-5 mb-4">
+              <h3 className="text-[11px] text-text-tertiary uppercase tracking-wider font-medium mb-4">Configuration</h3>
+              <div className="space-y-4">
                 <div>
-                  <Label>Icon</Label>
-                  <IconPicker
-                    value={editing.icon}
-                    onChange={(icon) => setEditing({ ...editing, icon })}
+                  <Label htmlFor="agent-prompt" className="text-xs font-medium text-text-secondary mb-1.5">System Prompt</Label>
+                  <Textarea
+                    id="agent-prompt"
+                    value={editing.systemPrompt}
+                    onChange={(e) => setEditing({ ...editing, systemPrompt: e.target.value })}
+                    placeholder="Instructions that define how this agent behaves..."
+                    rows={10}
+                    className="font-mono text-[11px] leading-relaxed"
                   />
                 </div>
-              </div>
-
-              <div>
-                <Label htmlFor="agent-desc">Description</Label>
-                <Input
-                  id="agent-desc"
-                  value={editing.description}
-                  onChange={(e) => setEditing({ ...editing, description: e.target.value })}
-                  placeholder="Brief description"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="agent-prompt">System Prompt</Label>
-                <Textarea
-                  id="agent-prompt"
-                  value={editing.systemPrompt}
-                  onChange={(e) => setEditing({ ...editing, systemPrompt: e.target.value })}
-                  placeholder="Instructions for this agent..."
-                  rows={10}
-                />
-              </div>
-
-              <div className="grid grid-cols-[1fr_auto] gap-4 items-end">
-                <div>
-                  <Label htmlFor="agent-model">Default Model</Label>
-                  <Select
-                    id="agent-model"
-                    value={editing.defaultModel}
-                    onChange={(e) => setEditing({ ...editing, defaultModel: e.target.value })}
-                  >
-                    {MODEL_OPTIONS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
-                  </Select>
-                </div>
-                <div className="flex items-center gap-2.5 pb-0.5">
-                  <Label className="mb-0 text-text-tertiary">Public</Label>
-                  <Switch
-                    checked={editing.isPublic ?? false}
-                    onCheckedChange={(checked) => setEditing({ ...editing, isPublic: checked })}
-                  />
+                <div className="grid grid-cols-[1fr_auto] gap-4 items-end">
+                  <div>
+                    <Label className="text-xs font-medium text-text-secondary mb-1.5">Default Model</Label>
+                    <Select
+                      value={editing.defaultModel}
+                      onValueChange={(value) => setEditing({ ...editing, defaultModel: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a model" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {MODEL_OPTIONS.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-center gap-2.5 pb-1">
+                    <Label className="mb-0 text-xs text-text-tertiary">Public</Label>
+                    <Switch
+                      checked={editing.isPublic ?? false}
+                      onCheckedChange={(checked) => setEditing({ ...editing, isPublic: checked })}
+                    />
+                  </div>
                 </div>
               </div>
+            </div>
 
-              <div className="flex gap-2 pt-4 border-t border-border-default">
-                <button onClick={handleSave} className="flex items-center justify-center gap-1.5 px-5 py-2.5 bg-accent text-bg text-[11px] font-medium rounded-lg hover:bg-accent-hover cursor-pointer transition-colors">
-                  <Save size={12} /> Save
+            {/* Actions */}
+            <div className="flex items-center gap-2 pt-2">
+              <button onClick={handleSave} className="flex items-center justify-center gap-1.5 px-5 py-2.5 bg-accent text-bg text-[11px] font-medium rounded-lg hover:bg-accent-hover cursor-pointer transition-colors">
+                <Save size={12} /> Save
+              </button>
+              {editing.id && (
+                <button onClick={handleTry} className="flex items-center justify-center gap-1.5 px-4 py-2.5 bg-surface-0 border border-border-default text-text-primary text-[11px] font-medium rounded-lg hover:bg-surface-1 cursor-pointer transition-colors">
+                  <Play size={12} /> Try
                 </button>
-                {editing.id && (
-                  <button onClick={handleTry} className="flex items-center justify-center gap-1.5 px-4 py-2.5 bg-surface-1 border border-border-default text-text-primary text-[11px] rounded-lg hover:bg-surface-2 cursor-pointer transition-colors">
-                    <Play size={12} /> Try
-                  </button>
-                )}
-                <div className="flex-1" />
-                {editing.id && (
-                  <button onClick={handleDelete} className="flex items-center justify-center gap-1.5 px-4 py-2.5 text-error/70 hover:text-error text-[11px] rounded-lg hover:bg-error/10 cursor-pointer transition-colors">
-                    <Trash2 size={12} /> Delete
-                  </button>
-                )}
-              </div>
+              )}
+              <div className="flex-1" />
+              {editing.id && (
+                <button onClick={handleDelete} className="flex items-center justify-center gap-1.5 px-4 py-2.5 text-error/60 hover:text-error text-[11px] rounded-lg hover:bg-error/5 cursor-pointer transition-colors">
+                  <Trash2 size={12} /> Delete
+                </button>
+              )}
             </div>
           </div>
         </div>
       ) : isInitialLoading ? (
-        <div className="flex-1 overflow-y-auto p-6">
-          <div className="max-w-2xl animate-pulse">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-9 h-9 rounded-lg bg-surface-2" />
-              <div className="h-4 w-24 rounded bg-surface-2" />
-            </div>
-            <div className="space-y-5">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2"><div className="h-3 w-10 rounded bg-surface-2" /><div className="h-10 rounded-lg bg-surface-1 border border-border-default" /></div>
-                <div className="space-y-2"><div className="h-3 w-8 rounded bg-surface-2" /><div className="h-10 rounded-lg bg-surface-1 border border-border-default" /></div>
-              </div>
-              <div className="space-y-2"><div className="h-3 w-20 rounded bg-surface-2" /><div className="h-10 rounded-lg bg-surface-1 border border-border-default" /></div>
-              <div className="space-y-2"><div className="h-3 w-24 rounded bg-surface-2" /><div className="h-40 rounded-xl bg-surface-1 border border-border-default" /></div>
-              <div className="space-y-2"><div className="h-3 w-24 rounded bg-surface-2" /><div className="h-10 rounded-lg bg-surface-1 border border-border-default" /></div>
-            </div>
-          </div>
+        <div className="flex-1 flex items-center justify-center">
+          <div className="w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin" />
         </div>
       ) : (
-        <div className="flex-1 flex flex-col items-center justify-center text-text-tertiary">
-          <Bot size={28} className="mb-2 opacity-30" />
-          <div className="text-xs">Select an agent or create a new one</div>
+        <div className="flex-1 flex flex-col items-center justify-center animate-[fadeIn_0.2s_ease-out]">
+          <div className="w-14 h-14 rounded-2xl bg-surface-0 border border-border-default flex items-center justify-center mb-4">
+            <Bot size={24} className="text-text-tertiary opacity-30" />
+          </div>
+          <h2 className="text-sm font-medium text-text-primary mb-1">No agent selected</h2>
+          <p className="text-xs text-text-tertiary mb-5">Select an agent from the sidebar or create a new one</p>
+          <button
+            onClick={() => setEditing({ ...emptyAgent })}
+            className="flex items-center gap-1.5 px-4 py-2 text-[11px] font-medium bg-accent text-bg rounded-lg hover:bg-accent-hover cursor-pointer transition-colors"
+          >
+            <Plus size={12} /> Create Agent
+          </button>
         </div>
       )}
       <ConfirmDialog

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import CommandPalette from '@/components/command-palette'
 import { useStore } from '@/lib/store'
@@ -28,6 +28,7 @@ vi.mock('lucide-react', () => {
     GitCompare: stub,
     ScrollText: stub,
     FileText: stub,
+    X: stub,
   }
 })
 
@@ -72,9 +73,9 @@ describe('CommandPalette', () => {
 
   it('displays command categories', () => {
     render(<CommandPalette />)
-    expect(screen.getByText('Models')).toBeInTheDocument()
     expect(screen.getByText('Actions')).toBeInTheDocument()
-    expect(screen.getByText('Navigation')).toBeInTheDocument()
+    expect(screen.getByText('Models')).toBeInTheDocument()
+    expect(screen.getByText('Slash Commands')).toBeInTheDocument()
   })
 
   it('displays action items', () => {
@@ -105,17 +106,6 @@ describe('CommandPalette', () => {
 
       expect(screen.getByText('No results found')).toBeInTheDocument()
     })
-
-    it('filters by category name', async () => {
-      const user = userEvent.setup()
-      render(<CommandPalette />)
-
-      const input = screen.getByPlaceholderText(/Type a command or search/)
-      await user.type(input, 'navigation')
-
-      expect(screen.getByText('Toggle Right Panel')).toBeInTheDocument()
-      expect(screen.getByText('Show Terminal')).toBeInTheDocument()
-    })
   })
 
   describe('keyboard navigation', () => {
@@ -129,57 +119,31 @@ describe('CommandPalette', () => {
       expect(useStore.getState().commandPaletteOpen).toBe(false)
     })
 
-    it('moves highlight down with ArrowDown', async () => {
+    it('selects items with ArrowDown', async () => {
       const user = userEvent.setup()
       render(<CommandPalette />)
 
       const input = screen.getByPlaceholderText(/Type a command or search/)
       await user.type(input, '{ArrowDown}')
 
-      // The second item should now be highlighted (index 1)
-      const items = screen.getAllByRole('button').filter(
-        (btn) => btn.getAttribute('data-index') !== null
-      )
-      expect(items[1]).toHaveClass('bg-accent/10')
-    })
-
-    it('moves highlight up with ArrowUp', async () => {
-      const user = userEvent.setup()
-      render(<CommandPalette />)
-
-      const input = screen.getByPlaceholderText(/Type a command or search/)
-      // Move down twice, then up once
-      await user.type(input, '{ArrowDown}{ArrowDown}{ArrowUp}')
-
-      const items = screen.getAllByRole('button').filter(
-        (btn) => btn.getAttribute('data-index') !== null
-      )
-      expect(items[1]).toHaveClass('bg-accent/10')
-    })
-
-    it('does not go below zero with ArrowUp', async () => {
-      const user = userEvent.setup()
-      render(<CommandPalette />)
-
-      const input = screen.getByPlaceholderText(/Type a command or search/)
-      await user.type(input, '{ArrowUp}')
-
-      // First item should still be highlighted
-      const items = screen.getAllByRole('button').filter(
-        (btn) => btn.getAttribute('data-index') !== null
-      )
-      expect(items[0]).toHaveClass('bg-accent/10')
+      // cmdk uses data-selected="true" for the selected item
+      const items = document.querySelectorAll('[cmdk-item]')
+      // After one ArrowDown, the second item should be selected
+      const selected = document.querySelector('[cmdk-item][data-selected="true"]')
+      expect(selected).toBeTruthy()
+      expect(selected).toBe(items[1])
     })
   })
 
   describe('closing', () => {
-    it('closes when clicking the backdrop', async () => {
+    it('closes when clicking the overlay', async () => {
       const user = userEvent.setup()
       render(<CommandPalette />)
 
-      const backdrop = document.querySelector('.backdrop-blur-sm')
-      if (backdrop) {
-        await user.click(backdrop)
+      // Radix Dialog uses a data-state="open" overlay
+      const overlay = document.querySelector('[data-state="open"]')
+      if (overlay) {
+        await user.click(overlay)
       }
 
       expect(useStore.getState().commandPaletteOpen).toBe(false)

@@ -6,8 +6,7 @@ from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.auth import get_current_user
-from backend.db import get_db
+from backend.auth import get_current_org, get_current_user, get_org_db
 from backend.logging_config import get_logger
 from backend.models import AnalyticsEvent, Conversation, UsageLog
 from backend.vector_db import get_vector_db
@@ -38,6 +37,7 @@ class AnalyticsEventResponse(BaseModel):
 async def track_events(
     body: AnalyticsEventRequest | list[AnalyticsEventRequest],
     user_id: uuid.UUID = Depends(get_current_user),
+    org_id: uuid.UUID = Depends(get_current_org),
     vector_db: AsyncSession = Depends(get_vector_db),
 ):
     """Track one or more analytics events. Accepts a single event or a list."""
@@ -47,6 +47,7 @@ async def track_events(
     for event_req in events:
         event = AnalyticsEvent(
             user_id=user_id,
+            org_id=org_id,
             event_type=event_req.event_type,
             event_data=event_req.event_data,
         )
@@ -70,7 +71,7 @@ async def track_events(
 @router.get("/me")
 async def my_usage_stats(
     user_id: uuid.UUID = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_org_db),
 ):
     """Get the current user's own usage statistics."""
     now = datetime.now(UTC)

@@ -5,8 +5,7 @@ from pydantic import BaseModel
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.auth import get_current_user
-from backend.db import get_db
+from backend.auth import get_current_org, get_current_user, get_org_db
 from backend.models import AgentPersona
 from backend.services.audit import AuditAction, record_audit_event
 from backend.services.rbac import require_permission
@@ -58,10 +57,12 @@ def _serialize_agent(a: AgentPersona) -> dict:
 async def create_agent(
     body: CreateAgentRequest,
     user_id: uuid.UUID = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    org_id: uuid.UUID = Depends(get_current_org),
+    db: AsyncSession = Depends(get_org_db),
 ):
     agent = AgentPersona(
         user_id=user_id,
+        org_id=org_id,
         name=body.name,
         description=body.description,
         system_prompt=body.system_prompt,
@@ -83,7 +84,7 @@ async def create_agent(
 @router.get("")
 async def list_agents(
     user_id: uuid.UUID = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_org_db),
 ):
     result = await db.execute(
         select(AgentPersona)
@@ -102,7 +103,7 @@ async def list_agents(
 @router.get("/public")
 async def browse_public_agents(
     user_id: uuid.UUID = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_org_db),
 ):
     result = await db.execute(
         select(AgentPersona)
@@ -117,7 +118,7 @@ async def browse_public_agents(
 async def get_agent(
     agent_id: uuid.UUID,
     user_id: uuid.UUID = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_org_db),
 ):
     result = await db.execute(select(AgentPersona).where(AgentPersona.id == agent_id))
     agent = result.scalar_one_or_none()
@@ -134,7 +135,7 @@ async def update_agent(
     agent_id: uuid.UUID,
     body: UpdateAgentRequest,
     user_id: uuid.UUID = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_org_db),
 ):
     result = await db.execute(select(AgentPersona).where(AgentPersona.id == agent_id, AgentPersona.user_id == user_id))
     agent = result.scalar_one_or_none()
@@ -166,7 +167,7 @@ async def update_agent(
 async def delete_agent(
     agent_id: uuid.UUID,
     user_id: uuid.UUID = Depends(require_permission("agent.delete")),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_org_db),
 ):
     result = await db.execute(select(AgentPersona).where(AgentPersona.id == agent_id, AgentPersona.user_id == user_id))
     agent = result.scalar_one_or_none()
@@ -185,7 +186,8 @@ async def delete_agent(
 async def duplicate_agent(
     agent_id: uuid.UUID,
     user_id: uuid.UUID = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    org_id: uuid.UUID = Depends(get_current_org),
+    db: AsyncSession = Depends(get_org_db),
 ):
     result = await db.execute(select(AgentPersona).where(AgentPersona.id == agent_id))
     original = result.scalar_one_or_none()
@@ -196,6 +198,7 @@ async def duplicate_agent(
 
     clone = AgentPersona(
         user_id=user_id,
+        org_id=org_id,
         name=f"{original.name} (copy)",
         description=original.description,
         system_prompt=original.system_prompt,

@@ -1,9 +1,32 @@
+// ── Multi-Org Types ──
+
+export interface Organization {
+  id: string;
+  name: string;
+  slug: string;
+  systemPrompt?: string;
+  settings: Record<string, any>;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface OrgMembership {
+  orgId: string;
+  orgName: string;
+  orgSlug: string;
+  role: 'viewer' | 'editor' | 'admin' | 'owner';
+  joinedAt?: string;
+}
+
 export interface User {
   id: string;
   email: string;
   name: string;
   avatarUrl?: string;
-  role: 'viewer' | 'editor' | 'admin' | 'org_admin';
+  isSuperadmin?: boolean;
+  role: 'viewer' | 'editor' | 'admin' | 'owner';
+  currentOrg?: Organization;
+  memberships?: OrgMembership[];
 }
 
 export interface Conversation {

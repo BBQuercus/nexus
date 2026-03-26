@@ -11,9 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sse_starlette.sse import EventSourceResponse
 
-from backend.auth import get_current_user
+from backend.auth import get_current_org, get_current_user, get_org_db
 from backend.config import settings
-from backend.db import get_db
 from backend.logging_config import get_logger
 from backend.models import AgentPersona, Artifact, Conversation, Message, UsageLog
 from backend.rate_limit import check_rate_limit
@@ -212,10 +211,12 @@ async def _list_conversations_legacy(
 async def create_conversation(
     body: CreateConversationRequest,
     user_id: uuid.UUID = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    org_id: uuid.UUID = Depends(get_current_org),
+    db: AsyncSession = Depends(get_org_db),
 ):
     conv = Conversation(
         user_id=user_id,
+        org_id=org_id,
         title=body.title,
         model=body.model,
         agent_mode=body.agent_mode,
@@ -246,7 +247,7 @@ async def list_conversations(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     user_id: uuid.UUID = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_org_db),
 ):
     try:
         query = select(Conversation).where(Conversation.user_id == user_id)
@@ -309,7 +310,7 @@ async def list_conversations(
 async def get_conversation(
     conversation_id: uuid.UUID,
     user_id: uuid.UUID = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_org_db),
 ):
     result = await db.execute(
         select(Conversation).where(Conversation.id == conversation_id, Conversation.user_id == user_id)
@@ -349,7 +350,7 @@ async def update_conversation(
     conversation_id: uuid.UUID,
     body: UpdateConversationRequest,
     user_id: uuid.UUID = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_org_db),
 ):
     result = await db.execute(
         select(Conversation).where(Conversation.id == conversation_id, Conversation.user_id == user_id)
@@ -375,7 +376,7 @@ async def update_conversation(
 async def delete_conversation(
     conversation_id: uuid.UUID,
     user_id: uuid.UUID = Depends(require_permission("conversation.delete")),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_org_db),
 ):
     result = await db.execute(
         select(Conversation).where(Conversation.id == conversation_id, Conversation.user_id == user_id)
@@ -433,7 +434,7 @@ async def send_message(
     conversation_id: uuid.UUID,
     body: SendMessageRequest,
     user_id: uuid.UUID = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_org_db),
 ):
     # Rate limit: 60 requests per minute per user
     await check_rate_limit(str(user_id), limit=60, window_seconds=60, category="chat")
@@ -489,6 +490,7 @@ async def send_message(
         user_images = [{"filename": img.filename, "url": img.data_url} for img in body.images]
 
     user_msg = Message(
+        org_id=conv.org_id,
         conversation_id=conversation_id,
         role="user",
         content=body.content,
@@ -667,7 +669,7 @@ async def generate_image(
     conversation_id: uuid.UUID,
     body: GenerateImageRequest,
     user_id: uuid.UUID = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_org_db),
 ):
     result = await db.execute(
         select(Conversation).where(Conversation.id == conversation_id, Conversation.user_id == user_id)
@@ -687,6 +689,7 @@ async def generate_image(
         sibling_count = 0
 
     user_msg = Message(
+        org_id=conv.org_id,
         conversation_id=conversation_id,
         role="user",
         content=body.prompt.strip(),
@@ -732,6 +735,7 @@ async def generate_image(
         raise HTTPException(status_code=500, detail="Received an unexpected response from the image service. Please try again.") from e
 
     assistant_msg = Message(
+        org_id=conv.org_id,
         conversation_id=conversation_id,
         role="assistant",
         content=f"Generated image for: {body.prompt.strip()}",
@@ -744,6 +748,7 @@ async def generate_image(
 
     db.add(
         Artifact(
+            org_id=conv.org_id,
             conversation_id=conversation_id,
             message_id=assistant_msg.id,
             type="image",
@@ -767,7 +772,8 @@ async def fork_conversation(
     conversation_id: uuid.UUID,
     message_id: uuid.UUID,
     user_id: uuid.UUID = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    org_id: uuid.UUID = Depends(get_current_org),
+    db: AsyncSession = Depends(get_org_db),
 ):
     # Get original conversation
     result = await db.execute(
@@ -782,6 +788,7 @@ async def fork_conversation(
     # Create new conversation
     new_conv = Conversation(
         user_id=user_id,
+        org_id=org_id,
         title=f"Fork of {orig.title or 'Untitled'}",
         model=orig.model,
         agent_mode=orig.agent_mode,
@@ -795,6 +802,7 @@ async def fork_conversation(
     # Copy messages up to and including the fork point
     for msg in sorted(orig.messages, key=lambda x: x.created_at):
         new_msg = Message(
+            org_id=new_conv.org_id,
             conversation_id=new_conv.id,
             role=msg.role,
             content=msg.content,
@@ -825,7 +833,7 @@ async def regenerate_message(
     message_id: uuid.UUID,
     body: RegenerateRequest | None = None,
     user_id: uuid.UUID = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_org_db),
 ):
     """Regenerate creates a sibling branch — the old response is preserved."""
     # Verify ownership
@@ -924,7 +932,7 @@ async def regenerate_message(
 async def get_conversation_tree(
     conversation_id: uuid.UUID,
     user_id: uuid.UUID = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_org_db),
 ):
     """Return lightweight tree structure for the minimap visualizer."""
     result = await db.execute(
@@ -972,7 +980,7 @@ async def get_message_siblings(
     conversation_id: uuid.UUID,
     message_id: uuid.UUID,
     user_id: uuid.UUID = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_org_db),
 ):
     """Get all sibling messages (messages sharing the same parent)."""
     conv = (
@@ -1009,7 +1017,7 @@ async def switch_branch(
     conversation_id: uuid.UUID,
     body: SwitchBranchRequest,
     user_id: uuid.UUID = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_org_db),
 ):
     """Switch active branch by updating active_leaf_id and returning the new path."""
     result = await db.execute(
@@ -1044,7 +1052,7 @@ async def switch_branch(
 async def list_artifacts(
     conversation_id: uuid.UUID,
     user_id: uuid.UUID = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_org_db),
 ):
     # Verify ownership
     result = await db.execute(
@@ -1081,7 +1089,7 @@ artifact_router = APIRouter(prefix="/api/artifacts", tags=["artifacts"])
 async def delete_artifact(
     artifact_id: uuid.UUID,
     user_id: uuid.UUID = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_org_db),
 ):
     result = await db.execute(
         select(Artifact).join(Conversation).where(Artifact.id == artifact_id, Conversation.user_id == user_id)
@@ -1105,7 +1113,7 @@ async def update_artifact(
     artifact_id: uuid.UUID,
     body: UpdateArtifactRequest,
     user_id: uuid.UUID = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_org_db),
 ):
     result = await db.execute(
         select(Artifact).join(Conversation).where(Artifact.id == artifact_id, Conversation.user_id == user_id)

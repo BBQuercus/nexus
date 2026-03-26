@@ -6,6 +6,13 @@ afterEach(() => {
   cleanup()
 })
 
+// Polyfill ResizeObserver for Radix UI components in jsdom
+global.ResizeObserver = vi.fn().mockImplementation(() => ({
+  observe: vi.fn(),
+  unobserve: vi.fn(),
+  disconnect: vi.fn(),
+}))
+
 // Polyfill scrollIntoView for jsdom
 Element.prototype.scrollIntoView = vi.fn()
 

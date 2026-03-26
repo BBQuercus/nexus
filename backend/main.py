@@ -41,6 +41,7 @@ from backend.routers.knowledge import retrieval_router as knowledge_retrieval_ro
 from backend.routers.knowledge import router as knowledge_router
 from backend.routers.media import router as media_router
 from backend.routers.memory import router as memory_router
+from backend.routers.orgs import router as orgs_router
 from backend.routers.projects import router as projects_router
 from backend.routers.sandboxes import router as sandboxes_router
 from backend.routers.search import router as search_router
@@ -194,6 +195,7 @@ app.include_router(knowledge_doc_router)
 app.include_router(knowledge_retrieval_router)
 app.include_router(media_router)
 app.include_router(memory_router)
+app.include_router(orgs_router)
 app.include_router(projects_router)
 app.include_router(search_router)
 app.include_router(integrations_router)
