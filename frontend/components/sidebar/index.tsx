@@ -397,6 +397,7 @@ export default function Sidebar() {
         onPin={handlePin}
         onExport={handleExport}
         onDelete={handleDelete}
+        onRenameStart={startRename}
         onRenameChange={setRenameValue}
         onRenameSubmit={submitRename}
         onRenameCancel={() => setRenamingId(null)}

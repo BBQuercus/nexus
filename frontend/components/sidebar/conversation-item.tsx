@@ -2,7 +2,7 @@
 
 import { useRef } from 'react';
 import type { Conversation } from '@/lib/types';
-import { Pin, PinOff, Download, X, CheckSquare, Square } from 'lucide-react';
+import { Pin, PinOff, Download, X, CheckSquare, Square, Pencil } from 'lucide-react';
 
 interface ConversationItemProps {
   conv: Conversation;
@@ -19,6 +19,7 @@ interface ConversationItemProps {
   onPin: (id: string, e: React.MouseEvent) => void;
   onExport: (conv: Conversation, e: React.MouseEvent) => void;
   onDelete: (id: string, e: React.MouseEvent) => void;
+  onRenameStart: (conv: Conversation, e: React.MouseEvent) => void;
   onRenameChange: (value: string) => void;
   onRenameSubmit: () => void;
   onRenameCancel: () => void;
@@ -40,6 +41,7 @@ export default function ConversationItem({
   onPin,
   onExport,
   onDelete,
+  onRenameStart,
   onRenameChange,
   onRenameSubmit,
   onRenameCancel,
@@ -85,6 +87,13 @@ export default function ConversationItem({
       )}
       {!bulkMode && !isRenaming && (
         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all shrink-0">
+          <button
+            onClick={(e) => onRenameStart(conv, e)}
+            title="Rename"
+            className="text-text-tertiary hover:text-accent shrink-0 cursor-pointer p-0.5 rounded hover:bg-surface-2 transition-all"
+          >
+            <Pencil size={11} />
+          </button>
           <button
             onClick={(e) => onPin(conv.id, e)}
             title={conv.pinned ? 'Unpin' : 'Pin to top'}

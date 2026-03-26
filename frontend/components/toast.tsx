@@ -17,12 +17,28 @@ interface ToastStore {
   remove: (id: string) => void;
 }
 
+const MAX_VISIBLE_TOASTS = 5;
+const DEDUP_WINDOW_MS = 2000;
+
+// Track recent messages for dedup
+let _recentMessages: { message: string; time: number }[] = [];
+
 export const useToast = create<ToastStore>((set) => ({
   toasts: [],
   add: (toast) =>
-    set((s) => ({
-      toasts: [...s.toasts, { ...toast, id: `toast-${Date.now()}-${Math.random().toString(36).slice(2, 6)}` }],
-    })),
+    set((s) => {
+      // Deduplicate: skip if same message shown recently
+      const now = Date.now();
+      _recentMessages = _recentMessages.filter((r) => now - r.time < DEDUP_WINDOW_MS);
+      if (_recentMessages.some((r) => r.message === toast.message)) return s;
+      _recentMessages.push({ message: toast.message, time: now });
+
+      // Rate limit: max visible toasts
+      const existing = s.toasts.length >= MAX_VISIBLE_TOASTS ? s.toasts.slice(1) : s.toasts;
+      return {
+        toasts: [...existing, { ...toast, id: `toast-${now}-${Math.random().toString(36).slice(2, 6)}` }],
+      };
+    }),
   remove: (id) =>
     set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
 }));
