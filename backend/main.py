@@ -120,36 +120,6 @@ async def lifespan(app: FastAPI):
             tables_without_vector = [t for t in Base.metadata.sorted_tables if t.name != Chunk.__tablename__]
             await conn.run_sync(lambda sync_conn: Base.metadata.create_all(sync_conn, tables=tables_without_vector))
 
-    # Migrate existing tables: add columns that create_all won't add to
-    # already-existing tables.  Each runs in its own transaction so a
-    # "column already exists" error doesn't poison the next statement.
-    migrations = [
-        ("conversations", "knowledge_base_ids", "JSON"),
-        ("agent_personas", "knowledge_base_ids", "JSON"),
-        ("messages", "citations", "JSON"),
-    ]
-    for table, column, col_type in migrations:
-        try:
-            async with engine.begin() as conn:
-                await conn.execute(sa_text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {col_type}"))
-        except Exception:
-            pass  # table might not exist yet either — harmless
-
-    # Backfill role from is_admin for users that don't have a role set yet
-    try:
-        async with engine.begin() as conn:
-            await conn.execute(
-                sa_text("UPDATE users SET role = 'admin' WHERE is_admin = true AND (role IS NULL OR role = '')")
-            )
-            await conn.execute(
-                sa_text(
-                    "UPDATE users SET role = 'editor' WHERE (is_admin = false OR is_admin IS NULL) AND (role IS NULL OR role = '')"
-                )
-            )
-        logger.info("role_backfill_complete")
-    except Exception as e:
-        logger.warning("role_backfill_failed", error=str(e))
-
     logger.info("database_tables_ensured", pgvector=pgvector_ok)
     await get_redis()
     setup_telemetry(app=app, db_engine=engine)
@@ -170,12 +140,16 @@ async def lifespan(app: FastAPI):
     logger.info("database_engine_disposed")
 
 
+_is_production = settings.ENVIRONMENT == "production"
+
 app = FastAPI(
     title="Nexus",
     description="AI Agent Workspace with Sandboxed Code Execution",
     version="0.1.0",
     lifespan=lifespan,
     dependencies=[Depends(validate_csrf)],
+    docs_url=None if _is_production else "/docs",
+    redoc_url=None if _is_production else "/redoc",
 )
 
 # Middleware — order matters: outermost first
