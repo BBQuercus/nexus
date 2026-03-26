@@ -19,6 +19,28 @@
   --color-info: #5599FF;
   --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-code: 'IBM Plex Mono', 'Fira Code', 'Consolas', monospace;
+
+  /* shadcn/ui compatibility — aliases to existing Nexus tokens */
+  --color-background: #121214;
+  --color-foreground: #F0F0F2;
+  --color-card: #18181B;
+  --color-card-foreground: #F0F0F2;
+  --color-popover: #18181B;
+  --color-popover-foreground: #F0F0F2;
+  --color-primary: #00E599;
+  --color-primary-foreground: #121214;
+  --color-secondary: #222225;
+  --color-secondary-foreground: #F0F0F2;
+  --color-muted: #222225;
+  --color-muted-foreground: #9A9AA0;
+  --color-accent-ui: #2A2A2E;
+  --color-accent-ui-foreground: #F0F0F2;
+  --color-destructive: #FF5555;
+  --color-destructive-foreground: #FFFFFF;
+  --color-border: #333338;
+  --color-input: #333338;
+  --color-ring: #00E599;
+  --radius: 0.5rem;
 }
 
 /* Base */
@@ -211,6 +233,11 @@ pre code {
   animation: pulse 1.5s ease-in-out infinite;
 }
 
+@keyframes glow-pulse {
+  0%, 100% { filter: drop-shadow(0 0 4px var(--color-accent-dim)); opacity: 0.85; }
+  50% { filter: drop-shadow(0 0 14px var(--color-accent)); opacity: 1; }
+}
+
 /* Processing brand glow */
 @keyframes brandGlow {
   0%, 100% { text-shadow: 0 0 0 transparent; }
@@ -245,6 +272,36 @@ pre code {
 }
 .animate-fade-in-up {
   animation: fadeInUp 0.4s ease-out both;
+}
+
+/* Page transition — subtle fade+lift on every route change */
+@keyframes pageEnter {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-page-enter {
+  animation: pageEnter 0.2s ease-out both;
+}
+
+/* Auth progress bar — CSS-only crawl to ~85% over 8s */
+@keyframes authProgressCrawl {
+  0% { width: 0%; }
+  20% { width: 30%; }
+  50% { width: 55%; }
+  80% { width: 75%; }
+  100% { width: 85%; }
+}
+.auth-progress-crawl {
+  animation: authProgressCrawl 8s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
+}
+
+/* Auth transition icon — slow breathe */
+@keyframes authBreath {
+  0%, 100% { transform: scale(1); filter: drop-shadow(0 0 0 transparent); }
+  50% { transform: scale(1.08); filter: drop-shadow(0 0 8px var(--color-accent)); }
+}
+.transition-auth-icon {
+  animation: authBreath 2.5s ease-in-out infinite;
 }
 
 /* Staggered fade children — supports up to 12 items.

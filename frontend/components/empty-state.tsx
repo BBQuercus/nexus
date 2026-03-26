@@ -156,7 +156,7 @@ function ReturningUserScreen() {
     <div className="flex-1 flex flex-col items-center justify-center px-4 md:px-6 gap-6 md:gap-10 overflow-y-auto py-6 md:py-8 cascade-sections">
       {/* Logo + greeting */}
       <div className="flex flex-col items-center gap-5">
-        <Zap size={32} className="text-accent" />
+        <Zap size={32} className="text-accent animate-[glow-pulse_3s_ease-in-out_infinite]" />
         {greeting ? (
           <p className="text-2xl md:text-3xl font-bold tracking-tight text-text-primary text-center">{greeting}</p>
         ) : (
