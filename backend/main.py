@@ -228,6 +228,28 @@ app.include_router(compliance_router)
 app.include_router(admin_analytics_router)
 
 
+# ── Model Catalog ──
+
+
+@app.get("/api/models")
+async def list_models(user_id: uuid.UUID = Depends(get_current_user)):
+    """Return available chat, image, and audio models."""
+    from backend.services.llm import MODEL_PRICING
+
+    # Chat models derived from pricing table (source of truth)
+    chat_models = [{"id": model_id, "pricing": {"input": p[0], "output": p[1]}} for model_id, p in MODEL_PRICING.items()]
+    return {
+        "chat_models": chat_models,
+        "image_models": [
+            {"id": "gpt-image-1.5-swc", "name": "GPT Image 1.5"},
+            {"id": "azure_ai/flux.2-pro", "name": "FLUX.2 Pro"},
+        ],
+        "audio_models": [
+            {"id": "azure_ai/gpt-audio-1.5", "name": "GPT Audio 1.5"},
+        ],
+    }
+
+
 # ── Prometheus Metrics ──
 
 

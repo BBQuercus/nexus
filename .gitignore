@@ -27,3 +27,7 @@ Thumbs.db
 
 # Alembic
 migrations/versions/__pycache__/
+
+# Generated artifacts
+reports/
+railway.toml

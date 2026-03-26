@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { SkipNav } from '@/components/accessibility';
 import AuthProvider from '@/components/auth-provider';
+import QueryProvider from '@/components/query-provider';
 import { ServiceWorkerRegister } from '@/components/sw-register';
 
 export const metadata: Metadata = {
@@ -30,9 +31,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-screen overflow-hidden">
         <SkipNav />
         <ServiceWorkerRegister />
-        <AuthProvider>
-          {children}
-        </AuthProvider>
+        <QueryProvider>
+          <AuthProvider>
+            {children}
+          </AuthProvider>
+        </QueryProvider>
       </body>
     </html>
   );
