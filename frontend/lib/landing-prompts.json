@@ -1,0 +1,238 @@
+[
+  {
+    "id": "python-sandbox",
+    "label": "Python Sandbox",
+    "icon": "Terminal",
+    "prompt": "Start a Python sandbox workflow for data analysis, automation, or scripting. Use the terminal, create files as needed, and leave me with runnable output.",
+    "endpoint": "messages",
+    "compose_mode": "chat",
+    "expected_behaviors": [
+      "Uses code or sandbox tooling",
+      "Produces a concrete runnable result"
+    ],
+    "required_evidence": [
+      "tool_call:execute_code"
+    ],
+    "judge_instructions": "Pass only if the assistant clearly starts a Python-oriented workflow, uses code/sandbox tooling or provides equivalent runnable output, and does not stay at a purely generic advice level."
+  },
+  {
+    "id": "knowledge-base",
+    "label": "Knowledge Base",
+    "icon": "Database",
+    "prompt": "Based on the documents in the knowledge base, what is the capital of Zyphoria and what is its population?",
+    "endpoint": "messages",
+    "compose_mode": "chat",
+    "test_type": "knowledge-base-e2e",
+    "test_document_content": "The Republic of Zyphoria is a small nation in the northern hemisphere. Its capital city is Velmara, which has a population of 3,247,891. The country is known for its crystal lakes and annual Festival of Winds. The official currency is the Zyphorian Lume (ZPL). Velmara was founded in 1247 by explorer Edrin Solane and sits at the confluence of the Argent and Miravel rivers.",
+    "test_document_filename": "zyphoria-facts.txt",
+    "test_expected_facts": ["Velmara", "3,247,891"],
+    "expected_behaviors": [
+      "Retrieves information from the uploaded knowledge base document",
+      "Correctly identifies Velmara as the capital with population 3,247,891",
+      "Cites or references the source document"
+    ],
+    "required_evidence": [],
+    "judge_instructions": "Pass only if the response correctly states that the capital of Zyphoria is Velmara with a population of 3,247,891. The information MUST come from the knowledge base retrieval, not hallucination. The response should reference or cite the source document. Fail if the facts are wrong or the assistant claims it does not have knowledge base access."
+  },
+  {
+    "id": "live-preview",
+    "label": "Live Preview",
+    "icon": "Globe",
+    "prompt": "Build a modern web app I can iterate on in live preview. Start with a strong foundation, implement the core experience, and keep the UI polished.",
+    "endpoint": "messages",
+    "compose_mode": "chat",
+    "expected_behaviors": [
+      "Produces an implementation-oriented response",
+      "Focuses on building rather than generic brainstorming"
+    ],
+    "required_evidence": [],
+    "judge_instructions": "Pass if the response meaningfully starts building or specifies a credible implementation approach for a modern web app. Fail if it stays generic or purely advisory."
+  },
+  {
+    "id": "charts",
+    "label": "Charts",
+    "icon": "BarChart3",
+    "prompt": "Create interactive data visualizations. Use Vega-Lite to build charts from data I provide or generate sample data to demonstrate different chart types.",
+    "endpoint": "messages",
+    "compose_mode": "chat",
+    "expected_behaviors": [
+      "Creates chart-oriented output",
+      "Uses sample data if no input data is provided"
+    ],
+    "required_evidence": [
+      "chart_output_or_artifact"
+    ],
+    "judge_instructions": "Pass only if the assistant creates or clearly attempts to create interactive chart output, preferably via Vega-Lite, and handles missing user data honestly by using sample data."
+  },
+  {
+    "id": "sql-on-files",
+    "label": "SQL on Files",
+    "icon": "Blocks",
+    "prompt": "Load my CSV or Excel files into DuckDB and run SQL queries. Show the schema, suggest interesting queries, and visualize the results.",
+    "endpoint": "messages",
+    "compose_mode": "chat",
+    "expected_behaviors": [
+      "Discusses DuckDB/file workflow honestly",
+      "Does not pretend files exist when none are provided"
+    ],
+    "required_evidence": [],
+    "judge_instructions": "Pass if the assistant correctly frames a DuckDB-on-files workflow, ideally with schema/query suggestions, while being explicit about the absence of attached files when none are present."
+  },
+  {
+    "id": "interactive-forms",
+    "label": "Interactive Forms",
+    "icon": "ClipboardList",
+    "prompt": "Create an interactive form with multiple field types: text, dropdowns, ratings, sliders, and conditional sections. Then analyze my responses.",
+    "endpoint": "messages",
+    "compose_mode": "chat",
+    "expected_behaviors": [
+      "Creates a structured form",
+      "Includes multiple field types"
+    ],
+    "required_evidence": [
+      "form_output"
+    ],
+    "judge_instructions": "Pass only if a real interactive form is produced with multiple field types including text, choice-style input, and at least one rating or slider style field."
+  },
+  {
+    "id": "multi-model-compare",
+    "label": "Multi-Model Compare",
+    "icon": "GitCompare",
+    "prompt": "Tell me how to approach building a SaaS product from scratch",
+    "endpoint": "messages",
+    "compose_mode": "chat",
+    "action_type": "compare",
+    "compare_model_providers": [
+      "anthropic",
+      "openai"
+    ],
+    "default_compare_models": [
+      "azure_ai/claude-sonnet-4-5-swc",
+      "gpt-5.2-use2"
+    ],
+    "expected_behaviors": [
+      "Runs as a multi-model compare request",
+      "Produces at least two completed branches"
+    ],
+    "required_evidence": [
+      "multi_branch_completion"
+    ],
+    "judge_instructions": "Pass if the run completes as a compare workflow with at least two assistant branches and each branch addresses the SaaS-building prompt in a useful way."
+  },
+  {
+    "id": "image-generation",
+    "label": "Image Generation",
+    "icon": "Image",
+    "prompt": "A futuristic cityscape at sunset with flying vehicles and holographic billboards, cinematic style",
+    "endpoint": "images",
+    "compose_mode": "image",
+    "action_type": "image",
+    "expected_behaviors": [
+      "Returns an image artifact",
+      "Matches the prompt direction"
+    ],
+    "required_evidence": [
+      "image_output"
+    ],
+    "judge_instructions": "Pass only if the generated image broadly matches the prompt: futuristic cityscape, sunset lighting, flying vehicles, holographic billboards, and a cinematic feel."
+  },
+  {
+    "id": "web-search",
+    "label": "Web Search",
+    "icon": "Search",
+    "prompt": "Search the web and tell me what the current version of Python is and when it was released.",
+    "endpoint": "messages",
+    "compose_mode": "chat",
+    "expected_behaviors": [
+      "Calls the web_search tool to find current information",
+      "Returns a specific Python version number and release date"
+    ],
+    "required_evidence": [
+      "tool_call:web_search"
+    ],
+    "judge_instructions": "Pass only if the assistant called web_search, returned a specific Python version number (e.g. 3.13.x or 3.14.x) and a release date. The version must be plausible for 2025-2026. Fail if the assistant guesses from training data without searching."
+  },
+  {
+    "id": "multi-turn",
+    "label": "Multi-Turn",
+    "icon": "MessageSquare",
+    "prompt": "Define a Python function called fibonacci that returns the first N numbers in the Fibonacci sequence.",
+    "endpoint": "messages",
+    "compose_mode": "chat",
+    "test_type": "multi-turn",
+    "test_followup_prompt": "Now modify the function to use memoization and add type hints. Also add a docstring.",
+    "test_expected_facts": ["fibonacci", "memo"],
+    "expected_behaviors": [
+      "First response defines a fibonacci function",
+      "Follow-up correctly modifies the same function with memoization and type hints",
+      "Conversation context is maintained between turns"
+    ],
+    "required_evidence": [],
+    "judge_instructions": "Evaluate ONLY the follow-up (second) response. Pass if it modifies the fibonacci function from the first turn to add memoization (caching/dict/lru_cache), type hints, and a docstring. The response must demonstrate awareness of the prior turn's code — not start from scratch. Fail if context is lost or memoization is missing."
+  },
+  {
+    "id": "code-execution",
+    "label": "Code Execution",
+    "icon": "Play",
+    "prompt": "Write and execute a Python script that generates the first 20 prime numbers and prints them as a comma-separated list.",
+    "endpoint": "messages",
+    "compose_mode": "chat",
+    "test_expected_facts": ["2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71"],
+    "expected_behaviors": [
+      "Writes Python code to generate primes",
+      "Executes the code in a sandbox",
+      "Shows the correct output: first 20 primes"
+    ],
+    "required_evidence": [
+      "tool_call:execute_code"
+    ],
+    "judge_instructions": "Pass only if the assistant wrote Python code, executed it via the sandbox, and the output contains the correct first 20 prime numbers (2,3,5,7,11,13,17,19,23,29,31,37,41,43,47,53,59,61,67,71). Fail if code was shown but never executed, or if the primes are wrong."
+  },
+  {
+    "id": "regenerate",
+    "label": "Regenerate",
+    "icon": "RefreshCw",
+    "prompt": "Give me a creative name for a coffee shop that specializes in science-themed drinks.",
+    "endpoint": "messages",
+    "compose_mode": "chat",
+    "test_type": "regenerate",
+    "expected_behaviors": [
+      "First response gives a creative coffee shop name",
+      "Regenerated response gives a DIFFERENT creative name",
+      "Both responses are complete and coherent"
+    ],
+    "required_evidence": [],
+    "judge_instructions": "You will see two responses (original branch_index=0 and regenerated branch_index=1). Pass if: (1) both responses are non-empty and suggest at least one creative science-themed coffee shop name, (2) the responses are not character-for-character identical (some overlap in name suggestions is acceptable as long as the text differs), and (3) both are coherent. Fail only if one response is empty/broken or both are exactly identical word-for-word."
+  },
+  {
+    "id": "document-understanding",
+    "label": "Document Understanding",
+    "icon": "FileText",
+    "prompt": "Look at this image and tell me: what is the project name, what is its status, what is the budget, and who is the team lead?",
+    "endpoint": "messages",
+    "compose_mode": "chat",
+    "test_type": "image-attachment",
+    "test_expected_facts": ["NEXUS", "ACTIVE", "142,500", "Elara Voss"],
+    "expected_behaviors": [
+      "Reads and interprets the uploaded image content",
+      "Correctly extracts all four data points from the image",
+      "References the image as the source of information"
+    ],
+    "required_evidence": [],
+    "judge_instructions": "Pass only if the response correctly identifies ALL of: (1) project name contains 'Nexus', (2) status is 'Active', (3) budget is $142,500, and (4) team lead is Dr. Elara Voss. All facts must come from the attached image. Fail if any fact is wrong or the assistant claims it cannot see the image."
+  },
+  {
+    "id": "ai-memory",
+    "label": "AI Memory",
+    "icon": "Brain",
+    "prompt": "Remember that I prefer concise answers, code examples over explanations, and that I work primarily with TypeScript and Python.",
+    "endpoint": "messages",
+    "compose_mode": "chat",
+    "expected_behaviors": [
+      "Acknowledges and stores user preferences",
+      "Avoids fabricating persistence if unsupported"
+    ],
+    "required_evidence": [],
+    "judge_instructions": "Pass if the assistant correctly interprets the preference memory request, responds as though it will remember or apply those preferences, and does not make unsupported claims."
+  }
+]
