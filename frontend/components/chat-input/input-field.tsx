@@ -169,7 +169,7 @@ export function InputField({
               ? 'Describe the image you want to generate...'
               : isRecording
                 ? ''
-                : 'Ask anything, run code, search the web...'
+                : 'How can I help you today?'
         }
         disabled={isStreaming || isGeneratingImage}
         rows={1}
