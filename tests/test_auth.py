@@ -20,6 +20,7 @@ from fastapi import HTTPException
 from starlette.requests import Request
 
 from backend.auth import (
+    _get_admin_api_user_id,
     create_access_token,
     create_refresh_token,
     generate_csrf_token,
@@ -143,6 +144,15 @@ class TestGetCurrentUser(unittest.IsolatedAsyncioTestCase):
         result = await get_current_user(request)
         self.assertEqual(result, user_id)
 
+    async def test_extracts_user_from_configured_admin_api_token(self):
+        user_id = uuid.uuid4()
+        with patch.object(settings, "ADMIN_API_TOKEN", "admin-token"), patch.object(
+            settings, "ADMIN_API_USER_ID", str(user_id)
+        ):
+            request = _make_request(headers={"authorization": "Bearer admin-token"})
+            result = await get_current_user(request)
+        self.assertEqual(result, user_id)
+
     async def test_extracts_user_from_session_cookie(self):
         user_id = uuid.uuid4()
         token = create_access_token(str(user_id), "test@example.com")
@@ -191,6 +201,16 @@ class TestGetCurrentUser(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(ctx.exception.status_code, 401)
         self.assertEqual(ctx.exception.detail, "Invalid token")
 
+    async def test_rejects_admin_api_token_when_configured_user_id_is_invalid(self):
+        with patch.object(settings, "ADMIN_API_TOKEN", "admin-token"), patch.object(
+            settings, "ADMIN_API_USER_ID", "not-a-uuid"
+        ):
+            request = _make_request(headers={"authorization": "Bearer admin-token"})
+            with self.assertRaises(HTTPException) as ctx:
+                await get_current_user(request)
+        self.assertEqual(ctx.exception.status_code, 401)
+        self.assertEqual(ctx.exception.detail, "Invalid token")
+
     async def test_rejects_token_without_sub_claim(self):
         payload = {
             "email": "test@example.com",
@@ -230,7 +250,7 @@ class TestCSRFValidation(unittest.IsolatedAsyncioTestCase):
     async def test_rejects_mismatched_csrf_tokens(self):
         user_id = uuid.uuid4()
         session_token = create_access_token(str(user_id), "test@example.com")
-        wrong_csrf = generate_csrf_token("wrong-user-id")
+        wrong_csrf = generate_csrf_token("wrong-user-id", 0)
         request = _make_request(
             headers={
                 "cookie": f"session={session_token}; csrf_token={wrong_csrf}",
@@ -245,7 +265,9 @@ class TestCSRFValidation(unittest.IsolatedAsyncioTestCase):
     async def test_accepts_matching_csrf_tokens(self):
         user_id = uuid.uuid4()
         session_token = create_access_token(str(user_id), "test@example.com")
-        valid_csrf = generate_csrf_token(str(user_id))
+        # Extract iat from the token to generate a matching CSRF token
+        payload = jwt.decode(session_token, settings.SERVER_SECRET, algorithms=[settings.JWT_ENCODING_ALGORITHM])
+        valid_csrf = generate_csrf_token(str(user_id), payload["iat"])
         request = _make_request(
             headers={
                 "cookie": f"session={session_token}; csrf_token={valid_csrf}",
@@ -258,21 +280,41 @@ class TestCSRFValidation(unittest.IsolatedAsyncioTestCase):
 class TestGenerateCSRFToken(unittest.TestCase):
     """Tests for the generate_csrf_token helper."""
 
-    def test_deterministic_for_same_session(self):
-        token1 = generate_csrf_token("session-123")
-        token2 = generate_csrf_token("session-123")
+    def test_deterministic_for_same_session_and_iat(self):
+        token1 = generate_csrf_token("session-123", 1000)
+        token2 = generate_csrf_token("session-123", 1000)
         self.assertEqual(token1, token2)
 
     def test_different_for_different_sessions(self):
-        token1 = generate_csrf_token("session-1")
-        token2 = generate_csrf_token("session-2")
+        token1 = generate_csrf_token("session-1", 1000)
+        token2 = generate_csrf_token("session-2", 1000)
+        self.assertNotEqual(token1, token2)
+
+    def test_different_for_different_iat(self):
+        token1 = generate_csrf_token("session-1", 1000)
+        token2 = generate_csrf_token("session-1", 2000)
         self.assertNotEqual(token1, token2)
 
     def test_returns_32_char_hex(self):
-        token = generate_csrf_token("session-123")
+        token = generate_csrf_token("session-123", 1000)
         self.assertEqual(len(token), 32)
         # Should be valid hex
         int(token, 16)
+
+
+class TestAdminApiTokenHelper(unittest.TestCase):
+    def test_returns_none_for_non_matching_token(self):
+        with patch.object(settings, "ADMIN_API_TOKEN", "expected"), patch.object(
+            settings, "ADMIN_API_USER_ID", str(uuid.uuid4())
+        ):
+            self.assertIsNone(_get_admin_api_user_id("different"))
+
+    def test_returns_uuid_for_matching_token(self):
+        user_id = uuid.uuid4()
+        with patch.object(settings, "ADMIN_API_TOKEN", "expected"), patch.object(
+            settings, "ADMIN_API_USER_ID", str(user_id)
+        ):
+            self.assertEqual(_get_admin_api_user_id("expected"), user_id)
 
 
 if __name__ == "__main__":

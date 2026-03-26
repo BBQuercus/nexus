@@ -23,7 +23,7 @@ def _get_workos_client():
     global _workos_client
     if _workos_client is None:
         if not settings.WORKOS_API_KEY or not settings.WORKOS_CLIENT_ID:
-            raise HTTPException(status_code=503, detail="WorkOS not configured")
+            raise HTTPException(status_code=503, detail="Authentication service is not configured")
         import workos
 
         _workos_client = workos.WorkOSClient(
@@ -121,13 +121,18 @@ def create_refresh_token(user_id: str, email: str) -> str:
     return jwt.encode(payload, settings.SERVER_SECRET, algorithm=settings.JWT_ENCODING_ALGORITHM)
 
 
-def generate_csrf_token(session_id: str) -> str:
-    """Generate a CSRF token tied to the user's session."""
-    raw = f"{session_id}:{settings.SERVER_SECRET}"
+def generate_csrf_token(session_id: str, iat: str | int = "") -> str:
+    """Generate a CSRF token tied to the user's session and token issue time.
+
+    Including ``iat`` ensures the CSRF token rotates whenever the JWT is
+    refreshed, preventing replay of leaked tokens across sessions.
+    """
+    raw = f"{session_id}:{iat}:{settings.SERVER_SECRET}"
     return hashlib.sha256(raw.encode()).hexdigest()[:32]
 
 
-def _get_user_id_from_session_cookie(request: Request) -> uuid.UUID | None:
+def _get_claims_from_session_cookie(request: Request) -> dict | None:
+    """Decode the session JWT and return the full claims dict, or None."""
     token = request.cookies.get("session")
     if not token:
         return None
@@ -149,8 +154,35 @@ def _get_user_id_from_session_cookie(request: Request) -> uuid.UUID | None:
         return None
 
     try:
-        return uuid.UUID(user_id)
+        uuid.UUID(user_id)
     except ValueError:
+        return None
+
+    return payload
+
+
+def _get_user_id_from_session_cookie(request: Request) -> uuid.UUID | None:
+    claims = _get_claims_from_session_cookie(request)
+    if claims is None:
+        return None
+    try:
+        return uuid.UUID(claims["sub"])
+    except (KeyError, ValueError):
+        return None
+
+
+def _get_admin_api_user_id(token: str | None) -> uuid.UUID | None:
+    configured_token = (settings.ADMIN_API_TOKEN or "").strip()
+    configured_user_id = (settings.ADMIN_API_USER_ID or "").strip()
+    if not token or not configured_token or token != configured_token:
+        return None
+    if not configured_user_id:
+        logger.warning("admin_api_token_missing_user_id")
+        return None
+    try:
+        return uuid.UUID(configured_user_id)
+    except ValueError:
+        logger.warning("admin_api_user_id_invalid", admin_api_user_id=configured_user_id)
         return None
 
 
@@ -160,6 +192,9 @@ async def get_current_user(request: Request) -> uuid.UUID:
     auth_header = request.headers.get("authorization", "")
     if auth_header.startswith("Bearer "):
         token = auth_header[7:]
+        admin_user_id = _get_admin_api_user_id(token)
+        if admin_user_id is not None:
+            return admin_user_id
     if not token:
         token = request.cookies.get("session")
     if not token:
@@ -213,11 +248,13 @@ async def validate_csrf(request: Request) -> None:
     if not csrf_header:
         raise HTTPException(status_code=403, detail="CSRF token missing")
 
-    user_id = _get_user_id_from_session_cookie(request)
-    if user_id is None:
+    session_claims = _get_claims_from_session_cookie(request)
+    if session_claims is None:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
-    expected_csrf = generate_csrf_token(str(user_id))
+    user_id = session_claims.get("sub", "")
+    iat = session_claims.get("iat", "")
+    expected_csrf = generate_csrf_token(str(user_id), iat)
     if csrf_header != expected_csrf:
         raise HTTPException(status_code=403, detail="CSRF token mismatch")
 
@@ -277,7 +314,9 @@ def _set_session_cookies(response: Response, user: User) -> None:
     refresh_token = create_refresh_token(str(user.id), user.email)
     _set_auth_cookie(response, "session", access_token, settings.JWT_ACCESS_TOKEN_MINUTES * 60)
     _set_auth_cookie(response, "refresh_token", refresh_token, settings.JWT_REFRESH_TOKEN_DAYS * 86400)
-    csrf_token = generate_csrf_token(str(user.id))
+    # Extract iat from the just-created access token to bind CSRF to this session
+    access_payload = jwt.decode(access_token, settings.SERVER_SECRET, algorithms=[settings.JWT_ENCODING_ALGORITHM])
+    csrf_token = generate_csrf_token(str(user.id), access_payload.get("iat", ""))
     _set_csrf_cookie(response, csrf_token, settings.JWT_REFRESH_TOKEN_DAYS * 86400)
 
 
@@ -293,9 +332,9 @@ async def login(provider: str | None = None):
 @router.get("/callback")
 async def callback(
     code: str | None = None,
+    db: AsyncSession = Depends(get_db),
     error: str | None = None,
     error_description: str | None = None,
-    db: AsyncSession = Depends(get_db),
 ):
     """Handle WorkOS OAuth callback, upsert user, issue tokens."""
     from fastapi.responses import RedirectResponse
@@ -434,6 +473,10 @@ async def refresh_token(request: Request, response: Response, body: RefreshReque
     if response is not None:
         _set_auth_cookie(response, "session", new_access, settings.JWT_ACCESS_TOKEN_MINUTES * 60)
         _set_auth_cookie(response, "refresh_token", new_refresh, settings.JWT_REFRESH_TOKEN_DAYS * 86400)
+        # Rotate CSRF token to match the new session
+        access_payload = jwt.decode(new_access, settings.SERVER_SECRET, algorithms=[settings.JWT_ENCODING_ALGORITHM])
+        csrf_token = generate_csrf_token(user_id, access_payload.get("iat", ""))
+        _set_csrf_cookie(response, csrf_token, settings.JWT_REFRESH_TOKEN_DAYS * 86400)
 
     return {
         "expires_in": settings.JWT_ACCESS_TOKEN_MINUTES * 60,

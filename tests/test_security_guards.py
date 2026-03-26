@@ -73,6 +73,17 @@ class AuthGuardTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(resolved_user, user_id)
 
+    async def test_get_current_user_accepts_configured_admin_api_token(self):
+        user_id = uuid.uuid4()
+        request = make_request(headers={"authorization": "Bearer admin-token"})
+
+        with patch.object(settings, "ADMIN_API_TOKEN", "admin-token"), patch.object(
+            settings, "ADMIN_API_USER_ID", str(user_id)
+        ):
+            resolved_user = await get_current_user(request)
+
+        self.assertEqual(resolved_user, user_id)
+
     async def test_get_current_user_rejects_refresh_token_for_api_access(self):
         user_id = uuid.uuid4()
         request = make_request(headers={"authorization": f"Bearer {self.make_token(user_id, 'refresh')}"})
@@ -94,10 +105,11 @@ class AuthGuardTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_validate_csrf_accepts_matching_token(self):
         """CSRF validation decodes the session JWT, derives the expected CSRF
-        token from the user id, then compares it against the X-CSRF-Token header."""
+        token from the user id + iat, then compares it against the X-CSRF-Token header."""
         user_id = uuid.uuid4()
         session_token = create_access_token(str(user_id), "user@example.com")
-        expected_csrf = generate_csrf_token(str(user_id))
+        payload = jwt.decode(session_token, os.environ["SERVER_SECRET"], algorithms=["HS256"])
+        expected_csrf = generate_csrf_token(str(user_id), payload["iat"])
         request = make_request(
             headers={
                 "cookie": f"session={session_token}; csrf_token={expected_csrf}",

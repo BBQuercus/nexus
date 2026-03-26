@@ -19,11 +19,12 @@ logger = get_logger("middleware")
 
 CSP_VALUE = (
     "default-src 'self'; "
-    "script-src 'self' 'unsafe-eval' 'unsafe-inline'; "
+    "script-src 'self'; "
     "style-src 'self' 'unsafe-inline'; "
     "img-src 'self' data: blob:; "
     "connect-src 'self' ws: wss:; "
-    "font-src 'self' data:"
+    "font-src 'self' data:; "
+    "frame-ancestors 'none'"
 )
 
 SECURITY_HEADERS: list[tuple[bytes, bytes]] = [
@@ -150,8 +151,37 @@ class RequestIdMiddleware:
             structlog.contextvars.clear_contextvars()
 
 
+# User-friendly error messages for common HTTP status codes.
+# Prevents internal details from leaking to clients.
+_SANITIZED_MESSAGES: dict[int, str] = {
+    401: "Session expired. Please log in again.",
+    403: "You don't have permission to perform this action.",
+    404: "The requested resource was not found.",
+    429: "You're sending requests too quickly. Please wait a moment.",
+    500: "Something unexpected happened. If this keeps occurring, please reload the page.",
+    502: "An upstream service returned an error. Please try again.",
+    503: "Service temporarily unavailable. Please try again shortly.",
+    504: "The request took too long. Please try again.",
+}
+
+# Patterns in error details that indicate internal leaks
+_LEAK_PATTERNS = ("litellm", "openai", "azure", "workos", "cohere", "daytona", "postgresql", "redis://", "sqlalchemy")
+
+
+def _sanitize_detail(status_code: int, detail: str) -> str:
+    """Replace error details that might leak internal service names."""
+    detail_lower = detail.lower()
+    if any(pattern in detail_lower for pattern in _LEAK_PATTERNS):
+        return _SANITIZED_MESSAGES.get(status_code, _SANITIZED_MESSAGES[500])
+    return detail
+
+
 class GlobalExceptionMiddleware:
-    """Catch unhandled exceptions and return structured JSON (pure ASGI)."""
+    """Catch unhandled exceptions and return structured JSON (pure ASGI).
+
+    Also intercepts error responses to sanitize details that might leak
+    internal service names or routing information.
+    """
 
     def __init__(self, app: ASGIApp) -> None:
         self.app = app
@@ -188,7 +218,7 @@ class GlobalExceptionMiddleware:
             body = json.dumps(
                 {
                     "error": "internal_server_error",
-                    "message": "Something unexpected happened. If this keeps occurring, please reload the page.",
+                    "message": _SANITIZED_MESSAGES[500],
                     "request_id": request_id,
                 }
             ).encode()
