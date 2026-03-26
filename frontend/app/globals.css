@@ -234,8 +234,8 @@ pre code {
 }
 
 @keyframes glow-pulse {
-  0%, 100% { filter: drop-shadow(0 0 4px var(--color-accent-dim)); opacity: 0.85; }
-  50% { filter: drop-shadow(0 0 14px var(--color-accent)); opacity: 1; }
+  0%, 100% { filter: drop-shadow(0 0 3px var(--color-accent-dim)); opacity: 0.78; }
+  50% { filter: drop-shadow(0 0 11px var(--color-accent)); opacity: 0.95; }
 }
 
 /* Processing brand glow */
