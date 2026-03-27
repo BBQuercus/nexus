@@ -114,7 +114,7 @@ export default function AdminPage() {
       </div>
       <div className="text-center">
         <p className="text-sm text-text-primary font-medium mb-1">Admin access required</p>
-        <p className="text-xs text-text-tertiary">You don't have permission to view this page</p>
+        <p className="text-xs text-text-tertiary">You don&apos;t have permission to view this page</p>
       </div>
       <button onClick={() => router.push('/')} className="text-xs text-accent hover:text-accent-hover cursor-pointer transition-colors">Back to Nexus</button>
     </div>
