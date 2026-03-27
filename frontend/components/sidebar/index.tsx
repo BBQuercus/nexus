@@ -377,6 +377,14 @@ export default function Sidebar() {
         onToggleBulkMode={() => { setBulkMode(!bulkMode); setSelectedIds(new Set()); }}
         onNewConversation={handleNew}
         selectedCount={selectedIds.size}
+        totalCount={filteredConversations.length}
+        onSelectAll={() => {
+          if (selectedIds.size === filteredConversations.length && filteredConversations.length > 0) {
+            setSelectedIds(new Set());
+          } else {
+            setSelectedIds(new Set(filteredConversations.map((c) => c.id)));
+          }
+        }}
         onBulkExport={handleBulkExport}
         onBulkDelete={handleBulkDelete}
         conversationCount={filteredConversations.length}

@@ -9,6 +9,8 @@ interface SidebarActionsProps {
   onToggleBulkMode: () => void;
   onNewConversation: () => void;
   selectedCount: number;
+  totalCount: number;
+  onSelectAll: () => void;
   onBulkExport: () => void;
   onBulkDelete: () => void;
   conversationCount: number;
@@ -21,6 +23,8 @@ export default function SidebarActions({
   onToggleBulkMode,
   onNewConversation,
   selectedCount,
+  totalCount,
+  onSelectAll,
   onBulkExport,
   onBulkDelete,
   conversationCount,
@@ -69,21 +73,34 @@ export default function SidebarActions({
       </div>
 
       {/* Bulk action bar */}
-      {bulkMode && selectedCount > 0 && (
+      {bulkMode && (
         <div className="flex items-center gap-1.5 px-2 pb-1.5 animate-fade-in-up" style={{ animationDuration: '0.1s' }}>
-          <span className="text-[10px] text-text-tertiary font-mono flex-1">{selectedCount} selected</span>
+          <span className="text-[10px] text-text-tertiary font-mono flex-1">
+            {selectedCount > 0 ? `${selectedCount} selected` : 'Select conversations'}
+          </span>
           <button
-            onClick={onBulkExport}
+            onClick={onSelectAll}
             className="flex items-center gap-1 px-2 py-1 text-[10px] bg-surface-1 border border-border-default rounded-lg text-text-secondary hover:text-accent hover:border-accent/30 cursor-pointer transition-colors"
           >
-            <Download size={10} /> Export
+            <CheckSquare size={10} />
+            {selectedCount === totalCount && totalCount > 0 ? 'Deselect all' : 'Select all'}
           </button>
-          <button
-            onClick={onBulkDelete}
-            className="flex items-center gap-1 px-2 py-1 text-[10px] bg-surface-1 border border-border-default rounded-lg text-text-secondary hover:text-error hover:border-error/30 cursor-pointer transition-colors"
-          >
-            <Trash2 size={10} /> Delete
-          </button>
+          {selectedCount > 0 && (
+            <>
+              <button
+                onClick={onBulkExport}
+                className="flex items-center gap-1 px-2 py-1 text-[10px] bg-surface-1 border border-border-default rounded-lg text-text-secondary hover:text-accent hover:border-accent/30 cursor-pointer transition-colors"
+              >
+                <Download size={10} /> Export
+              </button>
+              <button
+                onClick={onBulkDelete}
+                className="flex items-center gap-1 px-2 py-1 text-[10px] bg-surface-1 border border-border-default rounded-lg text-text-secondary hover:text-error hover:border-error/30 cursor-pointer transition-colors"
+              >
+                <Trash2 size={10} /> Delete
+              </button>
+            </>
+          )}
         </div>
       )}
 
