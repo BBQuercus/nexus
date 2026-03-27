@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import re
+import uuid
 from typing import TYPE_CHECKING
 
 from sqlalchemy import select, update
 
 if TYPE_CHECKING:
-    import uuid
-
     from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.logging_config import get_logger
@@ -97,6 +96,7 @@ async def get_relevant_memories(
 
 
 def extract_memories_from_message(
+    org_id: uuid.UUID,
     user_id: uuid.UUID,
     message_content: str,
     conversation_id: uuid.UUID | None = None,
@@ -108,16 +108,17 @@ def extract_memories_from_message(
     Returns unsaved Memory objects — the caller should add them to the session.
     """
     extracted: list[Memory] = []
-    content_lower = message_content.lower()
 
     for pattern, category in _MEMORY_PATTERNS:
-        for match in re.finditer(pattern, content_lower, re.IGNORECASE):
+        found_match = False
+        for match in re.finditer(pattern, message_content, re.IGNORECASE):
             captured = match.group(1).strip()
             # Skip very short or very long captures
             if len(captured) < 5 or len(captured) > 500:
                 continue
 
             mem = Memory(
+                org_id=org_id,
                 user_id=user_id,
                 project_id=project_id,
                 scope="project" if project_id else "global",
@@ -127,8 +128,66 @@ def extract_memories_from_message(
                 source_message_id=message_id,
             )
             extracted.append(mem)
+            found_match = True
+
+        # Treat explicit "remember ..." instructions as the authoritative memory
+        # for the message to avoid also storing overlapping preference/fact matches.
+        if found_match and category == "instruction":
+            break
 
     return extracted
+
+
+async def save_memories_from_message(
+    db: AsyncSession,
+    *,
+    org_id: uuid.UUID,
+    user_id: uuid.UUID,
+    message_content: str,
+    conversation_id: uuid.UUID | None = None,
+    message_id: uuid.UUID | None = None,
+    project_id: uuid.UUID | None = None,
+) -> list[Memory]:
+    """Extract and persist memories from a user message.
+
+    Uses a simple content/category/scope dedupe check so repeated reminders
+    do not create duplicate active memories.
+    """
+    extracted = extract_memories_from_message(
+        org_id=org_id,
+        user_id=user_id,
+        message_content=message_content,
+        conversation_id=conversation_id,
+        message_id=message_id,
+        project_id=project_id,
+    )
+    if not extracted:
+        return []
+
+    stmt = select(Memory).where(Memory.user_id == user_id, Memory.active.is_(True))
+    if project_id is None:
+        stmt = stmt.where(Memory.project_id.is_(None))
+    else:
+        stmt = stmt.where(Memory.project_id == project_id)
+
+    result = await db.execute(stmt)
+    existing = list(result.scalars().all())
+    existing_keys = {
+        (mem.category, mem.scope, re.sub(r"\s+", " ", mem.content.strip()).lower())
+        for mem in existing
+    }
+
+    to_save = [
+        mem
+        for mem in extracted
+        if (mem.category, mem.scope, re.sub(r"\s+", " ", mem.content.strip()).lower()) not in existing_keys
+    ]
+    if not to_save:
+        return []
+
+    db.add_all(to_save)
+    await db.flush()
+    return to_save
 
 
 def format_memories_for_prompt(memories: list[Memory]) -> str:

@@ -20,6 +20,7 @@ from backend.services import llm as llm_service
 from backend.services import sandbox as sandbox_service
 from backend.services.agent import run_agent_loop, run_multi_agent_loop
 from backend.services.audit import AuditAction, record_audit_event
+from backend.services.memory import save_memories_from_message
 from backend.services.messages import extract_message_files
 from backend.services.rbac import require_permission
 
@@ -610,6 +611,27 @@ async def send_message(
     db.add(user_msg)
     await db.flush()
     await db.commit()
+
+    try:
+        saved_memories = await save_memories_from_message(
+            db,
+            org_id=conv.org_id,
+            user_id=user_id,
+            message_content=body.content,
+            conversation_id=conversation_id,
+            message_id=user_msg.id,
+            project_id=getattr(conv, "project_id", None),
+        )
+        if saved_memories:
+            await db.commit()
+    except Exception as e:
+        await db.rollback()
+        logger.warning(
+            "memory_persistence_failed",
+            error=str(e),
+            conversation_id=str(conversation_id),
+            message_id=str(user_msg.id),
+        )
 
     # Use request overrides if provided, otherwise conversation defaults
     model = body.model or conv.model or "azure_ai/claude-sonnet-4-5-swc"
