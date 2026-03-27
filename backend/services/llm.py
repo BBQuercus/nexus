@@ -39,12 +39,8 @@ MODEL_PRICING: dict[str, tuple[float, float]] = {
     "gpt-4.1-chn": (2.0, 8.0),
     "gpt-4.1-mini-chn": (0.40, 1.60),
     "gpt-4.1-nano-swc": (0.10, 0.40),
-    "gpt-5-gwc": (15.0, 60.0),
-    "gpt-5-mini-gwc": (2.0, 8.0),
-    "gpt-5-nano-gwc": (0.20, 0.80),
     "gpt-5.1-use2": (15.0, 60.0),
     "gpt-5.2-use2": (15.0, 60.0),
-    "o1-gwc": (15.0, 60.0),
     "Llama-3.3-70B-Instruct": (0.50, 0.70),
     "azure_ai/model_router": (0.14, 0.0),
     "azure_ai/gpt-5.3-chat": (15.0, 60.0),
@@ -65,10 +61,7 @@ _MODELS_WITHOUT_TOOL_CHOICE = {
 }
 
 # Models that don't support custom temperature (only accept default/1.0)
-_MODELS_WITHOUT_TEMPERATURE = {
-    "gpt-5-gwc",
-    "gpt-5-mini-gwc",
-    "gpt-5-nano-gwc",
+MODELS_WITHOUT_TEMPERATURE: set[str] = {
     "gpt-5.1-use2",
     "gpt-5.2-use2",
     "azure_ai/gpt-5.3-chat",
@@ -109,7 +102,7 @@ async def stream_chat(
         "stream": True,
         "stream_options": {"include_usage": True},
     }
-    if temperature is not None and model not in _MODELS_WITHOUT_TEMPERATURE:
+    if temperature is not None and model not in MODELS_WITHOUT_TEMPERATURE:
         kwargs["temperature"] = max(0.0, min(2.0, temperature))
     if tools:
         kwargs["tools"] = tools

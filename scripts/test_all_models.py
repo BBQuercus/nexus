@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """Manual smoke test: send a 'hello' to every model and verify a non-empty response.
 
+Uses stream_chat from backend/services/llm.py so any param-filtering logic
+(temperature guards, tool-choice guards, etc.) is exercised automatically.
+
 Usage:
     uv run scripts/test_all_models.py
-    uv run scripts/test_all_models.py --models gpt-5-gwc azure_ai/gpt-5.3-chat
-    uv run scripts/test_all_models.py --temperature 0.7   # test with non-default temperature
+    uv run scripts/test_all_models.py --models gpt-4o-swc azure_ai/gpt-5.3-chat
+    uv run scripts/test_all_models.py --temperature 0.7
     uv run scripts/test_all_models.py --concurrency 4
 """
 
@@ -14,56 +17,22 @@ import argparse
 import asyncio
 import sys
 import time
-from dataclasses import dataclass, field
-
-import openai
-
-# Bootstrap backend config without importing the full app
-import os
+from dataclasses import dataclass
 from pathlib import Path
-from dotenv import load_dotenv
 
-load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+# Expose backend package to import path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-LITE_LLM_URL = os.environ["LITE_LLM_URL"].rstrip("/") + "/v1"
-LITE_LLM_API_KEY = os.environ["LITE_LLM_API_KEY"]
+from rich.console import Console
+from rich.table import Table
+from rich import box
+from rich.text import Text
 
-# All models known to the system — keep in sync with backend/services/llm.py MODEL_PRICING
-ALL_MODELS: list[str] = [
-    "azure_ai/claude-sonnet-4-5-swc",
-    "azure_ai/claude-opus-4-5-swc",
-    "azure_ai/claude-opus-4-1-swc",
-    "azure_ai/claude-haiku-4-5-swc",
-    "gpt-4o-swc",
-    "gpt-4o-mini-swc",
-    "gpt-4.1-chn",
-    "gpt-4.1-mini-chn",
-    "gpt-4.1-nano-swc",
-    "gpt-5-gwc",
-    "gpt-5-mini-gwc",
-    "gpt-5-nano-gwc",
-    "gpt-5.1-use2",
-    "gpt-5.2-use2",
-    "o1-gwc",
-    "Llama-3.3-70B-Instruct",
-    "azure_ai/model_router",
-    "azure_ai/gpt-5.3-chat",
-    "azure_ai/gpt-oss-120b",
-    "azure_ai/kimi-k2.5",
-    "azure_ai/deepseek-v3.2",
-    "azure_ai/grok-4-fast-reasoning",
-    "azure_ai/gpt-5.4-mini",
-]
+from backend.services.llm import stream_chat, MODEL_PRICING, MODELS_WITHOUT_TEMPERATURE
 
-# Models that must not receive a temperature param (only accept default/1.0)
-MODELS_WITHOUT_TEMPERATURE: set[str] = {
-    "gpt-5-gwc",
-    "gpt-5-mini-gwc",
-    "gpt-5-nano-gwc",
-    "gpt-5.1-use2",
-    "gpt-5.2-use2",
-    "azure_ai/gpt-5.3-chat",
-}
+console = Console()
+
+ALL_MODELS: list[str] = list(MODEL_PRICING.keys())
 
 PROMPT = [{"role": "user", "content": "Say hello in one word."}]
 TIMEOUT = 60.0
@@ -79,78 +48,95 @@ class Result:
     skipped_temperature: bool = False
 
 
-async def probe_model(client: openai.AsyncOpenAI, model: str, temperature: float | None) -> Result:
+async def probe_model(model: str, temperature: float | None) -> Result:
     start = time.monotonic()
-    kwargs: dict = {"model": model, "messages": PROMPT, "max_tokens": 32}
-
     skip_temp = model in MODELS_WITHOUT_TEMPERATURE
-    if temperature is not None and not skip_temp:
-        kwargs["temperature"] = temperature
+    temp = None if (temperature is None or skip_temp) else temperature
 
     try:
-        resp = await asyncio.wait_for(
-            client.chat.completions.create(**kwargs),
-            timeout=TIMEOUT,
-        )
-        text = (resp.choices[0].message.content or "").strip()
+        text = ""
+        async for chunk in stream_chat(PROMPT, model, temperature=temp):
+            if chunk.choices:
+                delta = chunk.choices[0].delta
+                if delta.content:
+                    text += delta.content
+        text = text.strip()
         if not text:
             return Result(model=model, ok=False, elapsed=time.monotonic() - start,
                           error="empty response", skipped_temperature=skip_temp)
         return Result(model=model, ok=True, elapsed=time.monotonic() - start,
-                      response=text[:80], skipped_temperature=skip_temp)
+                      response=text[:60], skipped_temperature=skip_temp)
     except Exception as exc:
         return Result(model=model, ok=False, elapsed=time.monotonic() - start,
-                      error=str(exc)[:120], skipped_temperature=skip_temp)
+                      error=str(exc)[:100], skipped_temperature=skip_temp)
 
 
 async def run(models: list[str], temperature: float | None, concurrency: int) -> list[Result]:
-    client = openai.AsyncOpenAI(base_url=LITE_LLM_URL, api_key=LITE_LLM_API_KEY)
     sem = asyncio.Semaphore(concurrency)
 
     async def bounded(model: str) -> Result:
         async with sem:
-            return await probe_model(client, model, temperature)
+            return await asyncio.wait_for(probe_model(model, temperature), timeout=TIMEOUT)
 
-    return await asyncio.gather(*[bounded(m) for m in models])
+    tasks = [bounded(m) for m in models]
+    results: list[Result] = []
+    for coro in asyncio.as_completed(tasks):
+        r = await coro
+        icon = "[green]✓[/]" if r.ok else "[red]✗[/]"
+        console.print(f"  {icon} {r.model}", highlight=False)
+        results.append(r)
+    return results
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Probe all LLM models with a hello message")
+    parser = argparse.ArgumentParser(description="Probe LLM models with a hello message")
     parser.add_argument("--models", nargs="*", help="Subset of models to test (default: all)")
     parser.add_argument("--temperature", type=float, default=None,
                         help="Temperature to send (skipped for models that don't support it)")
-    parser.add_argument("--concurrency", type=int, default=5,
-                        help="Max parallel requests (default: 5)")
+    parser.add_argument("--concurrency", type=int, default=5)
     args = parser.parse_args()
 
     models = args.models or ALL_MODELS
-    results: list[Result] = asyncio.run(run(models, args.temperature, args.concurrency))
 
-    passed = [r for r in results if r.ok]
+    console.rule("[bold]Model smoke test[/]")
+    if args.temperature is not None:
+        console.print(f"  temperature={args.temperature}  "
+                      f"(skipped for {len(MODELS_WITHOUT_TEMPERATURE)} model(s))\n")
+    else:
+        console.print(f"  {len(models)} model(s)  ·  concurrency={args.concurrency}\n")
+
+    results: list[Result] = asyncio.run(run(models, args.temperature, args.concurrency))
+    results.sort(key=lambda r: r.model)
+
+    table = Table(box=box.SIMPLE_HEAD, show_edge=False, pad_edge=False)
+    table.add_column("Model", style="dim", no_wrap=True)
+    table.add_column("Status", justify="center", width=6)
+    table.add_column("Time", justify="right", width=6)
+    table.add_column("Notes")
+
+    for r in results:
+        status = Text("ok", style="green") if r.ok else Text("FAIL", style="bold red")
+        notes_parts: list[str] = []
+        if r.skipped_temperature and args.temperature is not None:
+            notes_parts.append("[yellow]temp skipped[/]")
+        if r.ok:
+            notes_parts.append(f"[dim]{repr(r.response)}[/]")
+        else:
+            notes_parts.append(f"[red]{r.error}[/]")
+        table.add_row(r.model, status, f"{r.elapsed:.1f}s", Text.from_markup("  ".join(notes_parts)))
+
+    console.print()
+    console.print(table)
+
+    passed = sum(1 for r in results if r.ok)
     failed = [r for r in results if not r.ok]
 
-    col_w = max(len(r.model) for r in results)
-
-    print(f"\n{'MODEL':<{col_w}}  {'STATUS':<6}  {'TIME':>6}  NOTES")
-    print("-" * (col_w + 40))
-    for r in sorted(results, key=lambda r: r.model):
-        status = "ok" if r.ok else "FAIL"
-        notes_parts = []
-        if r.skipped_temperature and args.temperature is not None:
-            notes_parts.append("temp skipped")
-        if r.ok:
-            notes_parts.append(repr(r.response))
-        else:
-            notes_parts.append(r.error)
-        notes = "  ".join(notes_parts)
-        print(f"{r.model:<{col_w}}  {status:<6}  {r.elapsed:>5.1f}s  {notes}")
-
-    print()
-    print(f"{len(passed)}/{len(results)} models ok", end="")
+    console.rule()
     if failed:
-        print(f"  —  {len(failed)} failed: {', '.join(r.model for r in failed)}")
+        console.print(f"[bold red]{passed}/{len(results)} passed[/]  —  "
+                      + "  ".join(f"[red]{r.model}[/]" for r in failed))
     else:
-        print()
+        console.print(f"[bold green]{passed}/{len(results)} passed[/]")
 
     return 0 if not failed else 1
 
