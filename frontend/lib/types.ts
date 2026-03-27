@@ -160,7 +160,7 @@ export interface Artifact {
   id: string;
   conversationId: string;
   messageId?: string;
-  type: 'code' | 'image' | 'chart' | 'table' | 'document' | 'diagram' | 'form';
+  type: 'code' | 'image' | 'video' | 'chart' | 'table' | 'document' | 'diagram' | 'form';
   label: string;
   content?: string;
   url?: string;
@@ -300,19 +300,21 @@ export interface ModelOption {
   id: string;
   provider: ModelProvider;
   legacy?: boolean;
+  modelType?: 'image' | 'video';
 }
 
-export const DEFAULT_MODEL_ID = 'azure_ai/claude-sonnet-4-5-swc';
+export const DEFAULT_MODEL_ID = 'gpt-5.4';
 
 export const MODELS: ModelOption[] = [
   { name: 'Claude Sonnet 4.5', id: 'azure_ai/claude-sonnet-4-5-swc', provider: 'anthropic' },
   { name: 'Claude Opus 4.5', id: 'azure_ai/claude-opus-4-5-swc', provider: 'anthropic' },
   { name: 'Claude Haiku 4.5', id: 'azure_ai/claude-haiku-4-5-swc', provider: 'anthropic' },
-  { name: 'Model Router', id: 'azure_ai/model_router', provider: 'openai' },
+  { name: 'Model Router', id: 'azure_ai/model_router', provider: 'microsoft' },
+  { name: 'o3 Pro', id: 'o3-pro', provider: 'openai' },
+  { name: 'GPT-5.4 Pro', id: 'gpt-5.4-pro', provider: 'openai' },
+  { name: 'GPT-5.4', id: 'gpt-5.4', provider: 'openai' },
   { name: 'GPT-5.4 Mini', id: 'azure_ai/gpt-5.4-mini', provider: 'openai' },
   { name: 'GPT-5.3 Chat', id: 'azure_ai/gpt-5.3-chat', provider: 'openai' },
-  { name: 'GPT-5.2', id: 'gpt-5.2-use2', provider: 'openai' },
-  { name: 'GPT-5.1', id: 'gpt-5.1-use2', provider: 'openai' },
   { name: 'GPT-OSS 120B', id: 'azure_ai/gpt-oss-120b', provider: 'openai' },
   { name: 'Llama 4 Maverick 17B', id: 'azure_ai/Llama-4-Maverick-17B-128E-Instruct-FP8', provider: 'meta' },
   { name: 'Kimi K2.5', id: 'azure_ai/kimi-k2.5', provider: 'moonshot' },
@@ -321,6 +323,8 @@ export const MODELS: ModelOption[] = [
   { name: 'Phi-4', id: 'azure_ai/Phi-4', provider: 'microsoft' },
   { name: 'Mistral Large 3', id: 'azure_ai/mistral-large-3', provider: 'mistral' },
   { name: 'Claude Opus 4.1', id: 'azure_ai/claude-opus-4-1-swc', provider: 'anthropic', legacy: true },
+  { name: 'GPT-5.2', id: 'gpt-5.2-use2', provider: 'openai', legacy: true },
+  { name: 'GPT-5.1', id: 'gpt-5.1-use2', provider: 'openai', legacy: true },
   { name: 'GPT-5', id: 'gpt-5-gwc', provider: 'openai', legacy: true },
   { name: 'GPT-5 Mini', id: 'gpt-5-mini-gwc', provider: 'openai', legacy: true },
   { name: 'GPT-5 Nano', id: 'gpt-5-nano-gwc', provider: 'openai', legacy: true },
@@ -335,11 +339,13 @@ export const MODELS: ModelOption[] = [
 
 export const IMAGE_MODELS: ModelOption[] = [
   { name: 'GPT Image 1.5', id: 'gpt-image-1.5-swc', provider: 'openai' },
+  { name: 'Sora 2', id: 'sora-2', provider: 'openai', modelType: 'video' },
   { name: 'FLUX.2 Pro', id: 'azure_ai/flux.2-pro', provider: 'microsoft' },
 ];
 
 export const AUDIO_MODELS: ModelOption[] = [
   { name: 'GPT Audio 1.5', id: 'azure_ai/gpt-audio-1.5', provider: 'openai' },
+  { name: 'TTS HD', id: 'tts-hd', provider: 'openai' },
 ];
 
 // ── Multi-Agent Types ──

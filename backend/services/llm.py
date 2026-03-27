@@ -49,6 +49,9 @@ MODEL_PRICING: dict[str, tuple[float, float]] = {
     "azure_ai/deepseek-v3.2": (0.58, 1.68),
     "azure_ai/grok-4-fast-reasoning": (0.20, 0.50),
     "azure_ai/gpt-5.4-mini": (0.75, 4.50),
+    "gpt-5.4": (15.0, 60.0),
+    "gpt-5.4-pro": (15.0, 60.0),
+    "o3-pro": (10.0, 40.0),
 }
 
 # Retryable HTTP status codes
@@ -65,6 +68,9 @@ MODELS_WITHOUT_TEMPERATURE: set[str] = {
     "gpt-5.1-use2",
     "gpt-5.2-use2",
     "azure_ai/gpt-5.3-chat",
+    "gpt-5.4",
+    "gpt-5.4-pro",
+    "o3-pro",
 }
 
 

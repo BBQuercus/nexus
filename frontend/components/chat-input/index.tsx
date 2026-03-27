@@ -8,7 +8,6 @@ import { FilePreviewList } from './file-uploader';
 import { InputField } from './input-field';
 import {
   ContextChips,
-  ImageGeneratingIndicator,
   CompareModelsBanner,
   SlashMenu,
   MentionMenu,
@@ -39,10 +38,6 @@ export default function ChatInput() {
       />
 
       <FilePreviewList files={submit.pendingFiles} onRemove={submit.removeFile} />
-
-      {submit.isGeneratingImage && (
-        <ImageGeneratingIndicator imageModel={submit.imageModel} />
-      )}
 
       {voice.isRecording && (
         <RecordingIndicator stream={voice.mediaStreamRef.current} onStop={() => void voice.toggleRecording()} />
@@ -81,6 +76,7 @@ export default function ChatInput() {
           fileInputRef={fileInputRef}
           isStreaming={isStreaming}
           isGeneratingImage={submit.isGeneratingImage}
+          imageModel={submit.imageModel}
           isRecording={voice.isRecording}
           composeMode={submit.composeMode}
           canSend={submit.canSend}

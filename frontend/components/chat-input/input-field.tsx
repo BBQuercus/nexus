@@ -2,7 +2,8 @@
 
 import { useRef, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
-import { ArrowUp, Square, Paperclip, ImagePlus } from 'lucide-react';
+import { ArrowUp, Square, Paperclip, ImagePlus, LoaderCircle } from 'lucide-react';
+import { IMAGE_MODELS } from '@/lib/types';
 import type { SlashCommand, ComposeMode } from './types';
 import { validateFileSize } from './types';
 import { VoiceInputButton } from './voice-input';
@@ -14,6 +15,7 @@ interface InputFieldProps {
   fileInputRef: React.RefObject<HTMLInputElement | null>;
   isStreaming: boolean;
   isGeneratingImage: boolean;
+  imageModel: string;
   isRecording: boolean;
   composeMode: ComposeMode;
   canSend: boolean;
@@ -47,6 +49,7 @@ export function InputField({
   fileInputRef,
   isStreaming,
   isGeneratingImage,
+  imageModel,
   isRecording,
   composeMode,
   canSend,
@@ -155,28 +158,37 @@ export function InputField({
     }
   };
 
+  const imageModelName = IMAGE_MODELS.find((m) => m.id === imageModel)?.name ?? imageModel;
+
   return (
     <div
       className="flex items-center gap-2 bg-surface-1 border border-border-default rounded-lg px-3 py-2 min-h-[44px] focus-within:border-accent/30 focus-within:shadow-[0_0_16px_-4px_var(--color-accent-dim)] transition-all"
     >
-      <textarea
-        ref={textareaRef}
-        value={content}
-        onChange={(e) => setContent(e.target.value)}
-        onKeyDown={handleKeyDown}
-        placeholder={
-          isStreaming
-            ? t('placeholderStreaming')
-            : composeMode === 'image'
-              ? t('placeholderImageMode')
-              : isRecording
-                ? ''
-                : t('placeholderDefault')
-        }
-        disabled={isStreaming || isGeneratingImage}
-        rows={1}
-        className="flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-tertiary resize-none outline-none disabled:opacity-50 max-h-[200px] self-center"
-      />
+      {isGeneratingImage ? (
+        <div className="flex-1 flex items-center gap-2 self-center">
+          <LoaderCircle size={13} className="text-accent animate-spin shrink-0" />
+          <span className="text-sm text-text-tertiary">{t('generatingWith', { modelName: imageModelName })}</span>
+        </div>
+      ) : (
+        <textarea
+          ref={textareaRef}
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder={
+            isStreaming
+              ? t('placeholderStreaming')
+              : composeMode === 'image'
+                ? t('placeholderImageMode')
+                : isRecording
+                  ? ''
+                  : t('placeholderDefault')
+          }
+          disabled={isStreaming}
+          rows={1}
+          className="flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-tertiary resize-none outline-none disabled:opacity-50 max-h-[200px] self-center"
+        />
+      )}
 
       <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(e) => {
         if (!e.target.files) return;

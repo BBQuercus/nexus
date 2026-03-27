@@ -1,8 +1,10 @@
+import asyncio
+import base64
 import json
 import uuid
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import delete, func, select, update
 from sqlalchemy import text as sa_text
@@ -13,9 +15,11 @@ from sse_starlette.sse import EventSourceResponse
 
 from backend.auth import get_current_org, get_current_user, get_org_db, validate_csrf
 from backend.config import settings
+from backend.db import async_session
 from backend.logging_config import get_logger
 from backend.models import AgentPersona, Artifact, Conversation, Message, UsageLog
 from backend.rate_limit import check_rate_limit
+from backend.redis import get_redis
 from backend.services import llm as llm_service
 from backend.services import sandbox as sandbox_service
 from backend.services.agent import run_agent_loop, run_multi_agent_loop
@@ -77,6 +81,9 @@ class GenerateImageRequest(BaseModel):
     prompt: str
     model: str = "gpt-image-1.5-swc"
     size: str = "1024x1024"
+
+
+VIDEO_MODELS = {"sora-2"}
 
 
 class SwitchBranchRequest(BaseModel):
@@ -794,10 +801,167 @@ async def send_message(
     return EventSourceResponse(event_generator(), ping=15)
 
 
+_SORA_POLL_INTERVAL = 5.0   # seconds between status checks
+_SORA_MAX_WAIT = 600.0      # 10 minutes total
+
+
+async def _generate_image(model: str, prompt: str, size: str) -> str:
+    headers = {"Authorization": f"Bearer {settings.LITE_LLM_API_KEY}", "Content-Type": "application/json"}
+    try:
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            response = await client.post(
+                f"{settings.LITE_LLM_URL.rstrip('/')}/v1/images/generations",
+                json={"model": model, "prompt": prompt, "size": size},
+                headers=headers,
+            )
+            response.raise_for_status()
+            first = response.json()["data"][0]
+            return f"data:image/png;base64,{first['b64_json']}" if "b64_json" in first else first["url"]
+    except httpx.HTTPStatusError as e:
+        logger.error("image_generation_http_error", status=e.response.status_code, body=e.response.text[:200])
+        raise HTTPException(status_code=502, detail="Image generation failed. Please try again.") from e
+    except httpx.TimeoutException as e:
+        raise HTTPException(status_code=504, detail="Image generation timed out. Please try again.") from e
+
+
+def _sora_headers() -> dict[str, str]:
+    api_key = settings.SORA_API_KEY or settings.LITE_LLM_API_KEY
+    return {"Authorization": f"Bearer {api_key}", "api-key": api_key, "Content-Type": "application/json"}
+
+
+async def _submit_sora_job(prompt: str) -> str:
+    """Submit a Sora video generation job and return the job ID."""
+    base = settings.SORA_API_BASE.rstrip("/")
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            r = await client.post(base, json={"model": "sora-2", "prompt": prompt}, headers=_sora_headers())
+            r.raise_for_status()
+            job = r.json()
+    except httpx.HTTPStatusError as e:
+        logger.error("sora_submit_error", status=e.response.status_code, body=e.response.text[:200])
+        raise HTTPException(status_code=502, detail="Video generation failed to start. Please try again.") from e
+
+    job_id = job.get("id")
+    if not job_id:
+        raise HTTPException(status_code=502, detail="Video generation returned no job ID.")
+    logger.info("sora_job_queued", job_id=job_id)
+    return job_id
+
+
+async def _poll_sora_job(
+    job_id: str,
+    conversation_id: uuid.UUID,
+    org_id: uuid.UUID,
+    user_msg_id: uuid.UUID,
+    prompt: str,
+) -> None:
+    """Background task: poll Sora until done, then persist the assistant message."""
+    base = settings.SORA_API_BASE.rstrip("/")
+    redis = await get_redis()
+    job_key = f"sora:job:{job_id}"
+
+    async def _set_status(status: str, error: str = "") -> None:
+        if redis:
+            await redis.setex(job_key, 3600, json.dumps({"status": status, "error": error}))
+
+    try:
+        await _set_status("processing")
+        elapsed = 0.0
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            while elapsed < _SORA_MAX_WAIT:
+                await asyncio.sleep(_SORA_POLL_INTERVAL)
+                elapsed += _SORA_POLL_INTERVAL
+                try:
+                    r = await client.get(f"{base}/{job_id}", headers=_sora_headers())
+                    r.raise_for_status()
+                    status_data = r.json()
+                except httpx.HTTPStatusError as e:
+                    logger.warning("sora_poll_error", job_id=job_id, status=e.response.status_code)
+                    continue
+
+                status = status_data.get("status")
+                logger.info("sora_job_status", job_id=job_id, status=status, elapsed=elapsed)
+
+                if status == "failed":
+                    err = status_data.get("failure_reason") or status_data.get("error") or "unknown error"
+                    logger.error("sora_job_failed", job_id=job_id, error=err, response_keys=list(status_data.keys()))
+                    await _set_status("failed", str(err))
+                    return
+
+                if status == "completed":
+                    logger.info("sora_job_completed_response", job_id=job_id, response_keys=list(status_data.keys()))
+                    try:
+                        # Use a separate client with a long timeout for the video download
+                        async with httpx.AsyncClient(timeout=300.0) as dl_client:
+                            video_r = await dl_client.get(f"{base}/{job_id}/content", headers=_sora_headers())
+                            video_r.raise_for_status()
+                    except httpx.HTTPStatusError as e:
+                        logger.error("sora_content_fetch_error", job_id=job_id, status=e.response.status_code)
+                        await _set_status("failed", f"content fetch failed: {e.response.status_code}")
+                        return
+                    except httpx.TimeoutException:
+                        logger.error("sora_content_fetch_timeout", job_id=job_id)
+                        await _set_status("failed", "video download timed out")
+                        return
+                    video_bytes = len(video_r.content)
+                    logger.info("sora_video_downloaded", job_id=job_id, size_mb=round(video_bytes / 1048576, 1))
+                    b64 = base64.b64encode(video_r.content).decode("ascii")
+                    media_url = f"data:video/mp4;base64,{b64}"
+
+                    # Use org-scoped session so RLS allows writes
+                    async with async_session() as db:
+                        await db.execute(sa_text(f"SET LOCAL app.current_org_id = '{org_id}'"))
+
+                        conv_result = await db.execute(
+                            select(Conversation).where(Conversation.id == conversation_id)
+                        )
+                        conv = conv_result.scalar_one_or_none()
+                        if not conv:
+                            await _set_status("failed", "conversation not found")
+                            return
+
+                        assistant_msg = Message(
+                            org_id=org_id,
+                            conversation_id=conversation_id,
+                            role="assistant",
+                            content=f"Generated video for: {prompt}",
+                            images=[{"filename": "generated-video.mp4", "url": media_url}],
+                            parent_id=user_msg_id,
+                            branch_index=0,
+                        )
+                        db.add(assistant_msg)
+                        await db.flush()
+
+                        db.add(
+                            Artifact(
+                                org_id=org_id,
+                                conversation_id=conversation_id,
+                                message_id=assistant_msg.id,
+                                type="video",
+                                label="generated-video.mp4",
+                                content=media_url,
+                                metadata_={"model": "sora-2", "prompt": prompt},
+                            )
+                        )
+
+                        conv.active_leaf_id = assistant_msg.id
+                        await db.commit()
+
+                    await _set_status("completed")
+                    logger.info("sora_job_completed", job_id=job_id)
+                    return
+
+        await _set_status("failed", "timed out after 10 minutes")
+    except Exception as e:
+        logger.error("sora_background_task_error", job_id=job_id, error=str(e))
+        await _set_status("failed", f"unexpected error: {str(e)[:100]}")
+
+
 @router.post("/{conversation_id}/images")
 async def generate_image(
     conversation_id: uuid.UUID,
     body: GenerateImageRequest,
+    background_tasks: BackgroundTasks,
     user_id: uuid.UUID = Depends(get_current_user),
     db: AsyncSession = Depends(get_org_db),
 ):
@@ -829,47 +993,59 @@ async def generate_image(
     db.add(user_msg)
     await db.flush()
 
-    payload = {
-        "model": body.model,
-        "prompt": body.prompt.strip(),
-        "size": body.size,
-    }
-    headers = {
-        "Authorization": f"Bearer {settings.LITE_LLM_API_KEY}",
-        "Content-Type": "application/json",
-    }
+    is_video = body.model in VIDEO_MODELS
 
-    try:
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            response = await client.post(
-                f"{settings.LITE_LLM_URL.rstrip('/')}/v1/images/generations",
-                json=payload,
-                headers=headers,
+    if is_video:
+        # Submit Sora job and return immediately; background task does polling + DB write
+        try:
+            job_id = await _submit_sora_job(body.prompt.strip())
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error("sora_submit_unexpected", error=str(e))
+            raise HTTPException(status_code=500, detail="Video generation is temporarily unavailable.") from e
+
+        # Store initial status in Redis
+        redis = await get_redis()
+        if redis:
+            await redis.setex(
+                f"sora:job:{job_id}", 3600,
+                json.dumps({"status": "queued", "error": ""}),
             )
-            response.raise_for_status()
-            image_data = response.json()
-    except httpx.HTTPStatusError as e:
-        logger.error("image_generation_http_error", status=e.response.status_code, body=e.response.text[:200])
-        raise HTTPException(status_code=502, detail="Image generation failed. Please try again.") from e
-    except httpx.TimeoutException as e:
-        raise HTTPException(status_code=504, detail="Image generation is taking too long. Try a simpler prompt or try again.") from e
-    except Exception as e:
-        logger.error("image_generation_error", error=str(e), error_type=type(e).__name__)
-        raise HTTPException(status_code=500, detail="Image generation is temporarily unavailable. Please try again.") from e
 
+        conv.active_leaf_id = user_msg.id
+        await db.commit()
+
+        background_tasks.add_task(
+            _poll_sora_job,
+            job_id=job_id,
+            conversation_id=conversation_id,
+            org_id=conv.org_id,
+            user_msg_id=user_msg.id,
+            prompt=body.prompt.strip(),
+        )
+
+        return {
+            "job_id": job_id,
+            "user_message": _serialize_message(user_msg),
+            "status": "queued",
+        }
+
+    # Regular image generation (synchronous)
     try:
-        first = image_data["data"][0]
-        image_url = f"data:image/png;base64,{first['b64_json']}" if "b64_json" in first else first["url"]
+        media_url = await _generate_image(body.model, body.prompt.strip(), body.size)
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error("image_response_parse_error", error=str(e))
-        raise HTTPException(status_code=500, detail="Received an unexpected response from the image service. Please try again.") from e
+        logger.error("generation_error", error=str(e), error_type=type(e).__name__)
+        raise HTTPException(status_code=500, detail="Generation is temporarily unavailable. Please try again.") from e
 
     assistant_msg = Message(
         org_id=conv.org_id,
         conversation_id=conversation_id,
         role="assistant",
         content=f"Generated image for: {body.prompt.strip()}",
-        images=[{"filename": "generated-image.png", "url": image_url}],
+        images=[{"filename": "generated-image.png", "url": media_url}],
         parent_id=user_msg.id,
         branch_index=0,
     )
@@ -883,7 +1059,7 @@ async def generate_image(
             message_id=assistant_msg.id,
             type="image",
             label="generated-image.png",
-            content=image_url,
+            content=media_url,
             metadata_={"model": body.model, "prompt": body.prompt.strip(), "size": body.size},
         )
     )
@@ -895,6 +1071,65 @@ async def generate_image(
         "assistant_message": _serialize_message(assistant_msg),
         "active_leaf_id": str(assistant_msg.id),
     }
+
+
+@router.get("/{conversation_id}/images/{job_id}/status")
+async def get_video_job_status(
+    conversation_id: uuid.UUID,
+    job_id: str,
+    user_id: uuid.UUID = Depends(get_current_user),
+    db: AsyncSession = Depends(get_org_db),
+):
+    result = await db.execute(
+        select(Conversation).where(Conversation.id == conversation_id, Conversation.user_id == user_id)
+    )
+    conv = result.scalar_one_or_none()
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    redis = await get_redis()
+    if not redis:
+        return {"status": "unknown", "error": "Redis unavailable"}
+
+    raw = await redis.get(f"sora:job:{job_id}")
+    if not raw:
+        return {"status": "unknown", "error": "Job not found"}
+
+    cached = json.loads(raw)
+
+    # If Redis still says processing, the background task may have died (e.g. server restart).
+    # Fall back to checking the Sora API directly and recover if the job actually completed.
+    if cached.get("status") == "processing":
+        try:
+            base = settings.SORA_API_BASE.rstrip("/")
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                r = await client.get(f"{base}/{job_id}", headers=_sora_headers())
+                r.raise_for_status()
+                sora_data = r.json()
+            sora_status = sora_data.get("status")
+
+            if sora_status == "completed":
+                # Background task died — kick off recovery to persist the result
+                logger.warning("sora_recovery_triggered", job_id=job_id, conversation_id=str(conversation_id))
+                asyncio.get_event_loop().create_task(
+                    _poll_sora_job(
+                        job_id=job_id,
+                        conversation_id=conversation_id,
+                        org_id=conv.org_id,
+                        user_msg_id=conv.active_leaf_id,
+                        prompt=sora_data.get("prompt", ""),
+                    )
+                )
+                return {"status": "processing", "error": ""}
+
+            if sora_status == "failed":
+                err = sora_data.get("failure_reason") or sora_data.get("error") or "unknown error"
+                await redis.setex(f"sora:job:{job_id}", 3600, json.dumps({"status": "failed", "error": str(err)}))
+                return {"status": "failed", "error": str(err)}
+        except Exception:
+            logger.warning("sora_fallback_check_failed", job_id=job_id, exc_info=True)
+
+    return cached
 
 
 @router.post("/{conversation_id}/messages/{message_id}/fork")

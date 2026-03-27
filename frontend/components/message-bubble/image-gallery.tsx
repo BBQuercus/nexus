@@ -3,8 +3,31 @@
 import { Download, FileSpreadsheet, FileText, Presentation, File as FileIcon } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
+const VIDEO_EXTENSIONS = new Set(['mp4', 'webm', 'mov', 'avi']);
+
+function isVideoFile(filename: string): boolean {
+  return VIDEO_EXTENSIONS.has(filename.split('.').pop()?.toLowerCase() ?? '');
+}
+
+export function InlineVideo({ img }: { img: { filename: string; url: string } }) {
+  const t = useTranslations('imageGallery');
+  return (
+    <div className="rounded-lg border border-border-default overflow-hidden">
+      {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+      <video src={img.url} controls className="w-full max-h-[500px] bg-bg" />
+      <div className="flex items-center justify-between px-3 py-1.5 bg-surface-1 text-[11px] font-mono text-text-tertiary">
+        <span className="truncate">{img.filename}</span>
+        <a href={img.url} download={img.filename} className="flex items-center gap-1 text-text-tertiary hover:text-accent transition-colors shrink-0 ml-2">
+          <Download size={10} /> {t('save')}
+        </a>
+      </div>
+    </div>
+  );
+}
+
 export function InlineImage({ img }: { img: { filename: string; url: string } }) {
   const t = useTranslations('imageGallery');
+  if (isVideoFile(img.filename)) return <InlineVideo img={img} />;
   return (
     <div className="rounded-lg border border-border-default overflow-hidden">
       <img src={img.url} alt={img.filename} className="w-full max-h-[500px] object-contain bg-bg" />

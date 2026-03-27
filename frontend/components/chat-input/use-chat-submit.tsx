@@ -6,7 +6,7 @@ import { useStore } from '@/lib/store';
 import * as api from '@/lib/api';
 import type { Message } from '@/lib/types';
 import { MODELS, IMAGE_MODELS } from '@/lib/types';
-import { useStreaming, reloadConversation } from '@/lib/useStreaming';
+import { useStreaming, reloadConversation, mapRawMessages } from '@/lib/useStreaming';
 import { toast } from '../toast';
 import type { SlashCommand, AttachedContext, ComposeMode, Verbosity, Creativity, Tone } from './types';
 import { validateFileSize } from './types';
@@ -101,6 +101,7 @@ export function useChatSubmit({ textareaRef }: UseChatSubmitOptions): UseChatSub
   const setPendingPrompt = useStore((s) => s.setPendingPrompt);
   const branchingFromId = useStore((s) => s.branchingFromId);
   const setBranchingFromId = useStore((s) => s.setBranchingFromId);
+  const setVideoGenerating = useStore((s) => s.setVideoGenerating);
 
   const { streamSend, streamRegenerate } = useStreaming();
 
@@ -729,9 +730,80 @@ export function useChatSubmit({ textareaRef }: UseChatSubmitOptions): UseChatSub
     return () => window.removeEventListener('nexus:drop-files', handler);
   }, []);
 
+  // Polls a Sora job until done, then reloads the conversation.
+  // Also handles localStorage persistence so generation survives page reload.
+  const startVideoPolling = useCallback((convId: string, job_id: string, prompt: string) => {
+    const LS_KEY = 'nexus:videoGenerating';
+    // Persist to localStorage so we can resume after reload
+    try {
+      const existing = JSON.parse(localStorage.getItem(LS_KEY) || '{}') as Record<string, { jobId: string; prompt: string }>;
+      localStorage.setItem(LS_KEY, JSON.stringify({ ...existing, [convId]: { jobId: job_id, prompt } }));
+    } catch {}
+
+    setVideoGenerating(convId, { jobId: job_id, prompt });
+
+    const poll = async () => {
+      const POLL_INTERVAL = 5000;
+      const MAX_POLLS = 120; // 10 minutes
+      const done = () => {
+        setVideoGenerating(convId, null);
+        try {
+          const existing = JSON.parse(localStorage.getItem(LS_KEY) || '{}') as Record<string, unknown>;
+          delete existing[convId];
+          localStorage.setItem(LS_KEY, JSON.stringify(existing));
+        } catch {}
+      };
+      for (let i = 0; i < MAX_POLLS; i++) {
+        await new Promise((r) => setTimeout(r, POLL_INTERVAL));
+        try {
+          const s = await api.getVideoJobStatus(convId, job_id);
+          if (s.status === 'completed') {
+            done();
+            await reloadConversation(convId);
+            const artifacts = await api.getArtifacts(convId);
+            useStore.getState().setArtifacts(artifacts);
+            return;
+          }
+          if (s.status === 'failed') {
+            done();
+            console.error('Video generation failed:', s.error);
+            toast.error(s.error || 'Video generation failed');
+            return;
+          }
+        } catch (e: unknown) {
+          console.error('Video status poll error', e);
+          // Stop polling on 404 (conversation deleted or wrong org context)
+          if (e && typeof e === 'object' && 'status' in e && (e as { status: number }).status === 404) {
+            done();
+            return;
+          }
+        }
+      }
+      done();
+      toast.error('Video generation timed out');
+    };
+    void poll();
+  }, [setVideoGenerating]);
+
+  // Restore any in-progress video generation after page reload
+  useEffect(() => {
+    const LS_KEY = 'nexus:videoGenerating';
+    try {
+      const persisted = JSON.parse(localStorage.getItem(LS_KEY) || '{}') as Record<string, { jobId: string; prompt: string }>;
+      for (const [convId, { jobId, prompt }] of Object.entries(persisted)) {
+        startVideoPolling(convId, jobId, prompt);
+      }
+    } catch {}
+  // Only run once on mount
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleGenerateImage = useCallback(async () => {
     const prompt = content.trim();
     if (!prompt || isGeneratingImage || isStreaming) return;
+
+    const isVideo = IMAGE_MODELS.find((m) => m.id === imageModel)?.modelType === 'video';
+
     setIsGeneratingImage(true);
     try {
       let convId = activeConversationId;
@@ -742,18 +814,63 @@ export function useChatSubmit({ textareaRef }: UseChatSubmitOptions): UseChatSub
         const list = await api.listConversations();
         setConversations(list.conversations);
       }
-      await api.generateConversationImage(convId, { prompt, model: imageModel });
+
+      // For video models, show user message + generating bubble immediately (no blank flash)
+      if (isVideo) {
+        const tempMsg: Message = {
+          id: `temp-${Date.now()}`,
+          conversationId: convId,
+          role: 'user',
+          content: prompt,
+          images: [],
+          createdAt: new Date().toISOString(),
+          parentId: null,
+          branchIndex: 0,
+        };
+        useStore.getState().setConversationMessages(convId, (prev) => [...prev, tempMsg]);
+        setVideoGenerating(convId, { jobId: '', prompt });
+      }
+
+      const response = await api.generateConversationImage(convId, { prompt, model: imageModel });
+      setContent('');
+      setComposeMode('chat');
+
+      if ('job_id' in response) {
+        // Video job — unlock input immediately, replace temp message with real one, poll in background
+        setIsGeneratingImage(false);
+        const { job_id, user_message } = response;
+        const finalConvId = convId;
+
+        // Replace the temp user message with the real one from the server
+        const mapped = mapRawMessages([user_message as Record<string, unknown>], finalConvId);
+        if (mapped.length > 0) {
+          useStore.getState().setConversationMessages(finalConvId, (prev) => {
+            const withoutTemp = prev.filter((m) => !m.id.startsWith('temp-'));
+            return [...withoutTemp, mapped[0]];
+          });
+        }
+
+        startVideoPolling(finalConvId, job_id, prompt);
+        return;
+      }
+
+      // Regular image — reload immediately
       await reloadConversation(convId);
       const artifacts = await api.getArtifacts(convId);
       useStore.getState().setArtifacts(artifacts);
-      setContent('');
-      setComposeMode('chat');
     } catch (e) {
       console.error('Image generation failed', e);
+      // Clear video generating state and temp message if we set them early
+      if (isVideo && activeConversationId) {
+        setVideoGenerating(activeConversationId, null);
+        useStore.getState().setConversationMessages(activeConversationId, (prev) =>
+          prev.filter((m) => !m.id.startsWith('temp-'))
+        );
+      }
     } finally {
       setIsGeneratingImage(false);
     }
-  }, [activeConversationId, activeModel, content, imageModel, isGeneratingImage, isStreaming, setActiveConversationId, setConversations, tc]);
+  }, [activeConversationId, activeModel, content, imageModel, isGeneratingImage, isStreaming, setActiveConversationId, setConversations, setVideoGenerating, startVideoPolling, tc]);
 
   const removeFile = useCallback((index: number) => setPendingFiles((prev) => prev.filter((_, i) => i !== index)), []);
   const hasContent = content.trim() || pendingFiles.length > 0;

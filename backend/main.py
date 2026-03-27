@@ -218,10 +218,12 @@ async def list_models(user_id: uuid.UUID = Depends(get_current_user)):
         "chat_models": chat_models,
         "image_models": [
             {"id": "gpt-image-1.5-swc", "name": "GPT Image 1.5"},
+            {"id": "sora-2", "name": "Sora 2"},
             {"id": "azure_ai/flux.2-pro", "name": "FLUX.2 Pro"},
         ],
         "audio_models": [
             {"id": "azure_ai/gpt-audio-1.5", "name": "GPT Audio 1.5"},
+            {"id": "tts-hd", "name": "TTS HD"},
         ],
     }
 

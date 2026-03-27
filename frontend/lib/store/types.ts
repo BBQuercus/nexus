@@ -80,6 +80,7 @@ export interface AppState {
   currentOrg: Organization | null;
   memberships: OrgMembership[];
   userSettings: UserSettings;
+  videoGenerating: Record<string, { jobId: string; prompt: string } | null>;
 }
 
 export interface AppActions {
@@ -132,6 +133,7 @@ export interface AppActions {
   setMemberships: (memberships: OrgMembership[]) => void;
   switchOrg: (orgId: string) => Promise<void>;
   setUserSettings: (settings: UserSettings) => void;
+  setVideoGenerating: (conversationId: string, state: { jobId: string; prompt: string } | null) => void;
   reset: () => void;
 }
 
