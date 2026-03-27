@@ -185,9 +185,11 @@ export default function MessageBubble({ message }: { message: Message }) {
             <div className="bg-surface-2 border border-border-default rounded-xl rounded-br-sm text-text-primary px-4 py-2.5 text-sm whitespace-pre-wrap">
               {message.images && message.images.length > 0 && (
                 <div className="flex flex-wrap gap-2 mb-2">
-                  {message.images.map((img, i) => (
-                    <img key={i} src={img.url} alt={img.filename} className="max-w-[200px] max-h-[200px] rounded-lg object-cover cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setLightboxUrl(img.url)} />
-                  ))}
+                  {message.images.map((img, i) =>
+                    img.filename.match(/\.(mp4|webm|mov|avi)$/i)
+                      ? <video key={i} src={img.url} controls className="max-w-[200px] max-h-[200px] rounded-lg" />
+                      : <img key={i} src={img.url} alt={img.filename} className="max-w-[200px] max-h-[200px] rounded-lg object-cover cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setLightboxUrl(img.url)} />
+                  )}
                 </div>
               )}
               {message.content}

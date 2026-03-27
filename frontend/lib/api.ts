@@ -295,11 +295,21 @@ export async function regenerateMessage(conversationId: string, messageId: strin
 export async function generateConversationImage(
   conversationId: string,
   params: { prompt: string; model?: string; size?: string },
-): Promise<{ user_message: Record<string, unknown>; assistant_message: Record<string, unknown>; active_leaf_id: string }> {
+): Promise<
+  | { user_message: Record<string, unknown>; assistant_message: Record<string, unknown>; active_leaf_id: string }
+  | { job_id: string; user_message: Record<string, unknown>; status: string }
+> {
   return apiFetch(`/api/conversations/${conversationId}/images`, {
     method: 'POST',
     body: JSON.stringify(params),
   });
+}
+
+export async function getVideoJobStatus(
+  conversationId: string,
+  jobId: string,
+): Promise<{ status: string; error?: string }> {
+  return apiFetch(`/api/conversations/${conversationId}/images/${jobId}/status`);
 }
 
 // ── Branching ──

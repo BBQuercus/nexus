@@ -6,10 +6,47 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { useStore } from '@/lib/store';
 import * as api from '@/lib/api';
 import { mapRawMessages, loadAndAttachArtifacts } from '@/lib/useStreaming';
-import { ArrowDown } from 'lucide-react';
+import { ArrowDown, Clapperboard } from 'lucide-react';
 import MessageBubble from './message-bubble';
 import StreamingBubble from './streaming-bubble';
 import { MessageSkeleton } from './skeleton';
+
+function VideoGeneratingBubble({ prompt }: { prompt: string }) {
+  const [elapsed, setElapsed] = useState(0);
+  const startRef = useRef(Date.now());
+
+  useEffect(() => {
+    const interval = setInterval(() => setElapsed(Math.floor((Date.now() - startRef.current) / 1000)), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const mins = Math.floor(elapsed / 60);
+  const secs = elapsed % 60;
+  const elapsedStr = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+
+  return (
+    <div className="flex justify-start animate-fade-in-up">
+      <div className="max-w-[95%] md:max-w-[85%] w-full">
+        <div className="flex items-center gap-3 py-3">
+          <div className="w-7 h-7 rounded-lg flex items-center justify-center border border-accent/20 bg-accent/5">
+            <Clapperboard size={13} className="text-accent animate-pulse" />
+          </div>
+          <div className="flex flex-col gap-0.5">
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-mono text-accent tracking-widest uppercase">Generating video</span>
+              <div className="flex gap-0.5">
+                <span className="w-1 h-1 rounded-full bg-accent animate-bounce" style={{ animationDelay: '0ms' }} />
+                <span className="w-1 h-1 rounded-full bg-accent animate-bounce" style={{ animationDelay: '150ms' }} />
+                <span className="w-1 h-1 rounded-full bg-accent animate-bounce" style={{ animationDelay: '300ms' }} />
+              </div>
+            </div>
+            <span className="text-[10px] text-text-tertiary font-mono">{prompt.length > 60 ? prompt.slice(0, 60) + '…' : prompt} · {elapsedStr}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const PAGE_SIZE = 50;
 
@@ -24,6 +61,7 @@ export default function ChatMessages() {
   const setConversationTree = useStore((s) => s.setConversationTree);
   const isStreaming = useStore((s) => s.isStreaming);
   const isStreamingRef = useRef(isStreaming);
+  const videoGenerating = useStore((s) => activeConversationId ? s.videoGenerating[activeConversationId] : null);
   isStreamingRef.current = isStreaming;
   const containerRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true);
@@ -256,6 +294,7 @@ export default function ChatMessages() {
               })}
             </div>
             <StreamingBubble />
+            {videoGenerating && <VideoGeneratingBubble prompt={videoGenerating.prompt} />}
           </div>
         )}
       </div>

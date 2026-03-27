@@ -69,6 +69,7 @@ const initialState: AppState = {
   currentOrg: null,
   memberships: [],
   userSettings: {},
+  videoGenerating: {},
 };
 
 export const useStore = create<StoreState>((...args) => {
@@ -85,9 +86,12 @@ export const useStore = create<StoreState>((...args) => {
     currentOrg: null,
     memberships: [],
     userSettings: {},
+    videoGenerating: {},
     setCurrentOrg: (org) => set({ currentOrg: org }),
     setMemberships: (memberships) => set({ memberships }),
     setUserSettings: (userSettings) => set({ userSettings }),
+    setVideoGenerating: (conversationId, state) =>
+      set((s) => ({ videoGenerating: { ...s.videoGenerating, [conversationId]: state } })),
     switchOrg: async (orgId: string) => {
       const { switchOrg: apiSwitchOrg } = await import('../api');
       await apiSwitchOrg(orgId);

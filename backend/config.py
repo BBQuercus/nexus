@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     # Keep for backwards compat during migration
     JWT_VALIDITY_DAYS: int = 7
 
+    SORA_API_KEY: str = ""
+    SORA_API_BASE: str = "https://arti-cgpt-rg-swc-aoai.openai.azure.com/openai/v1/videos"
+
     SERPAPI_API_KEY: str = ""
 
     AZURE_SPEECH_KEY: str = ""
