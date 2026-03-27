@@ -1,4 +1,4 @@
-import type { User, Conversation, Message, Artifact, AgentPersona, ToolCall, ConversationTree, Citation, RetrievalResult, KnowledgeBase, StreamingTable, StreamingChart, FormSpec, Project, Organization, OrgMembership } from '../types';
+import type { User, Conversation, Message, Artifact, AgentPersona, ToolCall, ConversationTree, Citation, RetrievalResult, KnowledgeBase, StreamingTable, StreamingChart, FormSpec, Project, Organization, OrgMembership, UserSettings } from '../types';
 import type { AuthStatus } from './session-slice';
 
 export interface StreamingImage {
@@ -79,6 +79,7 @@ export interface AppState {
   searchPanelOpen: boolean;
   currentOrg: Organization | null;
   memberships: OrgMembership[];
+  userSettings: UserSettings;
 }
 
 export interface AppActions {
@@ -130,6 +131,7 @@ export interface AppActions {
   setCurrentOrg: (org: Organization | null) => void;
   setMemberships: (memberships: OrgMembership[]) => void;
   switchOrg: (orgId: string) => Promise<void>;
+  setUserSettings: (settings: UserSettings) => void;
   reset: () => void;
 }
 

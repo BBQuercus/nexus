@@ -1,7 +1,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.auth import get_current_user, get_org_db
@@ -77,18 +77,18 @@ async def search(
                 }
             )
 
-    # ── Search messages by content ──
+    # ── Search messages by content (FTS with GIN index) ──
     if scope in ("all", "messages"):
-        # Try full-text search first (uses tsv index on chunks, but messages
-        # don't have tsv -- fall back to ILIKE on content)
+        tsquery = func.plainto_tsquery("english", search_term)
+        tsvector = func.to_tsvector("english", func.coalesce(Message.content, ""))
         msg_query = (
             select(Message)
             .join(Conversation, Message.conversation_id == Conversation.id)
             .where(
                 Conversation.user_id == user_id,
-                Message.content.ilike(like_pattern),
+                tsvector.op("@@")(tsquery),
             )
-            .order_by(Message.created_at.desc())
+            .order_by(func.ts_rank(tsvector, tsquery).desc())
             .limit(limit)
         )
         msg_result = await db.execute(msg_query)

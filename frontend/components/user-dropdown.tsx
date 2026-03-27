@@ -3,8 +3,9 @@
 import { useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useStore } from '@/lib/store';
-import { logout as apiLogout } from '@/lib/api';
-import { LogOut, User, Keyboard, Shield, Users, BookOpen, Home, Compass, Bug, Building2, Check, Plus } from 'lucide-react';
+import { logout as apiLogout, updateUserSettings } from '@/lib/api';
+import type { UserSettings } from '@/lib/types';
+import { LogOut, User, Keyboard, Shield, Users, BookOpen, Home, Compass, Bug, Building2, Check, Plus, Settings, Sun, Moon, Monitor, Type, Zap } from 'lucide-react';
 import BugReportDialog from './bug-report-dialog';
 import CreateOrgDialog from './create-org-dialog';
 import {
@@ -25,9 +26,21 @@ export default function UserDropdown({ compact = false }: { compact?: boolean })
   const currentOrg = useStore((s) => s.currentOrg);
   const memberships = useStore((s) => s.memberships);
   const switchOrg = useStore((s) => s.switchOrg);
+  const userSettings = useStore((s) => s.userSettings);
+  const setUserSettings = useStore((s) => s.setUserSettings);
   const [bugReportOpen, setBugReportOpen] = useState(false);
   const [createOrgOpen, setCreateOrgOpen] = useState(false);
   const [switchingOrg, setSwitchingOrg] = useState(false);
+
+  const handleSetting = async (patch: Partial<UserSettings>) => {
+    const next = { ...userSettings, ...patch };
+    setUserSettings(next);
+    try {
+      await updateUserSettings(patch);
+    } catch {
+      setUserSettings(userSettings); // rollback
+    }
+  };
   const router = useRouter();
   const pathname = usePathname();
 
@@ -175,6 +188,40 @@ export default function UserDropdown({ compact = false }: { compact?: boolean })
               <span>Admin dashboard</span>
             </DropdownMenuItem>
           )}
+
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <Settings size={13} />
+              <span>Preferences</span>
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent className="w-52">
+              <DropdownMenuLabel className="text-[10px] text-text-tertiary">Theme</DropdownMenuLabel>
+              {(['dark', 'light', 'system'] as const).map((t) => (
+                <DropdownMenuItem key={t} onClick={() => handleSetting({ theme: t })}>
+                  {t === 'dark' && <Moon size={13} />}
+                  {t === 'light' && <Sun size={13} />}
+                  {t === 'system' && <Monitor size={13} />}
+                  <span className="capitalize">{t}</span>
+                  {(userSettings.theme ?? 'dark') === t && <Check size={12} className="ml-auto text-accent" />}
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-[10px] text-text-tertiary">Font size</DropdownMenuLabel>
+              {([['sm', 'Small'], ['md', 'Medium'], ['lg', 'Large']] as const).map(([val, label]) => (
+                <DropdownMenuItem key={val} onClick={() => handleSetting({ fontSize: val })}>
+                  <Type size={13} />
+                  <span>{label}</span>
+                  {(userSettings.fontSize ?? 'md') === val && <Check size={12} className="ml-auto text-accent" />}
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => handleSetting({ reduceAnimations: !userSettings.reduceAnimations })}>
+                <Zap size={13} />
+                <span>Reduce animations</span>
+                {userSettings.reduceAnimations && <Check size={12} className="ml-auto text-accent" />}
+              </DropdownMenuItem>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
 
           <DropdownMenuSeparator />
 

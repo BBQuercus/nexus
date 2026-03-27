@@ -1,9 +1,11 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { MessageSquare, Check } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import * as api from '@/lib/api';
+import { toast as sonnerToast } from 'sonner';
+import { toast } from '@/components/toast';
 import type { Message } from './types';
 import { SiblingNav } from './branch-indicator';
 import { ExecBlock, ReasoningTrace, CostBadge } from './tool-call-display';
@@ -35,6 +37,7 @@ export default function MessageBubble({ message }: { message: Message }) {
   const [copied, setCopied] = useState(false);
   const [showBranchInput, setShowBranchInput] = useState(false);
   const [showRetryMenu, setShowRetryMenu] = useState(false);
+  const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
@@ -71,6 +74,50 @@ export default function MessageBubble({ message }: { message: Message }) {
     window.dispatchEvent(new CustomEvent('nexus:regenerate', {
       detail: { conversationId: activeConversationId, messageId: message.id },
     }));
+  };
+
+  const handleDelete = () => {
+    if (!activeConversationId) return;
+    const convId = activeConversationId;
+    const msgId = message.id;
+    const snapshot = useStore.getState().messages;
+
+    // Optimistically remove from store
+    setMessages((prev) => prev.filter((m) => m.id !== msgId));
+
+    const commit = () => {
+      api.deleteMessage(convId, msgId).catch(() => {
+        // Restore on API failure
+        setMessages(snapshot);
+        toast.error('Failed to delete message');
+      });
+    };
+
+    // Allow undo for 5 seconds
+    deleteTimerRef.current = setTimeout(commit, 5000);
+
+    const beforeUnload = () => {
+      if (deleteTimerRef.current) {
+        clearTimeout(deleteTimerRef.current);
+        commit();
+      }
+    };
+    window.addEventListener('beforeunload', beforeUnload, { once: true });
+
+    sonnerToast('Message deleted', {
+      action: {
+        label: 'Undo',
+        onClick: () => {
+          if (deleteTimerRef.current) {
+            clearTimeout(deleteTimerRef.current);
+            deleteTimerRef.current = null;
+          }
+          window.removeEventListener('beforeunload', beforeUnload);
+          setMessages(snapshot);
+        },
+      },
+      duration: 5000,
+    });
   };
 
   const handleGenerateAudio = async () => {
@@ -147,6 +194,7 @@ export default function MessageBubble({ message }: { message: Message }) {
             onCopy={handleCopy}
             showBranchInput={showBranchInput}
             onToggleBranch={() => setShowBranchInput(!showBranchInput)}
+            onDelete={handleDelete}
             onEdit={formSubmission ? () => {
               // Save messages before truncating so cancel can restore them
               const msgs = allMessages;
@@ -260,6 +308,7 @@ export default function MessageBubble({ message }: { message: Message }) {
           onToggleRetryMenu={() => setShowRetryMenu(!showRetryMenu)}
           showBranchInput={showBranchInput}
           onToggleBranch={() => setShowBranchInput(!showBranchInput)}
+          onDelete={handleDelete}
         />
         {showBranchInput && (
           <InlineBranchInput messageId={message.id} onClose={() => setShowBranchInput(false)} />

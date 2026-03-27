@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useStore } from '@/lib/store';
-import { getCurrentUser } from '@/lib/api';
+import { getCurrentUser, getUserSettings } from '@/lib/api';
 import {
   refreshAccessToken,
   startTokenRefreshTimer,
@@ -98,6 +98,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   const setAuthStatus = useStore((s) => s.setAuthStatus);
   const setCurrentOrg = useStore((s) => s.setCurrentOrg);
   const setMemberships = useStore((s) => s.setMemberships);
+  const setUserSettings = useStore((s) => s.setUserSettings);
   const authStatus = useStore((s) => s.authStatus);
   const [redirectingTo, setRedirectingTo] = useState<string | null>(null);
 
@@ -107,11 +108,12 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     async function checkAuth() {
       // 1. Try the current session
       try {
-        const user = await getCurrentUser();
+        const [user, settings] = await Promise.all([getCurrentUser(), getUserSettings().catch(() => ({}))]);
         if (cancelled) return;
         setUser(user);
         setCurrentOrg(user.currentOrg || null);
         setMemberships(user.memberships || []);
+        setUserSettings(settings);
         setAuthStatus('authenticated');
         // Show welcome toast if returning from OAuth flow
         const justAuthenticated = sessionStorage.getItem('nexus_oauth_attempted');
@@ -129,11 +131,12 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       const refreshed = await refreshAccessToken();
       if (refreshed) {
         try {
-          const user = await getCurrentUser();
+          const [user, settings] = await Promise.all([getCurrentUser(), getUserSettings().catch(() => ({}))]);
           if (cancelled) return;
           setUser(user);
           setCurrentOrg(user.currentOrg || null);
           setMemberships(user.memberships || []);
+          setUserSettings(settings);
           setAuthStatus('authenticated');
           sessionStorage.removeItem('nexus_oauth_attempted');
           return;

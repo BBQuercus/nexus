@@ -1,3 +1,11 @@
+// ── User Settings ──
+
+export interface UserSettings {
+  theme?: 'dark' | 'light' | 'system';
+  fontSize?: 'sm' | 'md' | 'lg';
+  reduceAnimations?: boolean;
+}
+
 // ── Multi-Org Types ──
 
 export interface Organization {

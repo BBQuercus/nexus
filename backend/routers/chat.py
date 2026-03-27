@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sse_starlette.sse import EventSourceResponse
 
-from backend.auth import get_current_org, get_current_user, get_org_db
+from backend.auth import get_current_org, get_current_user, get_org_db, validate_csrf
 from backend.config import settings
 from backend.logging_config import get_logger
 from backend.models import AgentPersona, Artifact, Conversation, Message, UsageLog
@@ -28,6 +28,10 @@ logger = get_logger("routers.chat")
 
 
 # ----- Schemas -----
+
+
+class BulkDeleteRequest(BaseModel):
+    ids: list[uuid.UUID]
 
 
 class CreateConversationRequest(BaseModel):
@@ -426,6 +430,110 @@ async def delete_conversation(
         resource_type="conversation",
         resource_id=str(conversation_id),
     )
+    return {"ok": True}
+
+
+@router.post("/bulk-delete", dependencies=[Depends(validate_csrf)])
+async def bulk_delete_conversations(
+    body: BulkDeleteRequest,
+    user_id: uuid.UUID = Depends(require_permission("conversation.delete")),
+    db: AsyncSession = Depends(get_org_db),
+):
+    if not body.ids:
+        return {"deleted": 0, "failed": []}
+
+    deleted_ids: list[str] = []
+    failed_ids: list[str] = []
+
+    for conv_id in body.ids:
+        try:
+            result = await db.execute(
+                select(Conversation).where(Conversation.id == conv_id, Conversation.user_id == user_id)
+            )
+            conv = result.scalar_one_or_none()
+            if not conv:
+                failed_ids.append(str(conv_id))
+                continue
+
+            if conv.sandbox_id:
+                try:
+                    sb = await sandbox_service.get_sandbox(conv.sandbox_id)
+                    await sandbox_service.delete_sandbox(sb)
+                except Exception:
+                    pass
+
+            message_ids = (
+                (await db.execute(select(Message.id).where(Message.conversation_id == conv_id))).scalars().all()
+            )
+            conv.active_leaf_id = None
+            conv.forked_from_message_id = None
+            await db.flush()
+
+            if message_ids:
+                await db.execute(
+                    update(Conversation)
+                    .where(Conversation.forked_from_message_id.in_(message_ids))
+                    .values(forked_from_message_id=None)
+                )
+                await db.execute(
+                    update(Message)
+                    .where(Message.conversation_id == conv_id, Message.parent_id.in_(message_ids))
+                    .values(parent_id=None)
+                )
+                await db.execute(delete(Artifact).where(Artifact.message_id.in_(message_ids)))
+
+            await db.execute(delete(Artifact).where(Artifact.conversation_id == conv_id))
+            await db.execute(delete(UsageLog).where(UsageLog.conversation_id == conv_id))
+            await db.execute(delete(Message).where(Message.conversation_id == conv_id))
+            await db.execute(delete(Conversation).where(Conversation.id == conv_id, Conversation.user_id == user_id))
+            deleted_ids.append(str(conv_id))
+        except Exception:
+            failed_ids.append(str(conv_id))
+            await db.rollback()
+
+    await db.commit()
+    return {"deleted": len(deleted_ids), "failed": failed_ids}
+
+
+@router.delete("/{conversation_id}/messages/{message_id}", dependencies=[Depends(validate_csrf)])
+async def delete_message(
+    conversation_id: uuid.UUID,
+    message_id: uuid.UUID,
+    user_id: uuid.UUID = Depends(get_current_user),
+    db: AsyncSession = Depends(get_org_db),
+):
+    # Verify conversation ownership
+    conv_result = await db.execute(
+        select(Conversation).where(Conversation.id == conversation_id, Conversation.user_id == user_id)
+    )
+    if not conv_result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    msg_result = await db.execute(
+        select(Message).where(Message.id == message_id, Message.conversation_id == conversation_id)
+    )
+    msg = msg_result.scalar_one_or_none()
+    if not msg:
+        raise HTTPException(status_code=404, detail="Message not found")
+
+    # Detach children so they become root-level messages in the conversation
+    await db.execute(
+        update(Message)
+        .where(Message.parent_id == message_id)
+        .values(parent_id=msg.parent_id)
+    )
+
+    # If this message is the active leaf, clear it
+    await db.execute(
+        update(Conversation)
+        .where(Conversation.active_leaf_id == message_id)
+        .values(active_leaf_id=None)
+    )
+
+    # Delete artifacts and message
+    await db.execute(delete(Artifact).where(Artifact.message_id == message_id))
+    await db.execute(delete(Message).where(Message.id == message_id))
+    await db.commit()
     return {"ok": True}
 
 

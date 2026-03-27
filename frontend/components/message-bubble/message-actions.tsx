@@ -2,7 +2,7 @@
 
 import { createPortal } from 'react-dom';
 import { useRef, useEffect, useState, useCallback } from 'react';
-import { Copy, GitBranch, RefreshCw, Check, Download, ArrowRight, X, Link, Pencil, ThumbsUp, ThumbsDown, Volume2, SkipForward, Play, Pause, MessageSquare } from 'lucide-react';
+import { Copy, GitBranch, RefreshCw, Check, Download, ArrowRight, X, Link, Pencil, ThumbsUp, ThumbsDown, Volume2, SkipForward, Play, Pause, MessageSquare, Trash2 } from 'lucide-react';
 import { ProviderLogo } from '../provider-logos';
 import { MODELS } from '@/lib/types';
 import type { ModelOption, ModelProvider } from '@/lib/types';
@@ -462,6 +462,7 @@ export function UserMessageActions({
   showBranchInput,
   onToggleBranch,
   onEdit,
+  onDelete,
 }: {
   message: Message;
   copied: boolean;
@@ -469,6 +470,7 @@ export function UserMessageActions({
   showBranchInput: boolean;
   onToggleBranch: () => void;
   onEdit?: () => void;
+  onDelete?: () => void;
 }) {
   return (
     <div className="flex justify-end gap-2 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -498,6 +500,11 @@ export function UserMessageActions({
       >
         <GitBranch size={10} /> Branch
       </button>
+      {onDelete && (
+        <button onClick={onDelete} className="flex items-center gap-1 text-[10px] text-text-tertiary hover:text-error cursor-pointer transition-colors">
+          <Trash2 size={10} /> Delete
+        </button>
+      )}
     </div>
   );
 }
@@ -514,6 +521,7 @@ export function AssistantMessageActions({
   onToggleRetryMenu,
   showBranchInput,
   onToggleBranch,
+  onDelete,
 }: {
   message: Message;
   copied: boolean;
@@ -525,6 +533,7 @@ export function AssistantMessageActions({
   onToggleRetryMenu: () => void;
   showBranchInput: boolean;
   onToggleBranch: () => void;
+  onDelete?: () => void;
 }) {
   const retryBtnRef = useRef<HTMLButtonElement>(null);
 
@@ -566,6 +575,11 @@ export function AssistantMessageActions({
         <GitBranch size={10} /> Branch
       </button>
       <FeedbackPanel message={message} />
+      {onDelete && (
+        <button onClick={onDelete} className="flex items-center gap-1 text-[10px] text-text-tertiary hover:text-error cursor-pointer transition-colors">
+          <Trash2 size={10} /> Delete
+        </button>
+      )}
     </div>
   );
 }

@@ -68,6 +68,7 @@ const initialState: AppState = {
   searchPanelOpen: false,
   currentOrg: null,
   memberships: [],
+  userSettings: {},
 };
 
 export const useStore = create<StoreState>((...args) => {
@@ -83,8 +84,10 @@ export const useStore = create<StoreState>((...args) => {
     ...getPersistedState(),
     currentOrg: null,
     memberships: [],
+    userSettings: {},
     setCurrentOrg: (org) => set({ currentOrg: org }),
     setMemberships: (memberships) => set({ memberships }),
+    setUserSettings: (userSettings) => set({ userSettings }),
     switchOrg: async (orgId: string) => {
       const { switchOrg: apiSwitchOrg } = await import('../api');
       await apiSwitchOrg(orgId);

@@ -5,6 +5,7 @@ import AuthProvider from '@/components/auth-provider';
 import OfflineBanner from '@/components/offline-banner';
 import QueryProvider from '@/components/query-provider';
 import { ServiceWorkerRegister } from '@/components/sw-register';
+import ThemeProvider from '@/components/theme-provider';
 
 export const metadata: Metadata = {
   title: 'Nexus',
@@ -35,6 +36,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <OfflineBanner />
         <QueryProvider>
           <AuthProvider>
+            <ThemeProvider />
             {children}
           </AuthProvider>
         </QueryProvider>

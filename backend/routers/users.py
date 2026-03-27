@@ -1,12 +1,14 @@
 import uuid
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.auth import get_current_user, get_org_db
-from backend.models import UsageLog, User
+from backend.auth import get_current_user, get_org_db, validate_csrf
+from backend.models import UsageLog, User, UserSettings
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
@@ -107,3 +109,35 @@ async def get_usage_history(
         }
         for row in rows
     ]
+
+
+class UpdateSettingsRequest(BaseModel):
+    settings: dict[str, Any]
+
+
+@router.get("/me/settings")
+async def get_settings(
+    user_id: uuid.UUID = Depends(get_current_user),
+    db: AsyncSession = Depends(get_org_db),
+):
+    result = await db.execute(select(UserSettings).where(UserSettings.user_id == user_id))
+    row = result.scalar_one_or_none()
+    return {"settings": row.settings if row else {}}
+
+
+@router.patch("/me/settings", dependencies=[Depends(validate_csrf)])
+async def update_settings(
+    body: UpdateSettingsRequest,
+    user_id: uuid.UUID = Depends(get_current_user),
+    db: AsyncSession = Depends(get_org_db),
+):
+    result = await db.execute(select(UserSettings).where(UserSettings.user_id == user_id))
+    row = result.scalar_one_or_none()
+    if row is None:
+        row = UserSettings(user_id=user_id, settings=body.settings)
+        db.add(row)
+    else:
+        # Merge incoming keys into existing settings
+        row.settings = {**row.settings, **body.settings}
+    await db.commit()
+    return {"settings": row.settings}
