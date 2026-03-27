@@ -1,10 +1,12 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { useTranslations } from 'next-intl';
 import { useStore } from '@/lib/store';
 import { TerminalSocket } from '@/lib/ws';
 
 export default function TerminalPanel() {
+  const t = useTranslations('terminalPanel');
   const sandboxId = useStore((s) => s.sandboxId);
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<import('@xterm/xterm').Terminal | null>(null);
@@ -67,14 +69,18 @@ export default function TerminalPanel() {
       const socket = new TerminalSocket(sandboxId);
       socketRef.current = socket;
 
+      const connectedMsg = t('connected');
+      const disconnectedMsg = t('disconnected');
+
       socket.onConnect = () => {
-        terminal.write('\x1b[32m Connected to sandbox \x1b[0m\r\n\r\n');
+        terminal.write(`\x1b[32m ${connectedMsg} \x1b[0m\r\n\r\n`);
       };
       socket.onDisconnect = () => {
-        terminal.write('\r\n\x1b[33m Connection lost.\x1b[0m\r\n');
+        terminal.write(`\r\n\x1b[33m ${disconnectedMsg}\x1b[0m\r\n`);
       };
       socket.onReconnecting = (attempt, max) => {
-        terminal.write(`\x1b[33m Reconnecting (${attempt}/${max})...\x1b[0m\r\n`);
+        const reconnectingMsg = t('reconnecting', { attempt, max });
+        terminal.write(`\x1b[33m ${reconnectingMsg}\x1b[0m\r\n`);
       };
       socket.onStdout = (data) => terminal.write(data);
       socket.onStderr = (data) => terminal.write(`\x1b[31m${data}\x1b[0m`);
@@ -93,12 +99,12 @@ export default function TerminalPanel() {
       fitAddonRef.current = null;
       connectedSandboxRef.current = null;
     };
-  }, [sandboxId]);
+  }, [sandboxId, t]);
 
   if (!sandboxId) {
     return (
       <div className="flex items-center justify-center h-full px-6 text-center text-text-tertiary text-xs font-mono">
-        Terminal connects when a sandbox is active.
+        {t('noSandbox')}
       </div>
     );
   }

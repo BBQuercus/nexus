@@ -8,6 +8,7 @@
  */
 
 import { useState, useMemo, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import { useStore } from '@/lib/store';
 import type { Artifact } from '@/lib/types';
 import * as api from '@/lib/api';
@@ -20,15 +21,6 @@ import {
 } from 'lucide-react';
 
 type FilterType = 'all' | 'code' | 'charts' | 'tables' | 'documents' | 'forms';
-
-const FILTER_OPTIONS: { key: FilterType; label: string; icon: React.ReactNode }[] = [
-  { key: 'all', label: 'All', icon: null },
-  { key: 'code', label: 'Code', icon: <Code2 size={10} /> },
-  { key: 'charts', label: 'Charts', icon: <BarChart3 size={10} /> },
-  { key: 'tables', label: 'Tables', icon: <Table size={10} /> },
-  { key: 'documents', label: 'Docs', icon: <FileText size={10} /> },
-  { key: 'forms', label: 'Forms', icon: <ClipboardList size={10} /> },
-];
 
 function filterMatches(artifact: Artifact, filter: FilterType): boolean {
   if (filter === 'all') return true;
@@ -68,7 +60,7 @@ function getTypeIcon(artifact: Artifact) {
   }
 }
 
-function getTypeBadge(artifact: Artifact) {
+function getTypeBadge(artifact: Artifact, t: ReturnType<typeof useTranslations<'artifactCenter'>>) {
   switch (artifact.type) {
     case 'code': {
       const lang = (artifact.metadata?.language as string) || artifact.label.split('.').pop() || 'code';
@@ -76,7 +68,7 @@ function getTypeBadge(artifact: Artifact) {
     }
     case 'chart':
     case 'image':
-      return <span className="px-1.5 py-0 text-[9px] font-bold uppercase rounded bg-purple-500/10 text-purple-400 tracking-wide">chart</span>;
+      return <span className="px-1.5 py-0 text-[9px] font-bold uppercase rounded bg-purple-500/10 text-purple-400 tracking-wide">{t('chartBadge')}</span>;
     case 'table': {
       if (!artifact.content) return null;
       const lines = artifact.content.trim().split('\n');
@@ -95,7 +87,7 @@ function getTypeBadge(artifact: Artifact) {
       return ext ? <span className={`px-1.5 py-0 text-[9px] font-bold uppercase rounded tracking-wide ${color}`}>{ext}</span> : null;
     }
     case 'form':
-      return <span className="px-1.5 py-0 text-[9px] font-bold uppercase rounded bg-emerald-500/10 text-emerald-400 tracking-wide">form</span>;
+      return <span className="px-1.5 py-0 text-[9px] font-bold uppercase rounded bg-emerald-500/10 text-emerald-400 tracking-wide">{t('formBadge')}</span>;
     default:
       return null;
   }
@@ -107,6 +99,7 @@ function ArtifactCard({ artifact, isGrid, expanded, onToggleExpand }: {
   expanded: boolean;
   onToggleExpand: () => void;
 }) {
+  const t = useTranslations('artifactCenter');
   const [copied, setCopied] = useState(false);
   const [chartView, setChartView] = useState<{ toImageURL: (type: string) => Promise<string> } | null>(null);
   const sandboxId = useStore((s) => s.sandboxId);
@@ -200,7 +193,7 @@ function ArtifactCard({ artifact, isGrid, expanded, onToggleExpand }: {
         )}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 mb-1">
-            {getTypeBadge(artifact)}
+            {getTypeBadge(artifact, t)}
             {artifact.pinned && <Pin size={9} className="text-accent" />}
             {expanded ? <ChevronDown size={10} className="text-text-tertiary ml-auto" /> : <ChevronRight size={10} className="text-text-tertiary ml-auto" />}
           </div>
@@ -267,7 +260,7 @@ function ArtifactCard({ artifact, isGrid, expanded, onToggleExpand }: {
                 className="flex items-center gap-1 px-2 py-0.5 text-[9px] font-medium rounded border border-border-default bg-surface-2 text-text-tertiary hover:text-text-secondary hover:border-border-focus cursor-pointer transition-colors"
               >
                 {copied ? <Check size={9} className="text-accent" /> : <Copy size={9} />}
-                {copied ? 'Copied' : 'Copy'}
+                {copied ? t('pin') && 'Copied' : t('pin') && 'Copy'}
               </button>
             )}
             {artifact.type === 'chart' && (
@@ -276,13 +269,13 @@ function ArtifactCard({ artifact, isGrid, expanded, onToggleExpand }: {
                   onClick={() => void handleChartDownload('png')}
                   className="flex items-center gap-1 px-2 py-0.5 text-[9px] font-medium rounded border border-border-default bg-surface-2 text-text-tertiary hover:text-text-secondary hover:border-border-focus cursor-pointer transition-colors"
                 >
-                  <Download size={9} /> PNG
+                  <Download size={9} /> {t('png')}
                 </button>
                 <button
                   onClick={() => void handleChartDownload('svg')}
                   className="flex items-center gap-1 px-2 py-0.5 text-[9px] font-medium rounded border border-border-default bg-surface-2 text-text-tertiary hover:text-text-secondary hover:border-border-focus cursor-pointer transition-colors"
                 >
-                  <Download size={9} /> SVG
+                  <Download size={9} /> {t('svg')}
                 </button>
               </>
             )}
@@ -300,7 +293,7 @@ function ArtifactCard({ artifact, isGrid, expanded, onToggleExpand }: {
                 }}
                 className="flex items-center gap-1 px-2 py-0.5 text-[9px] font-medium rounded border border-border-default bg-surface-2 text-text-tertiary hover:text-text-secondary hover:border-border-focus cursor-pointer transition-colors"
               >
-                <Download size={9} /> Export CSV
+                <Download size={9} /> {t('exportCsv')}
               </button>
             )}
             {artifact.type === 'document' && (
@@ -314,7 +307,7 @@ function ArtifactCard({ artifact, isGrid, expanded, onToggleExpand }: {
             <button
               onClick={handleTogglePin}
               className="flex items-center gap-1 px-1.5 py-0.5 text-[9px] rounded border border-border-default bg-surface-2 text-text-tertiary hover:text-accent hover:border-accent/20 cursor-pointer transition-colors"
-              title={artifact.pinned ? 'Unpin' : 'Pin'}
+              title={artifact.pinned ? t('unpin') : t('pin')}
             >
               {artifact.pinned ? <PinOff size={9} /> : <Pin size={9} />}
             </button>
@@ -326,10 +319,20 @@ function ArtifactCard({ artifact, isGrid, expanded, onToggleExpand }: {
 }
 
 export default function ArtifactCenter() {
+  const t = useTranslations('artifactCenter');
   const artifacts = useStore((s) => s.artifacts);
   const [filter, setFilter] = useState<FilterType>('all');
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+
+  const FILTER_OPTIONS: { key: FilterType; label: string; icon: React.ReactNode }[] = [
+    { key: 'all', label: t('filterAll'), icon: null },
+    { key: 'code', label: t('filterCode'), icon: <Code2 size={10} /> },
+    { key: 'charts', label: t('filterCharts'), icon: <BarChart3 size={10} /> },
+    { key: 'tables', label: t('filterTables'), icon: <Table size={10} /> },
+    { key: 'documents', label: t('filterDocs'), icon: <FileText size={10} /> },
+    { key: 'forms', label: t('filterForms'), icon: <ClipboardList size={10} /> },
+  ];
 
   const filtered = useMemo(
     () => {
@@ -370,7 +373,7 @@ export default function ArtifactCenter() {
     return (
       <div className="flex flex-col items-center justify-center h-full text-text-tertiary px-6">
         <BarChart3 size={24} className="mb-2 opacity-40" />
-        <p className="text-xs font-mono text-center">Charts, code, forms, and documents will appear here</p>
+        <p className="text-xs font-mono text-center">{t('emptyState')}</p>
       </div>
     );
   }
@@ -380,20 +383,20 @@ export default function ArtifactCenter() {
       {/* Header */}
       <div className="flex items-center justify-between px-1">
         <span className="text-[10px] text-text-tertiary font-mono tracking-wide uppercase">
-          Artifacts &middot; {filtered.length}
+          {t('headerLabel')} &middot; {filtered.length}
         </span>
         <div className="flex items-center gap-1">
           <button
             onClick={() => setViewMode('list')}
             className={`p-1 rounded cursor-pointer transition-colors ${viewMode === 'list' ? 'text-accent bg-accent/10' : 'text-text-tertiary hover:text-text-secondary'}`}
-            title="List view"
+            title={t('listView')}
           >
             <LayoutList size={12} />
           </button>
           <button
             onClick={() => setViewMode('grid')}
             className={`p-1 rounded cursor-pointer transition-colors ${viewMode === 'grid' ? 'text-accent bg-accent/10' : 'text-text-tertiary hover:text-text-secondary'}`}
-            title="Grid view"
+            title={t('gridView')}
           >
             <LayoutGrid size={12} />
           </button>
@@ -423,7 +426,7 @@ export default function ArtifactCenter() {
       {/* Artifact list / grid */}
       {filtered.length === 0 ? (
         <div className="flex items-center justify-center py-8 text-text-tertiary text-xs font-mono">
-          No {filter} artifacts
+          {t('noFilteredArtifacts', { filter })}
         </div>
       ) : (
         <div className={viewMode === 'grid' ? 'grid grid-cols-2 gap-2' : 'space-y-1.5'}>

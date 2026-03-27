@@ -3,6 +3,7 @@
 import { useRef } from 'react';
 import type { Conversation } from '@/lib/types';
 import { Pin, PinOff, Download, X, CheckSquare, Square, Pencil } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
 interface ConversationItemProps {
   conv: Conversation;
@@ -47,6 +48,8 @@ export default function ConversationItem({
   onRenameCancel,
   renameInputRef,
 }: ConversationItemProps) {
+  const t = useTranslations('sidebar');
+
   return (
     <div
       onClick={() => onSelect(conv.id)}
@@ -82,21 +85,21 @@ export default function ConversationItem({
         />
       ) : (
         <span className="flex-1 truncate leading-snug">
-          {conv.title || <span className="text-text-tertiary italic">untitled</span>}
+          {conv.title || <span className="text-text-tertiary italic">{t('untitled')}</span>}
         </span>
       )}
       {!bulkMode && !isRenaming && (
         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all shrink-0">
           <button
             onClick={(e) => onRenameStart(conv, e)}
-            title="Rename"
+            title={t('renameTooltip')}
             className="text-text-tertiary hover:text-accent shrink-0 cursor-pointer p-0.5 rounded hover:bg-surface-2 transition-all"
           >
             <Pencil size={11} />
           </button>
           <button
             onClick={(e) => onPin(conv.id, e)}
-            title={conv.pinned ? 'Unpin' : 'Pin to top'}
+            title={conv.pinned ? t('unpinTooltip') : t('pinTooltip')}
             className={`cursor-pointer p-0.5 rounded hover:bg-surface-2 transition-all ${
               conv.pinned ? 'text-accent' : 'text-text-tertiary hover:text-accent'
             }`}
@@ -105,14 +108,14 @@ export default function ConversationItem({
           </button>
           <button
             onClick={(e) => onExport(conv, e)}
-            title="Export as Markdown"
+            title={t('exportTooltip')}
             className="text-text-tertiary hover:text-accent shrink-0 cursor-pointer p-0.5 rounded hover:bg-surface-2 transition-all"
           >
             <Download size={11} />
           </button>
           <button
             onClick={(e) => onDelete(conv.id, e)}
-            title="Delete conversation"
+            title={t('deleteTooltip')}
             disabled={isDeleting}
             className="text-text-tertiary hover:text-error shrink-0 cursor-pointer p-0.5 rounded hover:bg-surface-2 transition-all disabled:opacity-40 disabled:cursor-default"
           >

@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useStore } from '@/lib/store';
 import { useIsDesktop } from '@/lib/useMediaQuery';
+import { useTranslations } from 'next-intl';
 import * as api from '@/lib/api';
 import type { Conversation } from '@/lib/types';
 import { toast } from '../toast';
@@ -43,6 +44,8 @@ function MobileSidebarHeader() {
 }
 
 export default function Sidebar() {
+  const t = useTranslations('sidebar');
+  const tc = useTranslations('common');
   const conversations = useStore((s) => s.conversations);
   const activeConversationId = useStore((s) => s.activeConversationId);
   const setConversations = useStore((s) => s.setConversations);
@@ -135,7 +138,7 @@ export default function Sidebar() {
       } catch {
         useStore.setState({ conversations: snapshotConvs });
         loadConversations();
-        toast.error('Failed to delete conversation');
+        toast.error(t('failedToDelete'));
       } finally {
         setDeletingIds((prev) => {
           const next = new Set(prev);
@@ -148,13 +151,13 @@ export default function Sidebar() {
     const timer = setTimeout(commit, 5000);
     deleteTimers.current.set(id, timer);
 
-    sonnerToast('Conversation deleted', {
+    sonnerToast(t('conversationDeleted'), {
       action: {
-        label: 'Undo',
+        label: tc('undo'),
         onClick: () => {
-          const t = deleteTimers.current.get(id);
-          if (t) {
-            clearTimeout(t);
+          const deleteTimer = deleteTimers.current.get(id);
+          if (deleteTimer) {
+            clearTimeout(deleteTimer);
             deleteTimers.current.delete(id);
           }
           useStore.setState({ conversations: snapshotConvs });
@@ -190,7 +193,7 @@ export default function Sidebar() {
       try {
         await api.updateConversation(renamingId, { title: trimmed });
         useStore.getState().updateConversationTitle(renamingId, trimmed);
-      } catch { toast.error('Failed to rename conversation'); }
+      } catch { toast.error(t('failedToRename')); }
     }
     setRenamingId(null);
   };
@@ -218,8 +221,8 @@ export default function Sidebar() {
       a.download = `${(conv.title || 'conversation').replace(/[^a-zA-Z0-9-_ ]/g, '').trim().replace(/\s+/g, '-')}.md`;
       a.click();
       URL.revokeObjectURL(url);
-      toast.success('Conversation exported');
-    } catch { toast.error('Failed to export conversation'); }
+      toast.success(t('conversationExported'));
+    } catch { toast.error(t('failedToExport')); }
   };
 
   const handlePin = (id: string, e: React.MouseEvent) => {
@@ -242,9 +245,9 @@ export default function Sidebar() {
   const handleBulkDelete = async () => {
     if (selectedIds.size === 0) return;
     const confirmed = await useStore.getState().showConfirm({
-      title: `Delete ${selectedIds.size} conversation${selectedIds.size > 1 ? 's' : ''}?`,
-      message: 'This action cannot be undone.',
-      confirmLabel: 'Delete all',
+      title: t('deleteConfirmTitle', { count: selectedIds.size }),
+      message: t('deleteConfirmMessage'),
+      confirmLabel: t('deleteConfirmLabel'),
       variant: 'danger',
     });
     if (!confirmed) return;
@@ -297,16 +300,16 @@ export default function Sidebar() {
     });
 
     if (failed === 0) {
-      toast.success(`Deleted ${deleted} conversation${deleted > 1 ? 's' : ''}`);
+      toast.success(t('deletedCount', { count: deleted }));
       return;
     }
 
     if (deleted > 0) {
-      toast.error(`Deleted ${deleted}, but ${failed} failed`);
+      toast.error(t('deletedPartial', { deleted, failed }));
       return;
     }
 
-    toast.error('Failed to delete conversations');
+    toast.error(t('failedToDeleteAll'));
   };
 
   const handleBulkExport = async () => {
@@ -363,13 +366,13 @@ export default function Sidebar() {
     }
 
     return [
-      { label: 'Pinned', items: pinned },
-      { label: 'Today', items: todayItems },
-      { label: 'Yesterday', items: yesterdayItems },
-      { label: 'This Week', items: weekItems },
-      { label: 'Older', items: olderItems },
+      { label: t('pinned'), items: pinned },
+      { label: t('today'), items: todayItems },
+      { label: t('yesterday'), items: yesterdayItems },
+      { label: t('thisWeek'), items: weekItems },
+      { label: t('older'), items: olderItems },
     ];
-  }, [filteredConversations, today, yesterday, weekAgo]);
+  }, [filteredConversations, today, yesterday, weekAgo, t]);
 
   return (
     <div data-tour="sidebar" className="relative flex flex-col w-[min(75vw,320px)] xl:w-[272px] bg-surface-0 border-r border-border-default shrink-0 h-full min-w-0 xl:min-w-[272px]">
@@ -438,7 +441,7 @@ export default function Sidebar() {
           style={{ left: hoverPos.x, top: hoverPos.y, maxHeight: 200 }}
         >
           <div className="text-[11px] font-medium text-text-primary truncate mb-1.5">
-            {hoveredConv.title || 'Untitled'}
+            {hoveredConv.title || t('untitled')}
           </div>
           {hoveredConv.model && (
             <div className="text-[9px] text-text-tertiary font-mono mb-1">
@@ -446,7 +449,7 @@ export default function Sidebar() {
             </div>
           )}
           <div className="text-[10px] text-text-tertiary">
-            {hoveredConv.messageCount ? `${hoveredConv.messageCount} messages` : 'No messages yet'}
+            {hoveredConv.messageCount ? t('messagesCount', { count: hoveredConv.messageCount }) : t('noMessagesYet')}
             {' · '}
             {new Date(hoveredConv.updatedAt || hoveredConv.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
           </div>

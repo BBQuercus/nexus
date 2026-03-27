@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useTranslations } from 'next-intl';
 import { AlertTriangle, WifiOff } from 'lucide-react';
 import { getHealth, type HealthCheck } from '@/lib/api';
 import { MODELS } from '@/lib/types';
@@ -8,6 +9,7 @@ import { MODELS } from '@/lib/types';
 const MODEL_LABELS = new Map(MODELS.map((model) => [model.id, model.name]));
 
 export default function HealthBanner() {
+  const t = useTranslations('healthBanner');
   const [health, setHealth] = useState<HealthCheck | null>(null);
   const [offline, setOffline] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval>>(undefined);
@@ -50,7 +52,7 @@ export default function HealthBanner() {
     return (
       <div className="flex items-center justify-center gap-2 px-3 py-1.5 bg-error/10 border-b border-error/20 text-error text-xs">
         <WifiOff size={12} />
-        <span>You&apos;re offline. Messages and files won&apos;t sync until you reconnect.</span>
+        <span>{t('offlineMessage')}</span>
       </div>
     );
   }
@@ -59,18 +61,18 @@ export default function HealthBanner() {
 
   const degraded = Object.entries(health.checks)
     .filter(([, v]) => v.status !== 'ok' && v.status !== 'unconfigured')
-    .map(([k]) => k === 'db' ? 'Database' : k === 'llm' ? 'AI models' : 'Sandbox');
+    .map(([k]) => k === 'db' ? t('degradedServiceDb') : k === 'llm' ? t('degradedServiceLlm') : t('degradedServiceSandbox'));
 
   const affectedModelNames = (health.checks.llm.affected_models || []).map(
     (modelId) => MODEL_LABELS.get(modelId) || modelId,
   );
   const affectedPreview = affectedModelNames.slice(0, 3).join(', ');
   const affectedSuffix = affectedModelNames.length > 0
-    ? ` (${affectedPreview}${affectedModelNames.length > 3 ? ` +${affectedModelNames.length - 3} more` : ''})`
+    ? ` (${affectedPreview}${affectedModelNames.length > 3 ? ` ${t('affectedModelsMore', { count: affectedModelNames.length - 3 })}` : ''})`
     : '';
-  const llmError = health.checks.llm.error ? `Error: ${health.checks.llm.error}` : '';
+  const llmError = health.checks.llm.error ? t('errorPrefix', { error: health.checks.llm.error }) : '';
   const llmTitle = affectedModelNames.length > 0
-    ? `Affected models: ${affectedModelNames.join(', ')}${llmError ? `\n${llmError}` : ''}`
+    ? `${affectedModelNames.join(', ')}${llmError ? `\n${llmError}` : ''}`
     : llmError;
 
   if (degraded.length === 0) return null;
@@ -82,7 +84,7 @@ export default function HealthBanner() {
     >
       <AlertTriangle size={12} />
       <span>
-        Some services are experiencing issues: {degraded.join(', ')}
+        {t('degradedPrefix', { services: degraded.join(', ') })}
         {degraded.includes('AI models') ? affectedSuffix : ''}
       </span>
     </div>

@@ -2,12 +2,14 @@
 
 import { useMemo } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useStore } from '@/lib/store';
 import * as api from '@/lib/api';
 import { mapRawMessages } from '@/lib/useStreaming';
 import type { Message } from './types';
 
 export function SiblingNav({ message }: { message: Message }) {
+  const t = useTranslations('message');
   const tree = useStore((s) => s.conversationTree);
   const activeConversationId = useStore((s) => s.activeConversationId);
   const setMessages = useStore((s) => s.setMessages);
@@ -61,7 +63,7 @@ export function SiblingNav({ message }: { message: Message }) {
       >
         <ChevronLeft size={10} />
       </button>
-      <span>{currentIndex + 1}/{siblings.length}</span>
+      <span>{t('siblingNav', { current: currentIndex + 1, total: siblings.length })}</span>
       <button
         onClick={() => currentIndex < siblings.length - 1 && switchToSibling(siblings[currentIndex + 1].id)}
         disabled={currentIndex === siblings.length - 1}

@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import { ArrowUp, Square, Paperclip, ImagePlus } from 'lucide-react';
 import type { SlashCommand, ComposeMode } from './types';
 import { validateFileSize } from './types';
@@ -69,6 +70,7 @@ export function InputField({
   onAttachFiles,
   setPendingFiles,
 }: InputFieldProps) {
+  const t = useTranslations('chatInput');
   // Clipboard image paste support
   useEffect(() => {
     const ta = textareaRef.current;
@@ -164,12 +166,12 @@ export function InputField({
         onKeyDown={handleKeyDown}
         placeholder={
           isStreaming
-            ? 'Waiting for response...'
+            ? t('placeholderStreaming')
             : composeMode === 'image'
-              ? 'Describe the image you want to generate...'
+              ? t('placeholderImageMode')
               : isRecording
                 ? ''
-                : 'How can I help you today?'
+                : t('placeholderDefault')
         }
         disabled={isStreaming || isGeneratingImage}
         rows={1}
@@ -195,7 +197,7 @@ export function InputField({
       <button
         onClick={onAttachFiles}
         className="p-1.5 text-text-tertiary hover:text-text-secondary shrink-0 cursor-pointer rounded-lg hover:bg-surface-2 transition-colors"
-        title="Attach files (max 25MB, data files 100MB)"
+        title={t('attachFiles')}
       >
         <Paperclip size={14} />
       </button>
@@ -207,7 +209,7 @@ export function InputField({
             ? 'text-accent bg-accent/10 hover:bg-accent/15'
             : 'text-text-tertiary hover:text-text-secondary hover:bg-surface-2'
         }`}
-        title="Image mode"
+        title={t('imageMode')}
       >
         <ImagePlus size={14} />
       </button>
@@ -218,7 +220,7 @@ export function InputField({
         <button
           onClick={() => abortStreaming()}
           className="w-7 h-7 flex items-center justify-center text-sm shrink-0 cursor-pointer rounded-lg transition-all bg-error/80 text-white hover:bg-error"
-          title="Stop generation"
+          title={t('stopGeneration')}
         >
           <Square size={12} />
         </button>

@@ -2,6 +2,7 @@
 
 import { useEffect, useCallback } from 'react';
 import { X } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
 interface KeyboardShortcutsProps {
   onClose: () => void;
@@ -17,59 +18,60 @@ interface ShortcutGroup {
   shortcuts: ShortcutItem[];
 }
 
-const SHORTCUT_GROUPS: ShortcutGroup[] = [
-  {
-    title: 'Navigation',
-    shortcuts: [
-      { keys: ['⌘', 'B'], description: 'Toggle sidebar' },
-      { keys: ['⌘', 'K'], description: 'Command palette' },
-      { keys: ['⌘', 'J'], description: 'Focus chat input' },
-      { keys: ['/'], description: 'Focus chat input' },
-    ],
-  },
-  {
-    title: 'Chat',
-    shortcuts: [
-      { keys: ['Enter'], description: 'Send message' },
-      { keys: ['Shift', 'Enter'], description: 'New line' },
-      { keys: ['⌘', 'N'], description: 'New conversation' },
-      { keys: ['⌘', 'Shift', '⌫'], description: 'Delete conversation' },
-    ],
-  },
-  {
-    title: 'Models',
-    shortcuts: [
-      { keys: ['Ctrl', '1-9'], description: 'Switch model' },
-    ],
-  },
-  {
-    title: 'Slash Commands',
-    shortcuts: [
-      { keys: ['/model'], description: 'Switch model' },
-      { keys: ['/clear'], description: 'New conversation' },
-      { keys: ['/help'], description: 'Show keyboard shortcuts' },
-      { keys: ['/export'], description: 'Export as markdown' },
-      { keys: ['/copy'], description: 'Copy last response' },
-      { keys: ['/retry'], description: 'Regenerate last response' },
-      { keys: ['/pin'], description: 'Pin/unpin conversation' },
-      { keys: ['/system'], description: 'Set system prompt' },
-      { keys: ['/search'], description: 'Search messages' },
-      { keys: ['/summarize'], description: 'Summarize conversation' },
-      { keys: ['/tokens'], description: 'Show token usage' },
-      { keys: ['/diff'], description: 'Compare branched responses' },
-      { keys: ['/compare'], description: 'Compare models side-by-side' },
-    ],
-  },
-  {
-    title: 'General',
-    shortcuts: [
-      { keys: ['Esc'], description: 'Close modal / blur input' },
-      { keys: ['?'], description: 'Show this overlay' },
-    ],
-  },
-];
-
 export default function KeyboardShortcuts({ onClose }: KeyboardShortcutsProps) {
+  const t = useTranslations('keyboardShortcuts');
+  const shortcutGroups: ShortcutGroup[] = [
+    {
+      title: t('navigation'),
+      shortcuts: [
+        { keys: ['⌘', 'B'], description: t('toggleSidebar') },
+        { keys: ['⌘', 'K'], description: t('openCommandPalette') },
+        { keys: ['⌘', 'J'], description: t('focusChatInput') },
+        { keys: ['/'], description: t('focusChatInput') },
+      ],
+    },
+    {
+      title: t('chat'),
+      shortcuts: [
+        { keys: ['Enter'], description: t('sendMessage') },
+        { keys: ['Shift', 'Enter'], description: t('newLine') },
+        { keys: ['⌘', 'N'], description: t('newConversation') },
+        { keys: ['⌘', 'Shift', '⌫'], description: t('deleteConversation') },
+      ],
+    },
+    {
+      title: t('models'),
+      shortcuts: [
+        { keys: ['Ctrl', '1-9'], description: t('switchModel') },
+      ],
+    },
+    {
+      title: t('slashCommands'),
+      shortcuts: [
+        { keys: ['/model'], description: t('switchModel') },
+        { keys: ['/clear'], description: t('newConversation') },
+        { keys: ['/help'], description: t('showKeyboardShortcuts') },
+        { keys: ['/export'], description: t('exportMarkdown') },
+        { keys: ['/copy'], description: t('copyLastResponse') },
+        { keys: ['/retry'], description: t('regenerateLastResponse') },
+        { keys: ['/pin'], description: t('pinConversation') },
+        { keys: ['/system'], description: t('setSystemPrompt') },
+        { keys: ['/search'], description: t('searchMessages') },
+        { keys: ['/summarize'], description: t('summarizeConversation') },
+        { keys: ['/tokens'], description: t('showTokenUsage') },
+        { keys: ['/diff'], description: t('compareBranchedResponses') },
+        { keys: ['/compare'], description: t('compareModels') },
+      ],
+    },
+    {
+      title: t('general'),
+      shortcuts: [
+        { keys: ['Esc'], description: t('closeOrBlur') },
+        { keys: ['?'], description: t('showOverlay') },
+      ],
+    },
+  ];
+
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (e.key === 'Escape' || e.key === '?') {
@@ -95,7 +97,7 @@ export default function KeyboardShortcuts({ onClose }: KeyboardShortcutsProps) {
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-border-default">
-          <h2 className="text-sm font-semibold text-text-primary">Keyboard Shortcuts</h2>
+          <h2 className="text-sm font-semibold text-text-primary">{t('title')}</h2>
           <button
             onClick={onClose}
             className="p-1 text-text-tertiary hover:text-text-secondary rounded-lg hover:bg-surface-1 transition-colors cursor-pointer"
@@ -106,7 +108,7 @@ export default function KeyboardShortcuts({ onClose }: KeyboardShortcutsProps) {
 
         {/* Content */}
         <div className="max-h-[60vh] overflow-y-auto p-5 space-y-5">
-          {SHORTCUT_GROUPS.map((group) => (
+          {shortcutGroups.map((group) => (
             <div key={group.title}>
               <div className="text-[10px] uppercase tracking-[0.1em] text-text-tertiary font-mono mb-2">
                 {group.title}

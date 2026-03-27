@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useEffect, useState, useMemo, memo } from 'react';
+import { useTranslations } from 'next-intl';
 import { enhanceRenderedMarkdown, renderMarkdown, splitMarkdownSegments, initMarkdown } from '@/lib/markdown';
 
 let markdownReady = false;
@@ -20,6 +21,7 @@ const MERMAID_THEME = {
 };
 
 const MermaidDiagram = memo(function MermaidDiagram({ source }: { source: string }) {
+  const t = useTranslations('common');
   const [svg, setSvg] = useState<string | null>(null);
   const [error, setError] = useState(false);
 
@@ -54,7 +56,7 @@ const MermaidDiagram = memo(function MermaidDiagram({ source }: { source: string
     return (
       <div className="mermaid-embed">
         <div className="flex items-center justify-center py-8 text-text-tertiary text-xs bg-surface-0 rounded-lg border border-border-default">
-          <span className="animate-pulse">Rendering diagram...</span>
+          <span className="animate-pulse">{t('renderingDiagram')}</span>
         </div>
       </div>
     );

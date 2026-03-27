@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { useStore } from '@/lib/store';
 import { AlertTriangle } from 'lucide-react';
 
@@ -25,6 +26,7 @@ function getContextLimit(model: string): number {
 }
 
 export default function ContextWindowViz() {
+  const t = useTranslations('contextWindow');
   const messages = useStore((s) => s.messages);
   const activeModel = useStore((s) => s.activeModel);
   const [hoveredSegment, setHoveredSegment] = useState<string | null>(null);
@@ -68,10 +70,10 @@ export default function ContextWindowViz() {
     const pct = Math.min(100, (total / limit) * 100);
 
     const segs: Segment[] = [
-      { label: 'System Prompt', tokens: systemTokens, color: '#6366f1' },
-      { label: 'Conversation', tokens: historyTokens, color: '#22c55e' },
-      { label: 'Tool Results', tokens: toolTokens, color: '#f59e0b' },
-      { label: 'Retrieval', tokens: retrievalTokens, color: '#3b82f6' },
+      { label: t('systemPrompt'), tokens: systemTokens, color: '#6366f1' },
+      { label: t('conversation'), tokens: historyTokens, color: '#22c55e' },
+      { label: t('toolResults'), tokens: toolTokens, color: '#f59e0b' },
+      { label: t('retrieval'), tokens: retrievalTokens, color: '#3b82f6' },
     ].filter((s) => s.tokens > 0);
 
     return {
@@ -80,7 +82,7 @@ export default function ContextWindowViz() {
       contextLimit: limit,
       usagePercent: pct,
     };
-  }, [messages, activeModel]);
+  }, [messages, activeModel, t]);
 
   if (messages.length === 0) return null;
 
@@ -91,7 +93,7 @@ export default function ContextWindowViz() {
     <div className="px-3 py-2">
       {/* Label row */}
       <div className="flex items-center gap-1.5 mb-1.5">
-        <span className="text-[10px] text-text-tertiary font-mono">Context</span>
+        <span className="text-[10px] text-text-tertiary font-mono">{t('label')}</span>
         <span className={`text-[10px] font-mono ${isCritical ? 'text-error' : isWarning ? 'text-warning' : 'text-text-tertiary'}`}>
           {(totalTokens / 1000).toFixed(1)}k / {(contextLimit / 1000).toFixed(0)}k
         </span>

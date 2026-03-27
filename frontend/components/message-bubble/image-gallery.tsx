@@ -1,15 +1,17 @@
 'use client';
 
 import { Download, FileSpreadsheet, FileText, Presentation, File as FileIcon } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
 export function InlineImage({ img }: { img: { filename: string; url: string } }) {
+  const t = useTranslations('imageGallery');
   return (
     <div className="rounded-lg border border-border-default overflow-hidden">
       <img src={img.url} alt={img.filename} className="w-full max-h-[500px] object-contain bg-bg" />
       <div className="flex items-center justify-between px-3 py-1.5 bg-surface-1 text-[11px] font-mono text-text-tertiary">
         <span className="truncate">{img.filename}</span>
         <a href={img.url} download={img.filename} className="flex items-center gap-1 text-text-tertiary hover:text-accent transition-colors shrink-0 ml-2">
-          <Download size={10} /> Save
+          <Download size={10} /> {t('save')}
         </a>
       </div>
     </div>
@@ -28,6 +30,7 @@ export function ImageGallery({ images }: { images?: { filename: string; url: str
 }
 
 export function FileArtifactCard({ file, sandboxId }: { file: { filename: string; fileType: string; sandboxId?: string }; sandboxId: string | null }) {
+  const t = useTranslations('imageGallery');
   const ext = file.filename.split('.').pop()?.toLowerCase() || '';
   const resolvedSandboxId = file.sandboxId || sandboxId;
 
@@ -71,7 +74,7 @@ export function FileArtifactCard({ file, sandboxId }: { file: { filename: string
           onClick={handleDownload}
           className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-lg bg-accent text-bg hover:bg-accent-hover cursor-pointer transition-colors shrink-0"
         >
-          <Download size={12} /> Download
+          <Download size={12} /> {t('download')}
         </button>
       )}
     </div>

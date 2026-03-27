@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import { useStore } from '@/lib/store';
 import * as api from '@/lib/api';
 import type { FileNode } from '@/lib/types';
@@ -58,6 +59,7 @@ function FileTreeNode({ node, depth, onSelect }: { node: FileNode; depth: number
 }
 
 function FileViewer({ path, content, language, onBack }: { path: string; content: string; language: string; onBack: () => void }) {
+  const tc = useTranslations('common');
   const highlighted = highlightCode(content, language);
   const lineNumbers = content.split('\n').map((_, i) => i + 1).join('\n');
 
@@ -65,7 +67,7 @@ function FileViewer({ path, content, language, onBack }: { path: string; content
     <div className="flex flex-col h-full">
       <div className="flex items-center gap-2 px-3 py-2 border-b border-border-default shrink-0">
         <button onClick={onBack} className="flex items-center gap-1 text-xs text-text-tertiary hover:text-text-secondary cursor-pointer">
-          <ArrowLeft size={12} /> Back
+          <ArrowLeft size={12} /> {tc('back')}
         </button>
         <span className="text-[11px] text-text-secondary font-mono truncate flex-1">{path}</span>
         <button className="text-text-tertiary hover:text-text-secondary cursor-pointer">
@@ -85,6 +87,8 @@ function FileViewer({ path, content, language, onBack }: { path: string; content
 }
 
 export default function FilesPanel() {
+  const t = useTranslations('filesPanel');
+  const tc = useTranslations('common');
   const sandboxId = useStore((s) => s.sandboxId);
   const [files, setFiles] = useState<FileNode[]>([]);
   const [viewingFile, setViewingFile] = useState<{ path: string; content: string; language: string } | null>(null);
@@ -98,7 +102,7 @@ export default function FilesPanel() {
   useEffect(() => { loadFiles(); }, [loadFiles]);
 
   if (!sandboxId) {
-    return <div className="flex items-center justify-center h-full text-text-tertiary text-xs font-mono">no sandbox active</div>;
+    return <div className="flex items-center justify-center h-full text-text-tertiary text-xs font-mono">{t('noSandboxActive')}</div>;
   }
 
   if (viewingFile) {
@@ -120,7 +124,7 @@ export default function FilesPanel() {
   return (
     <div className="h-full overflow-y-auto py-1">
       {files.length === 0 ? (
-        <div className="flex items-center justify-center h-full text-text-tertiary text-xs font-mono">no files</div>
+        <div className="flex items-center justify-center h-full text-text-tertiary text-xs font-mono">{t('noFiles')}</div>
       ) : (
         sorted.map((node) => <FileTreeNode key={node.path} node={node} depth={0} onSelect={handleSelect} />)
       )}

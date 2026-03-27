@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { MessageSquare, Check } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useStore } from '@/lib/store';
 import * as api from '@/lib/api';
 import { toast as sonnerToast } from 'sonner';
@@ -29,6 +30,8 @@ import type { RunSummary as RunSummaryType } from '@/lib/execution-types';
 import { buildFormSubmissionMessage, parseFormSubmission } from '@/lib/form-submission';
 
 export default function MessageBubble({ message }: { message: Message }) {
+  const t = useTranslations('message');
+  const tc = useTranslations('common');
 
   const activeConversationId = useStore((s) => s.activeConversationId);
   const isStreaming = useStore((s) => s.isStreaming);
@@ -89,7 +92,7 @@ export default function MessageBubble({ message }: { message: Message }) {
       api.deleteMessage(convId, msgId).catch(() => {
         // Restore on API failure
         setMessages(snapshot);
-        toast.error('Failed to delete message');
+        toast.error(t('deleteError'));
       });
     };
 
@@ -104,9 +107,9 @@ export default function MessageBubble({ message }: { message: Message }) {
     };
     window.addEventListener('beforeunload', beforeUnload, { once: true });
 
-    sonnerToast('Message deleted', {
+    sonnerToast(t('deleteToast'), {
       action: {
-        label: 'Undo',
+        label: tc('undo'),
         onClick: () => {
           if (deleteTimerRef.current) {
             clearTimeout(deleteTimerRef.current);
@@ -164,7 +167,7 @@ export default function MessageBubble({ message }: { message: Message }) {
                   <Check size={12} className="text-accent" />
                 </div>
                 <span className="text-sm font-medium text-text-primary">
-                  Submitted &ldquo;{formSubmission.title}&rdquo;
+                  {t('formSubmitted', { title: formSubmission.title })}
                 </span>
               </div>
               <div className="space-y-0.5 pl-7">
@@ -270,10 +273,10 @@ export default function MessageBubble({ message }: { message: Message }) {
 
   // Build provenance sources
   const provenanceSources = [
-    { source: 'model' as const, label: 'Model answer' },
-    ...(message.citations && message.citations.length > 0 ? [{ source: 'citation' as const, label: 'Cited source' }] : []),
-    ...(hasRetrieval ? [{ source: 'retrieval' as const, label: 'Retrieved context' }] : []),
-    ...((message.toolCalls || []).some((tc) => ['code_exec', 'execute_code', 'run_code'].includes(tc.name)) ? [{ source: 'sandbox' as const, label: 'Sandbox output' }] : []),
+    { source: 'model' as const, label: t('provenanceModel') },
+    ...(message.citations && message.citations.length > 0 ? [{ source: 'citation' as const, label: t('provenanceCitation') }] : []),
+    ...(hasRetrieval ? [{ source: 'retrieval' as const, label: t('provenanceRetrieval') }] : []),
+    ...((message.toolCalls || []).some((tc) => ['code_exec', 'execute_code', 'run_code'].includes(tc.name)) ? [{ source: 'sandbox' as const, label: t('provenanceSandbox') }] : []),
   ];
 
   return (
@@ -302,7 +305,7 @@ export default function MessageBubble({ message }: { message: Message }) {
           <div className="flex items-center gap-1.5 mt-1">
             <ConfidenceDot level={confidenceLevel} />
             <span className="text-[10px] text-text-tertiary font-mono">
-              {confidenceLevel === 'medium' ? 'Results may vary — retrieval used' : 'Low confidence — tool failures detected'}
+              {confidenceLevel === 'medium' ? t('confidenceMedium') : t('confidenceLow')}
             </span>
           </div>
         )}

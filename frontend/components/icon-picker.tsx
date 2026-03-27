@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useMemo } from 'react';
+import { useTranslations } from 'next-intl';
 import { Search, X } from 'lucide-react';
 import * as icons from 'lucide-react';
 
@@ -74,6 +75,7 @@ interface IconPickerProps {
 }
 
 export default function IconPicker({ value, onChange }: IconPickerProps) {
+  const t = useTranslations('iconPicker');
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const ref = useRef<HTMLDivElement>(null);
@@ -123,7 +125,7 @@ export default function IconPicker({ value, onChange }: IconPickerProps) {
               ref={searchRef}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search icons..."
+              placeholder={t('searchPlaceholder')}
               className="flex-1 bg-transparent text-xs text-text-primary placeholder:text-text-tertiary outline-none"
             />
             {search && (
@@ -136,7 +138,7 @@ export default function IconPicker({ value, onChange }: IconPickerProps) {
           {/* Icon grid */}
           <div className="p-2 max-h-56 overflow-y-auto">
             {filtered.length === 0 ? (
-              <div className="py-4 text-center text-[11px] text-text-tertiary">No icons found</div>
+              <div className="py-4 text-center text-[11px] text-text-tertiary">{t('noIconsFound')}</div>
             ) : (
               <div className="grid grid-cols-7 gap-1">
                 {filtered.map((entry) => {

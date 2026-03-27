@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useTranslations } from 'next-intl';
 import { Building2, Loader2 } from 'lucide-react';
 import { toast } from '@/components/toast';
 import { createOrg, switchOrg, getCurrentUser } from '@/lib/api';
@@ -28,6 +29,7 @@ interface CreateOrgDialogProps {
 }
 
 export default function CreateOrgDialog({ open, onClose, onCreated, switchAfterCreate = true }: CreateOrgDialogProps) {
+  const t = useTranslations('createOrg');
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
   const [slugTouched, setSlugTouched] = useState(false);
@@ -54,7 +56,7 @@ export default function CreateOrgDialog({ open, onClose, onCreated, switchAfterC
     setCreating(true);
     try {
       const org = await createOrg({ name: name.trim(), slug: derivedSlug });
-      toast.success(`Created "${org.name}"`);
+      toast.success(t('createdToast', { name: org.name }));
 
       if (switchAfterCreate) {
         await switchOrg(org.id);
@@ -83,7 +85,7 @@ export default function CreateOrgDialog({ open, onClose, onCreated, switchAfterC
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-md" hideClose>
-        <DialogTitle className="sr-only">Create Organization</DialogTitle>
+        <DialogTitle className="sr-only">{t('heading')}</DialogTitle>
 
         {/* Header */}
         <div className="flex items-center gap-3 px-5 pt-5 pb-3">
@@ -91,8 +93,8 @@ export default function CreateOrgDialog({ open, onClose, onCreated, switchAfterC
             <Building2 size={16} className="text-accent" />
           </div>
           <div>
-            <h2 className="text-sm font-medium text-text-primary">Create Organization</h2>
-            <p className="text-[10px] text-text-tertiary">A new workspace for your team</p>
+            <h2 className="text-sm font-medium text-text-primary">{t('heading')}</h2>
+            <p className="text-[10px] text-text-tertiary">{t('subtitle')}</p>
           </div>
         </div>
 
@@ -101,14 +103,14 @@ export default function CreateOrgDialog({ open, onClose, onCreated, switchAfterC
           {/* Name */}
           <div>
             <label className="text-xs font-medium text-text-secondary mb-1.5 block">
-              Name <span className="text-accent">*</span>
+              {t('nameLabel')} <span className="text-accent">*</span>
             </label>
             <input
               ref={nameRef}
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Acme Corp"
+              placeholder={t('namePlaceholder')}
               className="w-full px-3 py-2 bg-bg border border-border rounded text-xs text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-accent transition-colors"
             />
           </div>
@@ -116,10 +118,10 @@ export default function CreateOrgDialog({ open, onClose, onCreated, switchAfterC
           {/* Slug */}
           <div>
             <label className="text-xs font-medium text-text-secondary mb-1.5 block">
-              URL Slug
+              {t('slugLabel')}
             </label>
             <div className="flex items-center gap-1.5">
-              <span className="text-[10px] text-text-tertiary font-mono">/</span>
+              <span className="text-[10px] text-text-tertiary font-mono">{t('slugPrefix')}</span>
               <input
                 type="text"
                 value={derivedSlug}
@@ -127,12 +129,12 @@ export default function CreateOrgDialog({ open, onClose, onCreated, switchAfterC
                   setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''));
                   setSlugTouched(true);
                 }}
-                placeholder="acme-corp"
+                placeholder={t('slugPlaceholder')}
                 className="flex-1 px-3 py-2 bg-bg border border-border rounded text-xs text-text-primary font-mono placeholder:text-text-tertiary focus:outline-none focus:border-accent transition-colors"
               />
             </div>
             {name && !derivedSlug && (
-              <p className="text-[10px] text-error mt-1">Slug is required</p>
+              <p className="text-[10px] text-error mt-1">{t('slugRequired')}</p>
             )}
           </div>
 
@@ -154,10 +156,10 @@ export default function CreateOrgDialog({ open, onClose, onCreated, switchAfterC
               {creating ? (
                 <>
                   <Loader2 size={12} className="animate-spin" />
-                  Creating...
+                  {t('creating')}
                 </>
               ) : (
-                'Create Organization'
+                t('createButton')
               )}
             </button>
           </div>

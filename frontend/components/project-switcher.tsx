@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useTranslations } from 'next-intl';
 import { useStore } from '@/lib/store';
 import * as api from '@/lib/api';
 import type { Project } from '@/lib/types';
@@ -8,6 +9,7 @@ import { toast } from './toast';
 import { ChevronDown, FolderOpen, Plus, Inbox, Settings, Archive } from 'lucide-react';
 
 export default function ProjectSwitcher() {
+  const t = useTranslations('projectSwitcher');
   const projects = useStore((s) => s.projects);
   const activeProjectId = useStore((s) => s.activeProjectId);
   const setProjects = useStore((s) => s.setProjects);
@@ -61,9 +63,9 @@ export default function ProjectSwitcher() {
       setNewName('');
       setCreating(false);
       setOpen(false);
-      toast.success(`Project "${trimmed}" created`);
+      toast.success(t('createdToast', { name: trimmed }));
     } catch {
-      toast.error('Failed to create project');
+      toast.error(t('createError'));
     }
   };
 
@@ -91,7 +93,7 @@ export default function ProjectSwitcher() {
         ) : (
           <>
             <Inbox size={12} className="text-text-tertiary shrink-0" />
-            <span className="truncate flex-1 text-left">All Conversations</span>
+            <span className="truncate flex-1 text-left">{t('allConversations')}</span>
           </>
         )}
         <ChevronDown size={11} className={`text-text-tertiary transition-transform shrink-0 ${open ? 'rotate-180' : ''}`} />
@@ -107,7 +109,7 @@ export default function ProjectSwitcher() {
             }`}
           >
             <Inbox size={12} className="text-text-tertiary shrink-0" />
-            <span className="flex-1 text-left">All Conversations</span>
+            <span className="flex-1 text-left">{t('allConversations')}</span>
           </button>
 
           {/* Divider */}
@@ -144,7 +146,7 @@ export default function ProjectSwitcher() {
               <input
                 ref={inputRef}
                 type="text"
-                placeholder="Project name..."
+                placeholder={t('placeholder')}
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 onKeyDown={(e) => {
@@ -160,7 +162,7 @@ export default function ProjectSwitcher() {
               className="w-full flex items-center gap-2 px-3 py-2 text-xs text-text-tertiary hover:text-accent hover:bg-surface-1 cursor-pointer transition-colors"
             >
               <Plus size={12} className="shrink-0" />
-              <span>New Project</span>
+              <span>{t('newProject')}</span>
             </button>
           )}
         </div>

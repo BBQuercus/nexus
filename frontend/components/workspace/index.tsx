@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
+import { useTranslations } from 'next-intl';
 import { useStore } from '@/lib/store';
 import { useIsDesktop } from '@/lib/useMediaQuery';
 import { useVisualViewport } from '@/lib/useVisualViewport';
@@ -28,6 +29,7 @@ const KeyboardShortcuts = lazy(() => import('../keyboard-shortcuts'));
 const DiffViewer = lazy(() => import('../diff-viewer'));
 
 export default function Workspace() {
+  const t = useTranslations('workspace');
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const dragCounterRef = useRef(0);
@@ -169,7 +171,7 @@ export default function Workspace() {
       {focusMode && (
         <div className="fixed top-3 right-3 z-50 animate-focus-fade-in">
           <div className="px-2.5 py-1 bg-surface-1/80 backdrop-blur-sm border border-border-default rounded-lg text-[10px] text-text-tertiary font-mono">
-            ESC to exit focus
+            {t('focusModeHint')}
           </div>
         </div>
       )}
@@ -205,8 +207,8 @@ export default function Workspace() {
                 <Upload size={24} className="text-accent" />
               </div>
               <div className="flex flex-col items-center gap-1.5">
-                <span className="text-sm font-semibold text-text-primary">Drop files to attach</span>
-                <span className="text-xs text-text-tertiary">Images, documents, spreadsheets, and more</span>
+                <span className="text-sm font-semibold text-text-primary">{t('dropFilesTitle')}</span>
+                <span className="text-xs text-text-tertiary">{t('dropFilesSubtitle')}</span>
               </div>
             </div>
           </div>

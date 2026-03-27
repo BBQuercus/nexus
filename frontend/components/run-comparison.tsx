@@ -6,6 +6,7 @@
  */
 
 import { useState, useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import { Check, Trophy, Clock, Coins, Hash, ChevronLeft, ChevronRight, Star } from 'lucide-react'
 
 // ── Types ──
@@ -113,6 +114,7 @@ function StatBadge({ icon: Icon, label, value }: { icon: any; label: string; val
 }
 
 function ScoreStars({ score, onScore, runId }: { score: number | null; onScore?: (runId: string, score: number) => void; runId: string }) {
+  const t = useTranslations('runComparison')
   const [hover, setHover] = useState(0)
   const stars = score != null ? Math.round(score * 5) : 0
 
@@ -126,7 +128,7 @@ function ScoreStars({ score, onScore, runId }: { score: number | null; onScore?:
           onMouseEnter={() => setHover(n)}
           onMouseLeave={() => setHover(0)}
           onClick={() => onScore?.(runId, n / 5)}
-          aria-label={`Rate ${n} out of 5`}
+          aria-label={t('rateAriaLabel', { n })}
         >
           <Star
             size={14}
@@ -169,6 +171,7 @@ function DiffBlock({ segments }: { segments: DiffSegment[] }) {
 // ── Main component ──
 
 export default function RunComparison({ runs, onAdopt, onScore }: RunComparisonProps) {
+  const t = useTranslations('runComparison')
   const [leftIdx, setLeftIdx] = useState(0)
   const [rightIdx, setRightIdx] = useState(Math.min(1, runs.length - 1))
   const [showDiff, setShowDiff] = useState(true)
@@ -184,7 +187,7 @@ export default function RunComparison({ runs, onAdopt, onScore }: RunComparisonP
   if (runs.length < 2) {
     return (
       <div className="p-6 text-center text-zinc-500 text-sm">
-        At least two runs are needed for comparison.
+        {t('minRunsMessage')}
       </div>
     )
   }
@@ -207,7 +210,7 @@ export default function RunComparison({ runs, onAdopt, onScore }: RunComparisonP
           <span className="text-sm font-medium text-zinc-200 truncate">{run.model}</span>
           {run.selected && (
             <span className="flex items-center gap-1 text-[10px] bg-green-500/20 text-green-400 px-1.5 py-0.5 rounded-full">
-              <Trophy size={10} /> Adopted
+              <Trophy size={10} /> {t('adopted')}
             </span>
           )}
         </div>
@@ -223,7 +226,7 @@ export default function RunComparison({ runs, onAdopt, onScore }: RunComparisonP
                   ? setLeftIdx((i) => Math.max(0, i - 1))
                   : setRightIdx((i) => Math.max(0, i - 1))
               }
-              aria-label="Previous run"
+              aria-label={t('previousRun')}
             >
               <ChevronLeft size={14} />
             </button>
@@ -241,7 +244,7 @@ export default function RunComparison({ runs, onAdopt, onScore }: RunComparisonP
                   ? setLeftIdx((i) => Math.min(runs.length - 1, i + 1))
                   : setRightIdx((i) => Math.min(runs.length - 1, i + 1))
               }
-              aria-label="Next run"
+              aria-label={t('nextRun')}
             >
               <ChevronRight size={14} />
             </button>
@@ -251,9 +254,9 @@ export default function RunComparison({ runs, onAdopt, onScore }: RunComparisonP
 
       {/* Stats row */}
       <div className="flex items-center gap-4 px-3 py-1.5 bg-zinc-800/30 border-b border-zinc-700/30">
-        <StatBadge icon={Hash} label="Tokens" value={run.tokens.toLocaleString()} />
-        <StatBadge icon={Coins} label="Cost" value={formatCost(run.cost)} />
-        <StatBadge icon={Clock} label="Time" value={formatDuration(run.durationMs)} />
+        <StatBadge icon={Hash} label={t('tokensLabel')} value={run.tokens.toLocaleString()} />
+        <StatBadge icon={Coins} label={t('costLabel')} value={formatCost(run.cost)} />
+        <StatBadge icon={Clock} label={t('timeLabel')} value={formatDuration(run.durationMs)} />
       </div>
 
       {/* Score row */}
@@ -266,7 +269,7 @@ export default function RunComparison({ runs, onAdopt, onScore }: RunComparisonP
             className="flex items-center gap-1 text-xs px-2 py-1 rounded bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 transition-colors"
           >
             <Check size={12} />
-            Adopt
+            {t('adopt')}
           </button>
         )}
       </div>
@@ -276,7 +279,7 @@ export default function RunComparison({ runs, onAdopt, onScore }: RunComparisonP
         {segments ? (
           <DiffBlock segments={segments} />
         ) : (
-          <div className="whitespace-pre-wrap font-mono">{run.result || 'No output'}</div>
+          <div className="whitespace-pre-wrap font-mono">{run.result || t('noOutput')}</div>
         )}
       </div>
     </div>
@@ -287,7 +290,7 @@ export default function RunComparison({ runs, onAdopt, onScore }: RunComparisonP
       {/* Toolbar */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-zinc-700/50">
         <span className="text-xs font-medium text-zinc-400 uppercase tracking-wide">
-          Run Comparison
+          {t('headerTitle')}
         </span>
         <label className="flex items-center gap-2 text-xs text-zinc-400 cursor-pointer select-none">
           <input
@@ -296,7 +299,7 @@ export default function RunComparison({ runs, onAdopt, onScore }: RunComparisonP
             onChange={(e) => setShowDiff(e.target.checked)}
             className="rounded border-zinc-600 bg-zinc-800 text-blue-500 focus:ring-blue-500/30 w-3.5 h-3.5"
           />
-          Show diff
+          {t('showDiff')}
         </label>
       </div>
 

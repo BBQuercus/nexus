@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import { useStore } from '@/lib/store';
 import * as api from '@/lib/api';
 import type { AgentPersona } from '@/lib/types';
@@ -13,6 +14,7 @@ function AgentIcon({ name, size = 13, className = '' }: { name: string; size?: n
 }
 
 export default function AgentPicker() {
+  const t = useTranslations('agentPicker');
   const activePersona = useStore((s) => s.activePersona);
   const setActivePersona = useStore((s) => s.setActivePersona);
   const setActiveModel = useStore((s) => s.setActiveModel);
@@ -53,14 +55,14 @@ export default function AgentPicker() {
               : 'bg-accent/10 border border-accent/20 text-accent hover:bg-accent/15'
             : 'text-text-tertiary bg-surface-1 border border-border-default hover:border-border-focus hover:text-text-secondary'
         }`}
-        title={isLocked ? `Agent: ${activePersona?.name} (locked for this conversation)` : 'Select agent'}
+        title={isLocked ? t('lockedTitle', { name: activePersona?.name ?? '' }) : t('selectAgent')}
       >
         {activePersona ? (
           <AgentIcon name={activePersona.icon} size={12} className="shrink-0" />
         ) : (
           <Bot size={12} className="shrink-0" />
         )}
-        <span className="truncate max-w-[120px]">{activePersona?.name || 'Agent'}</span>
+        <span className="truncate max-w-[120px]">{activePersona?.name || t('defaultLabel')}</span>
         {isLocked ? (
           <Lock size={9} className="shrink-0 text-text-tertiary" />
         ) : (
@@ -71,7 +73,7 @@ export default function AgentPicker() {
       {!isLocked && activePersona && (
         <button
           onClick={() => setActivePersona(null)}
-          title="Clear agent"
+          title={t('clearAgent')}
           className="p-1 text-text-tertiary hover:text-text-secondary cursor-pointer rounded hover:bg-surface-1 transition-colors"
         >
           <X size={12} />
@@ -86,13 +88,13 @@ export default function AgentPicker() {
               className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-text-secondary hover:bg-surface-1 cursor-pointer transition-colors border-b border-border-default"
             >
               <X size={12} className="text-text-tertiary shrink-0" />
-              <span>No agent (default)</span>
+              <span>{t('noAgentDefault')}</span>
             </button>
           )}
           {agents.length === 0 ? (
             <div className="px-3 py-4 text-center text-[11px] text-text-tertiary">
-              No agents yet.{' '}
-              <a href="/agents" className="text-accent hover:underline">Create one</a>
+              {t('noAgentsYet')}{' '}
+              <a href="/agents" className="text-accent hover:underline">{t('createOne')}</a>
             </div>
           ) : (
             agents.map((agent) => (

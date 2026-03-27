@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import { useTranslations } from 'next-intl';
 import { useStore } from '@/lib/store';
 import type { Citation, RetrievalResult } from '@/lib/types';
 import { FileText, ChevronDown, ChevronUp, Search, AlertTriangle, ExternalLink, Hash } from 'lucide-react';
@@ -49,6 +50,7 @@ function groupByFile(citations: Citation[]): FileGroup[] {
 }
 
 function FileCard({ group }: { group: FileGroup }) {
+  const t = useTranslations('sourcesPanel');
   const [expanded, setExpanded] = useState(false);
 
   const scoreColor = group.bestScore >= 0.7
@@ -72,22 +74,22 @@ function FileCard({ group }: { group: FileGroup }) {
             </span>
           </div>
           <div className="text-[10px] text-text-tertiary mt-0.5">
-            {group.chunks.length} matching section{group.chunks.length !== 1 ? 's' : ''}
+            {t('matchingSections', { count: group.chunks.length })}
             {group.chunks.some((c) => c.page) && (
               <span>
                 {' -- '}
                 {(() => {
                   const pages = [...new Set(group.chunks.map((c) => c.page).filter(Boolean))].sort((a, b) => a! - b!);
                   if (pages.length === 0) return '';
-                  if (pages.length <= 3) return `Page${pages.length > 1 ? 's' : ''} ${pages.join(', ')}`;
-                  return `Pages ${pages[0]}-${pages[pages.length - 1]}`;
+                  if (pages.length <= 3) return t('pageLabel', { pages: pages.join(', ') });
+                  return t('pageLabel', { pages: `${pages[0]}-${pages[pages.length - 1]}` });
                 })()}
               </span>
             )}
             {group.chunks.some((c) => c.chunkIndex !== undefined) && !group.chunks.some((c) => c.page) && (
               <span>
                 {' -- '}
-                Chunks {group.chunks.map((c) => `#${c.chunkIndex}`).join(', ')}
+                {t('chunkPrefix')} {group.chunks.map((c) => `#${c.chunkIndex}`).join(', ')}
               </span>
             )}
           </div>
@@ -117,7 +119,7 @@ function FileCard({ group }: { group: FileGroup }) {
                       <span>{locationParts.join(' / ')}</span>
                     </div>
                   ) : (
-                    <span className="text-[10px] text-text-tertiary">Section {i + 1}</span>
+                    <span className="text-[10px] text-text-tertiary">{t('sectionLabel', { index: i + 1 })}</span>
                   )}
                   <span className={`text-[10px] font-mono ${chunkScoreColor}`}>
                     {Math.round(chunk.score * 100)}%
@@ -136,7 +138,7 @@ function FileCard({ group }: { group: FileGroup }) {
                 className="inline-flex items-center gap-1 text-[10px] text-accent hover:underline"
               >
                 <ExternalLink size={9} />
-                Open in Knowledge Base
+                {t('openInKB')}
               </a>
             </div>
           )}
@@ -147,6 +149,7 @@ function FileCard({ group }: { group: FileGroup }) {
 }
 
 export default function SourcesPanel() {
+  const t = useTranslations('sourcesPanel');
   const streaming = useStore((s) => s.streaming);
   const messages = useStore((s) => s.messages);
 
@@ -177,8 +180,8 @@ export default function SourcesPanel() {
     return (
       <div className="flex flex-col items-center justify-center h-full text-text-tertiary p-6 text-center">
         <Search size={24} className="mb-3 opacity-50" />
-        <p className="text-sm">No sources yet</p>
-        <p className="text-xs mt-1 opacity-70">When the AI retrieves from knowledge bases, sources will appear here</p>
+        <p className="text-sm">{t('noSourcesYet')}</p>
+        <p className="text-xs mt-1 opacity-70">{t('noSourcesDesc')}</p>
       </div>
     );
   }
@@ -196,7 +199,7 @@ export default function SourcesPanel() {
           {retrievalResult.confidence < 0.3 && (
             <div className="flex items-center gap-1.5 text-[10px] text-error/70 mt-1">
               <AlertTriangle size={10} />
-              Low relevance -- results may not answer the query
+              {t('lowRelevanceWarning')}
             </div>
           )}
         </div>
@@ -204,7 +207,7 @@ export default function SourcesPanel() {
 
       {/* File count */}
       <div className="text-[10px] text-text-tertiary font-mono px-1">
-        {fileGroups.length} file{fileGroups.length !== 1 ? 's' : ''}, {citations.length} section{citations.length !== 1 ? 's' : ''}
+        {t('fileCount', { count: fileGroups.length })}, {t('sectionCount', { count: citations.length })}
       </div>
 
       {/* File cards */}

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { useTranslations } from 'next-intl';
 import { useStore } from '@/lib/store';
 import { useIsDesktop } from '@/lib/useMediaQuery';
 import { FolderOpen, Eye, Layers, Network, BookOpen, Brain, X, StopCircle, Play, Trash2 } from 'lucide-react';
@@ -11,15 +12,6 @@ import ArtifactCenter from './artifact-center';
 import TreePanel from './tree-panel';
 import SourcesPanel from './sources-panel';
 import { MemoryPanel } from './memory-panel';
-
-const ALL_TABS = [
-  { key: 'files' as const, label: 'Files', icon: <FolderOpen size={12} />, needsSandbox: true },
-  { key: 'preview' as const, label: 'Preview', icon: <Eye size={12} />, needsSandbox: true },
-  { key: 'artifacts' as const, label: 'Artifacts', icon: <Layers size={12} />, needsSandbox: false },
-  { key: 'tree' as const, label: 'Tree', icon: <Network size={12} />, needsSandbox: false },
-  { key: 'sources' as const, label: 'Sources', icon: <BookOpen size={12} />, needsSandbox: false },
-  { key: 'memory' as const, label: 'Memory', icon: <Brain size={12} />, needsSandbox: false },
-];
 
 const MIN_WIDTH = 280;
 const MAX_WIDTH = 800;
@@ -35,6 +27,7 @@ function getInitialWidth() {
 }
 
 function SandboxStatus() {
+  const t = useTranslations('rightPanel');
   const sandboxStatus = useStore((s) => s.sandboxStatus);
   const sandboxId = useStore((s) => s.sandboxId);
   const setSandboxStatus = useStore((s) => s.setSandboxStatus);
@@ -47,21 +40,16 @@ function SandboxStatus() {
     running: 'bg-accent',
     stopped: 'bg-error',
   };
-  const labels: Record<string, string> = {
-    creating: 'Creating...',
-    running: 'Running',
-    stopped: 'Stopped',
-  };
 
   return (
     <div className="flex items-center gap-2 px-2.5 py-1.5 border-b border-border-default text-[11px]">
       <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotColor[sandboxStatus]} ${sandboxStatus === 'running' ? 'animate-pulse' : ''}`} />
-      <span className="text-text-tertiary font-mono">Sandbox: {labels[sandboxStatus]}</span>
+      <span className="text-text-tertiary font-mono">{t('sandboxPrefix', { status: sandboxStatus })}</span>
       <div className="flex-1" />
       {sandboxId && sandboxStatus === 'running' && (
         <button
           onClick={async () => { try { await api.stopSandbox(sandboxId); setSandboxStatus('stopped'); } catch {} }}
-          title="Stop sandbox"
+          title={t('stopSandbox')}
           className="text-text-tertiary hover:text-text-secondary cursor-pointer transition-colors"
         >
           <StopCircle size={12} />
@@ -70,7 +58,7 @@ function SandboxStatus() {
       {sandboxId && sandboxStatus === 'stopped' && (
         <button
           onClick={async () => { try { await api.startSandbox(sandboxId); setSandboxStatus('running'); } catch {} }}
-          title="Start sandbox"
+          title={t('startSandbox')}
           className="text-text-tertiary hover:text-text-secondary cursor-pointer transition-colors"
         >
           <Play size={12} />
@@ -80,15 +68,15 @@ function SandboxStatus() {
         <button
           onClick={async () => {
             const confirmed = await useStore.getState().showConfirm({
-              title: 'Delete this sandbox?',
-              message: 'All sandbox files and state will be lost.',
-              confirmLabel: 'Delete',
+              title: t('deleteTitle'),
+              message: t('deleteMessage'),
+              confirmLabel: t('deleteLabel'),
               variant: 'danger',
             });
             if (!confirmed) return;
             try { await api.deleteSandbox(sandboxId); setSandboxStatus('none'); setSandboxId(null); } catch {}
           }}
-          title="Delete sandbox"
+          title={t('deleteSandbox')}
           className="text-text-tertiary hover:text-error cursor-pointer transition-colors"
         >
           <Trash2 size={12} />
@@ -99,6 +87,7 @@ function SandboxStatus() {
 }
 
 export default function RightPanel() {
+  const t = useTranslations('rightPanel');
   const activeTab = useStore((s) => s.rightPanelTab);
   const setRightPanelTab = useStore((s) => s.setRightPanelTab);
   const sandboxStatus = useStore((s) => s.sandboxStatus);
@@ -112,6 +101,15 @@ export default function RightPanel() {
   const messages = useStore((s) => s.messages);
   const hasCitations = streamingCitations.length > 0 || messages.some((m) => m.citations && m.citations.length > 0);
 
+  const ALL_TABS = useMemo(() => [
+    { key: 'files' as const, label: t('tabFiles'), icon: <FolderOpen size={12} />, needsSandbox: true },
+    { key: 'preview' as const, label: t('tabPreview'), icon: <Eye size={12} />, needsSandbox: true },
+    { key: 'artifacts' as const, label: t('tabArtifacts'), icon: <Layers size={12} />, needsSandbox: false },
+    { key: 'tree' as const, label: t('tabTree'), icon: <Network size={12} />, needsSandbox: false },
+    { key: 'sources' as const, label: t('tabSources'), icon: <BookOpen size={12} />, needsSandbox: false },
+    { key: 'memory' as const, label: t('tabMemory'), icon: <Brain size={12} />, needsSandbox: false },
+  ], [t]);
+
   const visibleTabs = useMemo(() => {
     return ALL_TABS.filter((tab) => {
       if (tab.needsSandbox && !hasSandbox) return false;
@@ -122,7 +120,7 @@ export default function RightPanel() {
       if (tab.key === 'sources' && !hasCitations) return false;
       return true;
     });
-  }, [hasSandbox, previewUrl, artifacts.length, hasBranches, hasCitations]);
+  }, [ALL_TABS, hasSandbox, previewUrl, artifacts.length, hasBranches, hasCitations]);
 
   // If the current tab is no longer visible, switch to first available
   useEffect(() => {

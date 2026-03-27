@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { getLoginUrl, setLastProvider, clearLastProvider, type OAuthProvider } from '@/lib/auth';
 import { passwordLogin, registerAccount, requestPasswordReset, getCurrentUser } from '@/lib/api';
 import { useStore } from '@/lib/store';
@@ -35,6 +36,7 @@ function GitHubIcon({ size = 16 }: { size?: number }) {
 
 function LoginContent() {
   const router = useRouter();
+  const t = useTranslations('login');
   const setUser = useStore((s) => s.setUser);
   const setAuthStatus = useStore((s) => s.setAuthStatus);
 
@@ -52,7 +54,7 @@ function LoginContent() {
     const hash = window.location.hash; // e.g. "#error=auth_failed"
     if (hash.includes('error=')) {
       clearLastProvider();
-      setAuthError('Sign-in was cancelled or failed. Please try again.');
+      setAuthError(t('oauthError'));
       // Clean up the hash
       history.replaceState(null, '', window.location.pathname);
     }
@@ -81,10 +83,10 @@ function LoginContent() {
       setUser(user);
       setAuthStatus('authenticated');
       const firstName = user.name?.split(' ')[0];
-      toast.success(firstName ? `Welcome back, ${firstName}!` : 'Welcome back!');
+      toast.success(firstName ? t('welcomeBackName', { firstName }) : t('welcomeBack'));
       router.replace('/');
     } catch (err: unknown) {
-      const msg = (err as { message?: string })?.message || 'Something went wrong';
+      const msg = (err as { message?: string })?.message || t('genericError');
       setFormError(msg);
     } finally {
       setLoading(false);
@@ -122,7 +124,7 @@ function LoginContent() {
 
           {/* Message */}
           <span className="text-[10px] text-text-tertiary font-mono tracking-widest uppercase">
-            Redirecting to {providerLabel}
+            {t('redirectingTo', { providerLabel })}
           </span>
         </div>
       </div>
@@ -158,7 +160,7 @@ function LoginContent() {
             className="w-full flex items-center justify-center gap-2.5 px-6 py-2.5 bg-surface-1 border border-border-default text-sm text-text-primary font-medium hover:bg-surface-2 transition-all cursor-pointer"
           >
             <MicrosoftIcon size={18} />
-            <span>Continue with Microsoft</span>
+            <span>{t('continueWithMicrosoft')}</span>
           </button>
 
           <button
@@ -166,14 +168,14 @@ function LoginContent() {
             className="w-full flex items-center justify-center gap-2.5 px-6 py-2.5 bg-surface-1 border border-border-default text-sm text-text-primary font-medium hover:bg-surface-2 transition-all cursor-pointer"
           >
             <GitHubIcon size={18} />
-            <span>Continue with GitHub</span>
+            <span>{t('continueWithGitHub')}</span>
           </button>
         </div>
 
         {/* Divider */}
         <div className="w-full flex items-center gap-3">
           <div className="flex-1 h-px bg-border-default" />
-          <span className="text-[10px] text-text-tertiary uppercase tracking-widest">or</span>
+          <span className="text-[10px] text-text-tertiary uppercase tracking-widest">{t('dividerOr')}</span>
           <div className="flex-1 h-px bg-border-default" />
         </div>
 
@@ -182,7 +184,7 @@ function LoginContent() {
           {mode === 'register' && (
             <input
               type="text"
-              placeholder="Name"
+              placeholder={t('namePlaceholder')}
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="w-full px-3 py-2 bg-bg border border-border-default text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-accent transition-colors"
@@ -190,7 +192,7 @@ function LoginContent() {
           )}
           <input
             type="email"
-            placeholder="Email"
+            placeholder={t('emailPlaceholder')}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
@@ -199,7 +201,7 @@ function LoginContent() {
           {mode !== 'forgot' && (
             <input
               type="password"
-              placeholder="Password"
+              placeholder={t('passwordPlaceholder')}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
@@ -213,7 +215,7 @@ function LoginContent() {
               onClick={() => { setMode('forgot'); setFormError(''); }}
               className="self-end text-[11px] text-text-tertiary hover:text-accent transition-colors cursor-pointer -mt-1"
             >
-              Forgot password?
+              {t('forgotPassword')}
             </button>
           )}
           <button
@@ -224,7 +226,7 @@ function LoginContent() {
             {loading ? (
               <Loader2 size={14} className="animate-spin" />
             ) : (
-              <span>{mode === 'forgot' ? 'Send Reset Link' : mode === 'register' ? 'Create Account' : 'Sign In'}</span>
+              <span>{mode === 'forgot' ? t('sendResetLink') : mode === 'register' ? t('createAccount') : t('signIn')}</span>
             )}
           </button>
         </form>
@@ -233,7 +235,7 @@ function LoginContent() {
           onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setFormError(''); }}
           className="text-xs text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer"
         >
-          {mode === 'forgot' ? 'Back to sign in' : mode === 'login' ? "Don't have an account? Sign up" : 'Already have an account? Sign in'}
+          {mode === 'forgot' ? t('backToSignIn') : mode === 'login' ? t('noAccountSignUp') : t('hasAccountSignIn')}
         </button>
       </div>
     </div>

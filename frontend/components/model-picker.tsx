@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import { useStore } from '@/lib/store';
 import { MODELS } from '@/lib/types';
 import type { ModelProvider } from '@/lib/types';
@@ -8,15 +9,15 @@ import { ChevronDown, Check } from 'lucide-react';
 import { ProviderLogo } from './provider-logos';
 import type { ModelOption } from '@/lib/types';
 
-const PROVIDER_LABELS: Record<ModelProvider, string> = {
-  anthropic: 'Anthropic',
-  openai: 'OpenAI',
-  meta: 'Meta',
-  microsoft: 'Microsoft',
-  xai: 'xAI via Foundry',
-  moonshot: 'Moonshot via Foundry',
-  deepseek: 'DeepSeek via Foundry',
-  mistral: 'Mistral via Foundry',
+const PROVIDER_KEYS: Record<ModelProvider, string> = {
+  anthropic: 'providerAnthropic',
+  openai: 'providerOpenAI',
+  meta: 'providerMeta',
+  microsoft: 'providerMicrosoft',
+  xai: 'providerXAI',
+  moonshot: 'providerMoonshot',
+  deepseek: 'providerDeepSeek',
+  mistral: 'providerMistral',
 };
 
 export default function ModelPicker({
@@ -32,6 +33,7 @@ export default function ModelPicker({
   disabled?: boolean;
   disabledReason?: string;
 }) {
+  const t = useTranslations('modelPicker');
   const activeModel = useStore((s) => s.activeModel);
   const setActiveModel = useStore((s) => s.setActiveModel);
   const [open, setOpen] = useState(false);
@@ -52,7 +54,7 @@ export default function ModelPicker({
   }, []);
 
   const current = models.find((m) => m.id === selectedModel);
-  const displayName = current?.name || selectedModel?.split('/').pop() || selectedModel || 'Select model';
+  const displayName = current?.name || selectedModel?.split('/').pop() || selectedModel || t('selectModel');
 
   const groupByProvider = (modelList: ModelOption[]) => modelList.reduce((acc, model) => {
     if (!acc[model.provider]) acc[model.provider] = [];
@@ -66,6 +68,11 @@ export default function ModelPicker({
   const legacyGrouped = groupByProvider(legacyModels);
 
   const providerOrder: ModelProvider[] = ['anthropic', 'openai', 'meta', 'microsoft', 'mistral', 'xai', 'moonshot', 'deepseek'];
+
+  const getProviderLabel = (provider: ModelProvider): string => {
+    const key = PROVIDER_KEYS[provider];
+    return key ? t(key as Parameters<typeof t>[0]) : provider;
+  };
 
   return (
     <div ref={ref} className="relative">
@@ -100,7 +107,7 @@ export default function ModelPicker({
               {gi > 0 && <div className="h-px bg-border-subtle mx-3" />}
               <div className="flex items-center gap-2 px-3 pt-2.5 pb-1.5">
                 <ProviderLogo provider={provider} size={12} className="text-text-tertiary" />
-                <span className="text-[10px] font-medium text-text-tertiary uppercase tracking-wider">{PROVIDER_LABELS[provider]}</span>
+                <span className="text-[10px] font-medium text-text-tertiary uppercase tracking-wider">{getProviderLabel(provider)}</span>
               </div>
               {grouped[provider].map((model) => (
                 <button
@@ -120,14 +127,14 @@ export default function ModelPicker({
             <div>
               <div className="h-px bg-border-subtle mx-3 mt-1" />
               <div className="px-3 pt-2.5 pb-1.5">
-                <span className="text-[10px] font-medium text-text-tertiary uppercase tracking-wider">Legacy</span>
+                <span className="text-[10px] font-medium text-text-tertiary uppercase tracking-wider">{t('legacyGroup')}</span>
               </div>
               {providerOrder.filter((p) => legacyGrouped[p]?.length).map((provider) => (
                 <div key={`legacy-${provider}`}>
                   <div className="flex items-center gap-2 px-3 pt-1.5 pb-1">
                     <ProviderLogo provider={provider} size={12} className="text-text-tertiary/70" />
                     <span className="text-[10px] font-medium text-text-tertiary/80 uppercase tracking-wider">
-                      {PROVIDER_LABELS[provider]}
+                      {getProviderLabel(provider)}
                     </span>
                   </div>
                   {legacyGrouped[provider].map((model) => (

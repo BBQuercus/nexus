@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useCallback, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useStore } from '@/lib/store';
 import * as api from '@/lib/api';
@@ -13,6 +14,7 @@ import { MessageSkeleton } from './skeleton';
 const PAGE_SIZE = 50;
 
 export default function ChatMessages() {
+  const t = useTranslations('chatMessages');
   const activeConversationId = useStore((s) => s.activeConversationId);
   const messages = useStore((s) => s.messages);
   const setConversationMessages = useStore((s) => s.setConversationMessages);
@@ -220,7 +222,7 @@ export default function ChatMessages() {
                   onClick={loadMore}
                   className="px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary bg-surface-1 border border-border-default rounded-lg hover:border-border-focus transition-colors cursor-pointer"
                 >
-                  Load {Math.min(PAGE_SIZE, messages.length - visibleCount)} earlier messages
+                  {t('loadEarlier', { count: Math.min(PAGE_SIZE, messages.length - visibleCount) })}
                 </button>
               </div>
             )}
@@ -270,7 +272,7 @@ export default function ChatMessages() {
           style={{ animationDuration: '0.15s' }}
         >
           <ArrowDown size={12} />
-          Scroll to bottom
+          {t('scrollToBottom')}
         </button>
       )}
     </div>

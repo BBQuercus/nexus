@@ -1,17 +1,11 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import { useStore } from '@/lib/store';
 import * as api from '@/lib/api';
 import type { SearchResult, SearchHit } from '@/lib/types';
 import { Search, X, MessageSquare, FileText, Layers, Loader2 } from 'lucide-react';
-
-const SCOPE_OPTIONS = [
-  { value: 'all' as const, label: 'All' },
-  { value: 'conversations' as const, label: 'Conversations' },
-  { value: 'messages' as const, label: 'Messages' },
-  { value: 'artifacts' as const, label: 'Artifacts' },
-];
 
 function HitIcon({ type }: { type: SearchHit['type'] }) {
   switch (type) {
@@ -22,6 +16,7 @@ function HitIcon({ type }: { type: SearchHit['type'] }) {
 }
 
 export default function SearchPanel() {
+  const t = useTranslations('searchPanel');
   const setSearchPanelOpen = useStore((s) => s.setSearchPanelOpen);
   const setActiveConversationId = useStore((s) => s.setActiveConversationId);
 
@@ -31,6 +26,13 @@ export default function SearchPanel() {
   const [loading, setLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  const SCOPE_OPTIONS = [
+    { value: 'all' as const, label: t('scopeAll') },
+    { value: 'conversations' as const, label: t('scopeConversations') },
+    { value: 'messages' as const, label: t('scopeMessages') },
+    { value: 'artifacts' as const, label: t('scopeArtifacts') },
+  ];
 
   // Focus on open
   useEffect(() => { inputRef.current?.focus(); }, []);
@@ -85,9 +87,9 @@ export default function SearchPanel() {
 
   const allHits: { label: string; hits: SearchHit[] }[] = results
     ? [
-        { label: 'Conversations', hits: results.conversations },
-        { label: 'Messages', hits: results.messages },
-        { label: 'Artifacts', hits: results.artifacts },
+        { label: t('scopeConversations'), hits: results.conversations },
+        { label: t('scopeMessages'), hits: results.messages },
+        { label: t('scopeArtifacts'), hits: results.artifacts },
       ].filter((g) => g.hits.length > 0)
     : [];
 
@@ -101,14 +103,14 @@ export default function SearchPanel() {
           <input
             ref={inputRef}
             type="text"
-            placeholder="Search conversations, messages, artifacts..."
+            placeholder={t('placeholder')}
             value={query}
             onChange={(e) => handleQueryChange(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Escape') close(); }}
             className="flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-tertiary outline-none"
           />
           {loading && <Loader2 size={14} className="text-text-tertiary animate-spin shrink-0" />}
-          <kbd className="text-[10px] text-text-tertiary bg-surface-1 border border-border-default rounded px-1.5 py-0.5 font-mono">esc</kbd>
+          <kbd className="text-[10px] text-text-tertiary bg-surface-1 border border-border-default rounded px-1.5 py-0.5 font-mono">{t('escHint')}</kbd>
         </div>
 
         {/* Scope tabs */}
@@ -132,11 +134,11 @@ export default function SearchPanel() {
         <div className="max-h-96 overflow-y-auto">
           {!query.trim() ? (
             <div className="px-4 py-8 text-center text-text-tertiary text-xs font-mono">
-              Type to search across all your conversations
+              {t('emptyHint')}
             </div>
           ) : results && allHits.length === 0 ? (
             <div className="px-4 py-8 text-center text-text-tertiary text-xs font-mono">
-              No results found for &ldquo;{query}&rdquo;
+              {t('noResults', { query })}
             </div>
           ) : (
             allHits.map((group) => (
@@ -181,7 +183,7 @@ export default function SearchPanel() {
         {/* Footer */}
         {results && results.total > 0 && (
           <div className="px-4 py-2 border-t border-border-default text-[10px] text-text-tertiary font-mono">
-            {results.total} result{results.total !== 1 ? 's' : ''}
+            {t('resultCount', { count: results.total })}
           </div>
         )}
       </div>

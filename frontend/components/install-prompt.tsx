@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import { X, Download, Share } from 'lucide-react';
 
 interface BeforeInstallPromptEvent extends Event {
@@ -20,6 +21,7 @@ function isStandalone(): boolean {
 }
 
 export default function InstallPrompt() {
+  const t = useTranslations('installPrompt');
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showIosBanner, setShowIosBanner] = useState(false);
   const [dismissed, setDismissed] = useState(true);
@@ -82,14 +84,14 @@ export default function InstallPrompt() {
             {showIosBanner ? <Share size={18} className="text-accent" /> : <Download size={18} className="text-accent" />}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-text-primary">Install Nexus</p>
+            <p className="text-sm font-medium text-text-primary">{t('installNexus')}</p>
             {showIosBanner ? (
               <p className="text-xs text-text-secondary mt-1">
-                Tap <Share size={12} className="inline text-accent" /> then &ldquo;Add to Home Screen&rdquo; for the best experience.
+                {t('iosInstructions', { icon: '' })}<Share size={12} className="inline text-accent" />
               </p>
             ) : (
               <p className="text-xs text-text-secondary mt-1">
-                Add Nexus to your home screen for quick access.
+                {t('addToHomeScreen')}
               </p>
             )}
           </div>
@@ -105,7 +107,7 @@ export default function InstallPrompt() {
             onClick={handleInstall}
             className="mt-3 w-full py-2 px-3 bg-accent text-bg text-sm font-medium rounded-lg hover:bg-accent/90 transition-colors cursor-pointer"
           >
-            Install
+            {t('install')}
           </button>
         )}
       </div>

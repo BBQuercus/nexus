@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslations } from 'next-intl';
 import type { Citation } from '@/lib/types';
 import { FileText, AlertTriangle, Hash, ExternalLink } from 'lucide-react';
 import { useStore } from '@/lib/store';
@@ -15,6 +16,7 @@ function CitationPopup({
   anchorRect: DOMRect;
   onClose: () => void;
 }) {
+  const t = useTranslations('citationChip');
   const popupRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ top: 0, left: 0 });
 
@@ -40,9 +42,9 @@ function CitationPopup({
       : 'text-text-tertiary bg-surface-1 border-border-default';
 
   const locationParts: string[] = [];
-  if (citation.page) locationParts.push(`Page ${citation.page}`);
+  if (citation.page) locationParts.push(t('pagePrefix', { page: citation.page }));
   if (citation.section) locationParts.push(citation.section);
-  if (citation.chunkIndex !== undefined) locationParts.push(`Chunk #${citation.chunkIndex}`);
+  if (citation.chunkIndex !== undefined) locationParts.push(t('chunkPrefix', { index: citation.chunkIndex }));
 
   return createPortal(
     <div
@@ -71,7 +73,7 @@ function CitationPopup({
           className="inline-flex items-center gap-1 mt-2 text-[10px] text-accent hover:underline"
         >
           <ExternalLink size={9} />
-          Open in Knowledge Base
+          {t('openInKB')}
         </a>
       )}
     </div>,
@@ -194,6 +196,7 @@ function GroupedCitations({
 }
 
 export function CitationBar({ citations }: { citations: Citation[] }) {
+  const t = useTranslations('citationChip');
   const setRightPanelTab = useStore((s) => s.setRightPanelTab);
   const setRightPanelOpen = useStore((s) => s.setRightPanelOpen);
   const [openIndex, setOpenIndex] = useState<number | null>(null);
@@ -222,7 +225,7 @@ export function CitationBar({ citations }: { citations: Citation[] }) {
 
   return (
     <div ref={barRef} className="flex flex-wrap items-center gap-1.5 mt-2 pt-2 border-t border-border-default/20">
-      <span className="text-[10px] text-text-tertiary mr-1">Sources:</span>
+      <span className="text-[10px] text-text-tertiary mr-1">{t('sourcesLabel')}</span>
       <GroupedCitations
         citations={citations}
         openIndex={openIndex}
@@ -236,13 +239,14 @@ export function CitationBar({ citations }: { citations: Citation[] }) {
         }}
         className="text-[10px] text-text-tertiary hover:text-accent ml-1 cursor-pointer"
       >
-        View all
+        {t('viewAll')}
       </button>
     </div>
   );
 }
 
 export function ConfidenceBadge({ confidence }: { confidence: number }) {
+  const t = useTranslations('citationChip');
   if (confidence >= 0.7) return null;
 
   const isLow = confidence < 0.3;
@@ -251,8 +255,8 @@ export function ConfidenceBadge({ confidence }: { confidence: number }) {
     <div className={`flex items-center gap-1.5 text-[10px] mt-1 ${isLow ? 'text-error/70' : 'text-warning/70'}`}>
       <AlertTriangle size={10} />
       {isLow
-        ? 'Low confidence -- sources may not be relevant'
-        : 'Moderate confidence -- verify with original documents'}
+        ? t('lowConfidence')
+        : t('moderateConfidence')}
     </div>
   );
 }

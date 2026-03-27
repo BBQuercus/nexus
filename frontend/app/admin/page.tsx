@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import {
   Shield, Users, ThumbsUp, ThumbsDown, AlertTriangle, RefreshCw,
   BarChart3, Building2, Plus, X, UserPlus, Loader2, Save,
@@ -24,25 +25,41 @@ const fmtDate = (v: unknown) => {
   catch { return s(v); }
 };
 
-const TAB_META: Record<Tab, { label: string; icon: React.ReactNode; title: string; description: string }> = {
-  overview: { label: 'Overview', icon: <BarChart3 size={14} />, title: 'Overview', description: 'Platform activity and usage at a glance' },
-  feedback: { label: 'Feedback', icon: <ThumbsUp size={14} />, title: 'Feedback', description: 'User ratings and comments on AI responses' },
-  users: { label: 'Users', icon: <Users size={14} />, title: 'Users', description: 'Manage user accounts and roles' },
-  errors: { label: 'Errors', icon: <AlertTriangle size={14} />, title: 'Errors', description: 'Frontend error reports from the application' },
-  organizations: { label: 'Organizations', icon: <Building2 size={14} />, title: 'Organizations', description: 'Manage workspaces, members, and settings' },
+const TAB_ICONS: Record<Tab, React.ReactNode> = {
+  overview: <BarChart3 size={14} />,
+  feedback: <ThumbsUp size={14} />,
+  users: <Users size={14} />,
+  errors: <AlertTriangle size={14} />,
+  organizations: <Building2 size={14} />,
+};
+
+const TAB_LABEL_KEYS: Record<Tab, string> = {
+  overview: 'tabOverview',
+  feedback: 'tabFeedback',
+  users: 'tabUsers',
+  errors: 'tabErrors',
+  organizations: 'tabOrganizations',
+};
+
+const TAB_DESC_KEYS: Record<Tab, string> = {
+  overview: 'descOverview',
+  feedback: 'descFeedback',
+  users: 'descUsers',
+  errors: 'descErrors',
+  organizations: 'descOrganizations',
 };
 
 // ── Shared UI ──
 
 function PageHeader({ tab }: { tab: Tab }) {
-  const meta = TAB_META[tab];
+  const t = useTranslations('admin');
   return (
     <div className="mb-6 animate-[fadeIn_0.2s_ease-out]">
       <div className="flex items-center gap-2.5 mb-1">
-        <span className="text-text-tertiary">{meta.icon}</span>
-        <h1 className="text-base font-semibold text-text-primary">{meta.title}</h1>
+        <span className="text-text-tertiary">{TAB_ICONS[tab]}</span>
+        <h1 className="text-base font-semibold text-text-primary">{t(TAB_LABEL_KEYS[tab])}</h1>
       </div>
-      <p className="text-xs text-text-tertiary ml-[26px]">{meta.description}</p>
+      <p className="text-xs text-text-tertiary ml-[26px]">{t(TAB_DESC_KEYS[tab])}</p>
     </div>
   );
 }
@@ -102,6 +119,7 @@ function Loading() {
 
 export default function AdminPage() {
   const router = useRouter();
+  const t = useTranslations('admin');
   const [tab, setTab] = useState<Tab>('overview');
   const user = useStore((s) => s.user);
 
@@ -113,18 +131,18 @@ export default function AdminPage() {
         <Shield size={20} className="text-text-tertiary" />
       </div>
       <div className="text-center">
-        <p className="text-sm text-text-primary font-medium mb-1">Admin access required</p>
-        <p className="text-xs text-text-tertiary">You don&apos;t have permission to view this page</p>
+        <p className="text-sm text-text-primary font-medium mb-1">{t('accessRequired')}</p>
+        <p className="text-xs text-text-tertiary">{t('noPermission')}</p>
       </div>
-      <button onClick={() => router.push('/')} className="text-xs text-accent hover:text-accent-hover cursor-pointer transition-colors">Back to Nexus</button>
+      <button onClick={() => router.push('/')} className="text-xs text-accent hover:text-accent-hover cursor-pointer transition-colors">{t('backToNexus')}</button>
     </div>
   );
 
-  const tabs = Object.entries(TAB_META) as [Tab, typeof TAB_META[Tab]][];
+  const tabs = (Object.keys(TAB_ICONS) as Tab[]);
 
   const adminSidebar = (
     <div className="px-2 py-3 flex flex-col gap-0.5">
-      {tabs.map(([id, meta]) => (
+      {tabs.map((id) => (
         <button
           key={id}
           onClick={() => setTab(id)}
@@ -134,15 +152,15 @@ export default function AdminPage() {
               : 'text-text-secondary hover:bg-surface-1 hover:text-text-primary'
           }`}
         >
-          <span className={tab === id ? 'text-accent' : 'text-text-tertiary'}>{meta.icon}</span>
-          {meta.label}
+          <span className={tab === id ? 'text-accent' : 'text-text-tertiary'}>{TAB_ICONS[id]}</span>
+          {t(TAB_LABEL_KEYS[id])}
         </button>
       ))}
     </div>
   );
 
   return (
-    <PageShell title="Admin" sidebar={adminSidebar}>
+    <PageShell title={t('pageTitle')} sidebar={adminSidebar}>
       <div className="flex-1 overflow-y-auto p-6 max-w-4xl mx-auto w-full">
         <PageHeader tab={tab} />
         {tab === 'overview' && <OverviewTab />}
@@ -158,17 +176,18 @@ export default function AdminPage() {
 // ── Overview ──
 
 function OverviewTab() {
+  const t = useTranslations('admin');
   const [data, setData] = useState<Record<string, unknown> | null>(null);
   useEffect(() => { api.getAdminOverview().then(setData).catch(() => {}); }, []);
   if (!data) return <Loading />;
 
   const stats = [
-    { label: 'Total Users', value: fmt(data.total_users), icon: Users, color: 'text-blue-400' },
-    { label: 'Active (24h)', value: fmt(data.active_users_24h), icon: Zap, color: 'text-accent' },
-    { label: 'Conversations', value: fmt(data.total_conversations), icon: MessageSquare, color: 'text-purple-400' },
-    { label: 'Messages Today', value: fmt(data.messages_today), icon: MessageSquare, color: 'text-cyan-400' },
-    { label: 'Errors Today', value: fmt(data.errors_today), icon: AlertTriangle, color: 'text-error' },
-    { label: 'Uptime', value: '99.9%', icon: Clock, color: 'text-accent' },
+    { label: t('totalUsers'), value: fmt(data.total_users), icon: Users, color: 'text-blue-400' },
+    { label: t('active24h'), value: fmt(data.active_users_24h), icon: Zap, color: 'text-accent' },
+    { label: t('conversations'), value: fmt(data.total_conversations), icon: MessageSquare, color: 'text-purple-400' },
+    { label: t('messagesToday'), value: fmt(data.messages_today), icon: MessageSquare, color: 'text-cyan-400' },
+    { label: t('errorsToday'), value: fmt(data.errors_today), icon: AlertTriangle, color: 'text-error' },
+    { label: t('uptime'), value: t('uptimeValue'), icon: Clock, color: 'text-accent' },
   ];
 
   return (
@@ -189,6 +208,7 @@ function OverviewTab() {
 // ── Feedback ──
 
 function FeedbackTab() {
+  const t = useTranslations('admin');
   const [items, setItems] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -207,7 +227,7 @@ function FeedbackTab() {
   return (
     <div className="space-y-3 animate-[fadeIn_0.2s_ease-out]">
       <SectionCard
-        title={`${items.length} entries`}
+        title={t('entriesCount', { count: items.length })}
         action={
           <button onClick={load} className="text-text-tertiary hover:text-text-secondary cursor-pointer transition-colors">
             <RefreshCw size={13} />
@@ -215,7 +235,7 @@ function FeedbackTab() {
         }
       >
         {items.length === 0 ? (
-          <EmptyState icon={ThumbsUp} message="No feedback yet" />
+          <EmptyState icon={ThumbsUp} message={t('noFeedbackYet')} />
         ) : (
           <div className="space-y-2 -m-1">
             {items.map((item, i) => (
@@ -229,7 +249,7 @@ function FeedbackTab() {
                   }
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-xs text-text-secondary leading-relaxed">{s(item.message_preview) || 'No preview'}</div>
+                  <div className="text-xs text-text-secondary leading-relaxed">{s(item.message_preview) || t('noPreview')}</div>
                   {item.comment ? <div className="text-[11px] text-text-tertiary mt-1 italic">{`"${s(item.comment)}"`}</div> : null}
                   {(item.tags as string[] || []).length > 0 && (
                     <div className="flex gap-1 mt-1.5">{(item.tags as string[]).map((tag, j) => (
@@ -253,6 +273,7 @@ function FeedbackTab() {
 // ── Users ──
 
 function UsersTab() {
+  const t = useTranslations('admin');
   const [users, setUsers] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(true);
   const [changingRole, setChangingRole] = useState<string | null>(null);
@@ -279,14 +300,14 @@ function UsersTab() {
 
   return (
     <div className="animate-[fadeIn_0.2s_ease-out]">
-      <SectionCard title={`${users.length} users`}>
+      <SectionCard title={t('usersCount', { count: users.length })}>
         {/* Table header */}
         <div className="flex items-center gap-3 px-3 py-2 text-[10px] text-text-tertiary uppercase tracking-wider border-b border-border-default -mx-4 px-7 mb-2">
-          <div className="flex-1">User</div>
-          <div className="w-20 text-center">Conversations</div>
-          <div className="w-20 text-center">Messages</div>
-          <div className="w-28">Last seen</div>
-          <div className="w-24">Role</div>
+          <div className="flex-1">{t('columnUser')}</div>
+          <div className="w-20 text-center">{t('columnConversations')}</div>
+          <div className="w-20 text-center">{t('columnMessages')}</div>
+          <div className="w-28">{t('columnLastSeen')}</div>
+          <div className="w-24">{t('columnRole')}</div>
         </div>
         <div className="space-y-1 -mx-1">
           {users.map((u) => (
@@ -312,10 +333,10 @@ function UsersTab() {
                   disabled={changingRole === s(u.id)}
                   className="w-full px-2 py-1 bg-bg border border-border-default rounded text-[10px] text-text-secondary focus:outline-none focus:border-accent transition-colors disabled:opacity-50 cursor-pointer"
                 >
-                  <option value="viewer">Viewer</option>
-                  <option value="editor">Editor</option>
-                  <option value="admin">Admin</option>
-                  <option value="owner">Owner</option>
+                  <option value="viewer">{t('roleViewer')}</option>
+                  <option value="editor">{t('roleEditor')}</option>
+                  <option value="admin">{t('roleAdmin')}</option>
+                  <option value="owner">{t('roleOwner')}</option>
                 </select>
               </div>
             </div>
@@ -329,6 +350,7 @@ function UsersTab() {
 // ── Errors ──
 
 function ErrorsTab() {
+  const t = useTranslations('admin');
   const [errors, setErrors] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -343,9 +365,9 @@ function ErrorsTab() {
 
   return (
     <div className="animate-[fadeIn_0.2s_ease-out]">
-      <SectionCard title={`${errors.length} errors`}>
+      <SectionCard title={t('errorsCount', { count: errors.length })}>
         {errors.length === 0 ? (
-          <EmptyState icon={AlertTriangle} message="No errors recorded" />
+          <EmptyState icon={AlertTriangle} message={t('noErrorsRecorded')} />
         ) : (
           <div className="space-y-2 -m-1">
             {errors.map((err, i) => (
@@ -357,7 +379,7 @@ function ErrorsTab() {
                   <div className="flex-1 min-w-0">
                     <div className="text-xs text-text-primary leading-relaxed">{s(err.message)}</div>
                     {err.url ? <div className="text-[10px] text-text-tertiary font-mono truncate mt-1">{s(err.url)}</div> : null}
-                    {err.component ? <span className="text-[10px] text-text-tertiary mt-1 inline-block">{`in ${s(err.component)}`}</span> : null}
+                    {err.component ? <span className="text-[10px] text-text-tertiary mt-1 inline-block">{t('inComponent', { component: s(err.component) })}</span> : null}
                   </div>
                   <div className="text-[10px] text-text-tertiary shrink-0">{fmtDate(err.created_at)}</div>
                 </div>
@@ -373,6 +395,7 @@ function ErrorsTab() {
 // ── Organizations ──
 
 function OrganizationsTab() {
+  const t = useTranslations('admin');
   const currentOrg = useStore((s) => s.currentOrg);
   const switchOrgFn = useStore((s) => s.switchOrg);
   const [members, setMembers] = useState<api.OrgMemberInfo[]>([]);
@@ -414,7 +437,7 @@ function OrganizationsTab() {
     try {
       const updated = await api.updateOrg(currentOrg.id, { name: orgName.trim(), systemPrompt });
       useStore.getState().setCurrentOrg(updated);
-      toast.success('Settings saved');
+      toast.success(t('settingsSaved'));
     } catch {} finally { setSaving(false); }
   };
 
@@ -424,7 +447,7 @@ function OrganizationsTab() {
     setInviting(true);
     try {
       await api.inviteOrgMember(currentOrg.id, { email: inviteEmail.trim(), role: inviteRole });
-      toast.success(`Invited ${inviteEmail.trim()}`);
+      toast.success(t('invitedEmail', { email: inviteEmail.trim() }));
       setInviteEmail('');
       setShowInvite(false);
       loadData();
@@ -443,16 +466,16 @@ function OrganizationsTab() {
   const handleRemoveMember = async (userId: string, name: string) => {
     if (!currentOrg) return;
     const confirmed = await useStore.getState().showConfirm({
-      title: 'Remove member?',
-      message: `${name} will lose access to this organization.`,
-      confirmLabel: 'Remove',
+      title: t('removeMemberTitle'),
+      message: t('removeMemberMessage', { name }),
+      confirmLabel: t('removeMemberConfirm'),
       variant: 'danger',
     });
     if (!confirmed) return;
     try {
       await api.removeOrgMember(currentOrg.id, userId);
       setMembers((prev) => prev.filter((m) => m.userId !== userId));
-      toast.success(`Removed ${name}`);
+      toast.success(t('removedMember', { name }));
     } catch {}
   };
 
@@ -464,11 +487,11 @@ function OrganizationsTab() {
     <div className="space-y-5 animate-[fadeIn_0.2s_ease-out]">
       {/* Org Settings */}
       {currentOrg && (
-        <SectionCard title="Settings">
+        <SectionCard title={t('settingsTitle')}>
           <div className="space-y-4">
             <div className="grid grid-cols-[1fr_auto] gap-4">
               <div>
-                <label className="text-xs font-medium text-text-secondary mb-1.5 block">Name</label>
+                <label className="text-xs font-medium text-text-secondary mb-1.5 block">{t('nameLabel')}</label>
                 <input
                   type="text"
                   value={orgName}
@@ -477,18 +500,18 @@ function OrganizationsTab() {
                 />
               </div>
               <div>
-                <label className="text-xs font-medium text-text-secondary mb-1.5 block">Slug</label>
+                <label className="text-xs font-medium text-text-secondary mb-1.5 block">{t('slugLabel')}</label>
                 <div className="px-3 py-2 bg-surface-1 border border-border-default rounded-lg text-xs text-text-tertiary font-mono min-w-[140px]">
                   /{currentOrg.slug}
                 </div>
               </div>
             </div>
             <div>
-              <label className="text-xs font-medium text-text-secondary mb-1.5 block">System Prompt</label>
+              <label className="text-xs font-medium text-text-secondary mb-1.5 block">{t('systemPromptLabel')}</label>
               <textarea
                 value={systemPrompt}
                 onChange={(e) => setSystemPrompt(e.target.value)}
-                placeholder="Instructions prepended to every conversation in this org..."
+                placeholder={t('systemPromptPlaceholder')}
                 rows={3}
                 className="w-full px-3 py-2 bg-bg border border-border-default rounded-lg text-xs text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-accent transition-colors resize-none"
               />
@@ -500,7 +523,7 @@ function OrganizationsTab() {
                 className="px-4 py-2 text-xs bg-accent hover:bg-accent-hover text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 font-medium"
               >
                 {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
-                Save Changes
+                {t('saveChanges')}
               </button>
             </div>
           </div>
@@ -510,40 +533,40 @@ function OrganizationsTab() {
       {/* Members */}
       {currentOrg && (
         <SectionCard
-          title={`${members.length} members`}
+          title={t('membersCount', { count: members.length })}
           action={
             <button
               onClick={() => setShowInvite(!showInvite)}
               className="flex items-center gap-1 text-xs text-accent hover:text-accent-hover cursor-pointer transition-colors font-medium"
             >
               <UserPlus size={12} />
-              Invite
+              {t('invite')}
             </button>
           }
         >
           {showInvite && (
             <form onSubmit={handleInvite} className="flex items-end gap-2 pb-3 mb-3 border-b border-border-default">
               <div className="flex-1">
-                <label className="text-[10px] font-medium text-text-tertiary mb-1 block uppercase tracking-wider">Email</label>
+                <label className="text-[10px] font-medium text-text-tertiary mb-1 block uppercase tracking-wider">{t('columnUser')}</label>
                 <input
                   type="email"
                   value={inviteEmail}
                   onChange={(e) => setInviteEmail(e.target.value)}
-                  placeholder="user@example.com"
+                  placeholder={t('emailPlaceholder')}
                   className="w-full px-3 py-2 bg-bg border border-border-default rounded-lg text-xs text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-accent transition-colors"
                   autoFocus
                 />
               </div>
               <div className="w-28">
-                <label className="text-[10px] font-medium text-text-tertiary mb-1 block uppercase tracking-wider">Role</label>
+                <label className="text-[10px] font-medium text-text-tertiary mb-1 block uppercase tracking-wider">{t('columnRole')}</label>
                 <select
                   value={inviteRole}
                   onChange={(e) => setInviteRole(e.target.value)}
                   className="w-full px-3 py-2 bg-bg border border-border-default rounded-lg text-xs text-text-primary focus:outline-none focus:border-accent transition-colors cursor-pointer"
                 >
-                  <option value="viewer">Viewer</option>
-                  <option value="editor">Editor</option>
-                  <option value="admin">Admin</option>
+                  <option value="viewer">{t('roleViewer')}</option>
+                  <option value="editor">{t('roleEditor')}</option>
+                  <option value="admin">{t('roleAdmin')}</option>
                 </select>
               </div>
               <button
@@ -552,7 +575,7 @@ function OrganizationsTab() {
                 className="px-4 py-2 text-xs bg-accent hover:bg-accent-hover text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 font-medium"
               >
                 {inviting ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />}
-                Invite
+                {t('invite')}
               </button>
               <button type="button" onClick={() => setShowInvite(false)} className="p-2 text-text-tertiary hover:text-text-secondary cursor-pointer">
                 <X size={13} />
@@ -581,16 +604,16 @@ function OrganizationsTab() {
                   disabled={changingRole === m.userId || m.userId === currentUserId}
                   className="px-2 py-1 bg-bg border border-border-default rounded text-[10px] text-text-secondary focus:outline-none focus:border-accent transition-colors disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
                 >
-                  <option value="viewer">Viewer</option>
-                  <option value="editor">Editor</option>
-                  <option value="admin">Admin</option>
-                  <option value="owner">Owner</option>
+                  <option value="viewer">{t('roleViewer')}</option>
+                  <option value="editor">{t('roleEditor')}</option>
+                  <option value="admin">{t('roleAdmin')}</option>
+                  <option value="owner">{t('roleOwner')}</option>
                 </select>
                 {m.userId !== currentUserId && (
                   <button
                     onClick={() => handleRemoveMember(m.userId, m.name)}
                     className="p-1 text-text-tertiary hover:text-error cursor-pointer transition-colors"
-                    title="Remove member"
+                    title={t('removeMemberTooltip')}
                   >
                     <X size={12} />
                   </button>
@@ -603,14 +626,14 @@ function OrganizationsTab() {
 
       {/* All Orgs */}
       <SectionCard
-        title="All organizations"
+        title={t('allOrganizations')}
         action={
           <button
             onClick={() => setCreateOrgOpen(true)}
             className="flex items-center gap-1 text-xs text-accent hover:text-accent-hover cursor-pointer transition-colors font-medium"
           >
             <Plus size={12} />
-            New
+            {t('new')}
           </button>
         }
       >
@@ -634,7 +657,7 @@ function OrganizationsTab() {
                 <div className="text-xs text-text-primary font-medium">{org.name}</div>
                 <div className="text-[10px] text-text-tertiary font-mono">/{org.slug}</div>
               </div>
-              <div className="text-[10px] text-text-tertiary">{org.memberCount} {org.memberCount === 1 ? 'member' : 'members'}</div>
+              <div className="text-[10px] text-text-tertiary">{t('memberCount', { count: org.memberCount })}</div>
               <RoleBadge role={org.role} />
             </div>
           ))}

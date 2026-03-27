@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import { useStore } from '@/lib/store';
 import * as api from '@/lib/api';
 import type { Message, TreeNode, ConversationTree } from '@/lib/types';
@@ -215,6 +216,8 @@ function NodeCard({
   onHover: (id: string | null) => void;
   onClick: () => void;
 }) {
+  const t = useTranslations('treePanel');
+
   if (node.collapsed) {
     return (
       <foreignObject x={node.x} y={node.y} width={NODE_WIDTH} height={NODE_HEIGHT}>
@@ -229,7 +232,7 @@ function NodeCard({
           } ${isHovered ? 'border-accent/50 bg-accent/10' : ''}`}
         >
           <MoreHorizontal size={12} />
-          <span className="text-[10px] font-mono">{node.collapsed.count} messages</span>
+          <span className="text-[10px] font-mono">{t('collapsedMessages', { count: node.collapsed.count })}</span>
           <ChevronDown size={10} />
         </div>
       </foreignObject>
@@ -265,7 +268,7 @@ function NodeCard({
           <span className={`text-[9px] font-bold uppercase tracking-wider ${
             node.isActivePath ? 'text-accent' : 'text-text-tertiary'
           }`}>
-            {isUser ? 'You' : 'AI'}
+            {isUser ? t('roleYou') : t('roleAI')}
           </span>
           {node.childCount > 1 && (
             <span className="ml-auto flex items-center gap-0.5 text-[9px] text-accent/70 font-mono">
@@ -281,7 +284,7 @@ function NodeCard({
         <p className={`text-[10px] leading-tight truncate ${
           node.isActivePath ? 'text-text-secondary' : 'text-text-tertiary/70'
         }`}>
-          {node.preview || (isUser ? 'User message' : 'AI response')}
+          {node.preview || (isUser ? t('userFallback') : t('aiFallback'))}
         </p>
       </div>
     </foreignObject>
@@ -291,6 +294,7 @@ function NodeCard({
 /* ── Main panel ──────────────────────────────────────────────── */
 
 export default function TreePanel() {
+  const t = useTranslations('treePanel');
   const tree = useStore((s) => s.conversationTree);
   const activeConversationId = useStore((s) => s.activeConversationId);
   const setMessages = useStore((s) => s.setMessages);
@@ -370,7 +374,7 @@ export default function TreePanel() {
           <div className="w-10 h-10 rounded-lg bg-surface-1 border border-border-default flex items-center justify-center">
             <GitBranch size={16} className="text-text-tertiary" />
           </div>
-          <p className="text-xs text-text-tertiary">No conversation yet</p>
+          <p className="text-xs text-text-tertiary">{t('noConversationYet')}</p>
         </div>
       </div>
     );
@@ -385,9 +389,11 @@ export default function TreePanel() {
             <GitBranch size={16} className="text-accent/50" />
           </div>
           <div>
-            <p className="text-xs text-text-secondary mb-1">Linear conversation</p>
+            <p className="text-xs text-text-secondary mb-1">{t('linearConversation')}</p>
             <p className="text-[10px] text-text-tertiary/60 leading-relaxed">
-              Click <span className="text-accent font-semibold">New Branch</span> on any message to explore alternate paths
+              {t.rich('linearHint', {
+                newBranch: (chunks) => <span className="text-accent font-semibold">{chunks}</span>,
+              })}
             </p>
           </div>
         </div>
@@ -439,16 +445,17 @@ export default function TreePanel() {
 /* ── Panel header ────────────────────────────────────────────── */
 
 function PanelHeader({ messageCount, branchCount }: { messageCount: number; branchCount: number }) {
+  const t = useTranslations('treePanel');
   return (
     <div className="flex items-center gap-3 px-4 py-2.5 border-b border-border-default/50 shrink-0">
       <div className="flex items-center gap-2">
         <GitBranch size={12} className="text-accent" />
-        <span className="text-[11px] font-bold text-text-primary tracking-wide">Conversation Tree</span>
+        <span className="text-[11px] font-bold text-text-primary tracking-wide">{t('title')}</span>
       </div>
       <div className="flex-1" />
       {messageCount > 0 && (
         <div className="flex items-center gap-3 text-[10px] font-mono text-text-tertiary">
-          <span>{messageCount} msg</span>
+          <span>{t('msgCount', { count: messageCount })}</span>
           {branchCount > 0 && (
             <span className="flex items-center gap-1 text-accent/70">
               <GitBranch size={8} /> {branchCount}

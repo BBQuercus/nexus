@@ -1,6 +1,7 @@
 'use client';
 
 import type { Conversation } from '@/lib/types';
+import { useTranslations } from 'next-intl';
 import ConversationItem from './conversation-item';
 
 interface ConversationGroup {
@@ -55,11 +56,13 @@ export default function ConversationList({
   onRenameCancel,
   renameInputRef,
 }: ConversationListProps) {
+  const t = useTranslations('sidebar');
+
   if (conversations.length === 0) {
     return (
       <div className="flex-1 overflow-y-auto px-2 pb-4">
         <div className="p-6 text-center text-text-tertiary text-xs">
-          {search.trim() ? 'No conversations found' : 'No conversations'}
+          {search.trim() ? t('noConversationsFound') : t('noConversations')}
         </div>
       </div>
     );
