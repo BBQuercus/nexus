@@ -36,9 +36,6 @@ export default function KBPicker() {
 
   const selectedKBs = knowledgeBases.filter((kb) => activeIds.includes(kb.id));
 
-  // Don't render until we know there are KBs
-  if (loaded && knowledgeBases.length === 0) return null;
-
   const label = activeIds.length === 0
     ? 'RAG'
     : activeIds.length === 1 && selectedKBs.length === 1
@@ -52,7 +49,7 @@ export default function KBPicker() {
         className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs border rounded-lg transition-all cursor-pointer glow-hover ${
           activeIds.length > 0
             ? 'text-accent bg-accent/8 border-accent/25 hover:border-accent/40'
-            : 'text-text-secondary hover:text-text-primary bg-surface-1 border-border-default hover:border-border-focus'
+            : 'text-text-tertiary hover:text-text-secondary bg-surface-1 border-border-default hover:border-border-focus'
         }`}
       >
         <BookOpen size={13} className={activeIds.length > 0 ? 'text-accent' : 'text-text-tertiary'} />
@@ -81,8 +78,9 @@ export default function KBPicker() {
           {/* KB list */}
           <div className="max-h-56 overflow-y-auto py-1">
             {knowledgeBases.length === 0 ? (
-              <div className="px-3 py-4 text-center text-xs text-text-tertiary">
-                No knowledge bases available
+              <div className="px-3 py-4 text-center text-[11px] text-text-tertiary">
+                No knowledge bases yet.{' '}
+                <a href="/knowledge" className="text-accent hover:underline" onClick={() => setOpen(false)}>Create one</a>
               </div>
             ) : (
               knowledgeBases.map((kb) => {
