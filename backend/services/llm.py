@@ -64,6 +64,16 @@ _MODELS_WITHOUT_TOOL_CHOICE = {
     "azure_ai/gpt-5.3-chat",
 }
 
+# Models that don't support custom temperature (only accept default/1.0)
+_MODELS_WITHOUT_TEMPERATURE = {
+    "gpt-5-gwc",
+    "gpt-5-mini-gwc",
+    "gpt-5-nano-gwc",
+    "gpt-5.1-use2",
+    "gpt-5.2-use2",
+    "azure_ai/gpt-5.3-chat",
+}
+
 
 def calculate_cost(model: str, input_tokens: int, output_tokens: int) -> Decimal:
     """Calculate cost in USD for a given model and token counts."""
@@ -99,7 +109,7 @@ async def stream_chat(
         "stream": True,
         "stream_options": {"include_usage": True},
     }
-    if temperature is not None:
+    if temperature is not None and model not in _MODELS_WITHOUT_TEMPERATURE:
         kwargs["temperature"] = max(0.0, min(2.0, temperature))
     if tools:
         kwargs["tools"] = tools
