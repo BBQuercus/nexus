@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useEffect, useState, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import { useStore } from '@/lib/store';
 import type { StreamingState } from '@/lib/store';
 import { Zap, Terminal, Play, Download, Check, ChevronDown, Loader2, FileSpreadsheet, FileText, Presentation, File as FileIcon } from 'lucide-react';
@@ -13,6 +14,7 @@ import { buildFormSubmissionMessage } from '@/lib/form-submission';
 import { getThinkingMessage, getToolMessage } from '@/lib/thinking-messages';
 
 function StreamingExecBlock({ tool }: { tool: ToolCall }) {
+  const t = useTranslations('streamingBubble');
   const lang = tool.language || tool.name || 'code';
   return (
     <div className={`my-2 rounded-lg border overflow-hidden ${tool.isRunning ? 'border-accent/30' : 'border-border-default'}`}>
@@ -23,12 +25,12 @@ function StreamingExecBlock({ tool }: { tool: ToolCall }) {
         </div>
         {tool.isRunning && (
           <span className="flex items-center gap-1 text-accent">
-            <Play size={9} className="fill-current animate-pulse" /> running
+            <Play size={9} className="fill-current animate-pulse" /> {t('running')}
           </span>
         )}
         {!tool.isRunning && tool.exitCode !== undefined && (
           <span className={`flex items-center gap-1 ${tool.exitCode === 0 ? 'text-accent' : 'text-error'}`}>
-            {tool.exitCode === 0 ? <Check size={10} /> : <span>exit {tool.exitCode}</span>}
+            {tool.exitCode === 0 ? <Check size={10} /> : <span>{t('exitCode', { code: tool.exitCode })}</span>}
           </span>
         )}
       </div>
@@ -48,6 +50,7 @@ function StreamingExecBlock({ tool }: { tool: ToolCall }) {
 }
 
 function StreamingImage({ filename, url }: { filename: string; url: string }) {
+  const t = useTranslations('streamingBubble');
   return (
     <div className="my-3 rounded-lg border border-border-default overflow-hidden animate-fade-in-up">
       <img
@@ -59,7 +62,7 @@ function StreamingImage({ filename, url }: { filename: string; url: string }) {
       <div className="flex items-center justify-between px-3 py-1.5 bg-surface-1 text-[11px] font-mono text-text-tertiary">
         <span className="truncate">{filename}</span>
         <a href={url} download={filename} className="flex items-center gap-1 text-text-tertiary hover:text-accent transition-colors shrink-0 ml-2">
-          <Download size={10} /> Save
+          <Download size={10} /> {t('save')}
         </a>
       </div>
     </div>
@@ -93,13 +96,14 @@ function StreamingFileCard({ filename, fileType }: { filename: string; fileType:
 }
 
 function StreamingTableCard({ rows, label }: { rows: string[][]; label?: string }) {
+  const t = useTranslations('streamingBubble');
   const header = rows[0] || [];
   const body = rows.slice(1, 6);
 
   return (
     <div className="my-3 rounded-lg border border-border-default overflow-hidden animate-fade-in-up">
       <div className="px-3 py-2 bg-surface-1 text-[11px] font-mono text-text-secondary">
-        {label || 'Query Results'}
+        {label || t('queryResults')}
       </div>
       <div className="overflow-x-auto">
         <table className="min-w-full text-xs">
@@ -132,10 +136,11 @@ function StreamingTableCard({ rows, label }: { rows: string[][]; label?: string 
 }
 
 function StreamingChartCard({ spec, title }: { spec: Record<string, unknown>; title?: string }) {
+  const t = useTranslations('streamingBubble');
   return (
     <div className="my-3 rounded-lg border border-border-default overflow-hidden animate-fade-in-up bg-surface-0">
       <div className="px-3 py-2 bg-surface-1 text-[11px] font-mono text-text-secondary">
-        {title || 'Interactive Chart'}
+        {title || t('interactiveChart')}
       </div>
       <VegaChart spec={spec} className="overflow-hidden p-2" />
     </div>
@@ -236,6 +241,7 @@ function SmoothMarkdown({ text, showCursor }: { text: string; showCursor: boolea
 }
 
 function ThinkingIndicator({ toolCalls }: { toolCalls: ToolCall[] }) {
+  const t = useTranslations('streamingBubble');
   const [elapsed, setElapsed] = useState(0);
   const [seed] = useState(() => Math.floor(Math.random() * 1000));
   const startRef = useRef(Date.now());
@@ -259,7 +265,7 @@ function ThinkingIndicator({ toolCalls }: { toolCalls: ToolCall[] }) {
       </div>
       <div className="flex flex-col gap-0.5">
         <div className="flex items-center gap-2">
-          <span className="text-[11px] font-mono text-accent tracking-widest uppercase">Thinking</span>
+          <span className="text-[11px] font-mono text-accent tracking-widest uppercase">{t('thinking')}</span>
           <div className="flex gap-0.5">
             <span className="w-1 h-1 rounded-full bg-accent animate-bounce" style={{ animationDelay: '0ms' }} />
             <span className="w-1 h-1 rounded-full bg-accent animate-bounce" style={{ animationDelay: '150ms' }} />
@@ -278,6 +284,7 @@ function ThinkingIndicator({ toolCalls }: { toolCalls: ToolCall[] }) {
 }
 
 function BranchContent({ state, showCursor }: { state: StreamingState; showCursor: boolean }) {
+  const t = useTranslations('streamingBubble');
   const hasContent = state.content || state.reasoning || state.toolCalls.length > 0 || state.images.length > 0 || state.files.length > 0 || state.tables.length > 0 || state.charts.length > 0 || state.forms.length > 0;
 
   if (!hasContent) {
@@ -290,7 +297,7 @@ function BranchContent({ state, showCursor }: { state: StreamingState; showCurso
         <details open className="mb-2">
           <summary className="flex items-center gap-1.5 cursor-pointer text-[11px] text-text-tertiary py-1 font-mono tracking-wide">
             <ChevronDown size={10} />
-            reasoning...
+            {t('reasoning')}
           </summary>
           <div className="mt-1 pl-3 border-l-2 border-accent/20 text-xs text-text-tertiary whitespace-pre-wrap leading-relaxed">
             {state.reasoning}
@@ -327,6 +334,7 @@ function BranchContent({ state, showCursor }: { state: StreamingState; showCurso
 }
 
 export default function StreamingBubble() {
+  const t = useTranslations('streamingBubble');
   const singleStream = useStore((s) => s.streaming);
   const isStreaming = useStore((s) => s.isStreaming);
   const multi = useStore((s) => s.multiStreaming);
@@ -369,7 +377,7 @@ export default function StreamingBubble() {
                   ) : (
                     <Loader2 size={10} className="animate-spin" />
                   )}
-                  <span>{multi.branchModels?.[i]?.split('/').pop() || `Response ${i + 1}`}</span>
+                  <span>{multi.branchModels?.[i]?.split('/').pop() || t('responseLabel', { index: i + 1 })}</span>
                 </button>
               );
             })}
@@ -387,7 +395,7 @@ export default function StreamingBubble() {
             <RunComparison
               runs={multi.branches.map((branch, i) => ({
                 id: String(i),
-                model: multi.branchModels?.[i] || `Response ${i + 1}`,
+                model: multi.branchModels?.[i] || t('responseLabel', { index: i + 1 }),
                 status: 'complete',
                 result: branch.content || '',
                 tokens: 0,

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { useTranslations } from 'next-intl';
 import { useStore } from '@/lib/store';
 import * as api from '@/lib/api';
 import type { Message } from '@/lib/types';
@@ -63,6 +64,9 @@ export interface UseChatSubmitReturn {
 }
 
 export function useChatSubmit({ textareaRef }: UseChatSubmitOptions): UseChatSubmitReturn {
+  const tc = useTranslations('chatInput');
+  const t = useTranslations('slashCommands');
+  const ts = useTranslations('sidebar');
   const [content, setContent] = useState('');
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [numResponses, setNumResponses] = useState<number>(1);
@@ -104,13 +108,13 @@ export function useChatSubmit({ textareaRef }: UseChatSubmitOptions): UseChatSub
   const slashCommands: SlashCommand[] = useMemo(() => [
     {
       name: 'model',
-      description: 'Switch model — /model <name>',
+      description: t('modelDesc'),
       icon: <Cpu size={13} />,
-      hint: 'Type a model name, e.g. sonnet, opus, gpt-4o',
+      hint: t('modelHint'),
       execute: (args: string) => {
         const q = args.trim().toLowerCase();
         if (!q) {
-          toast.info('Available models: ' + MODELS.map((m) => m.name).join(', '));
+          toast.info(t('modelAvailable', { models: MODELS.map((m) => m.name).join(', ') }));
           return;
         }
         const match = MODELS.find(
@@ -118,15 +122,15 @@ export function useChatSubmit({ textareaRef }: UseChatSubmitOptions): UseChatSub
         );
         if (match) {
           useStore.getState().setActiveModel(match.id);
-          toast.success(`Switched to ${match.name}`);
+          toast.success(t('modelSwitched', { modelName: match.name }));
         } else {
-          toast.error(`Model "${args.trim()}" not found`);
+          toast.error(t('modelNotFound', { name: args.trim() }));
         }
       },
     },
     {
       name: 'clear',
-      description: 'Start a new conversation',
+      description: t('clearDesc'),
       icon: <Trash2 size={13} />,
       execute: () => {
         (async () => {
@@ -139,14 +143,14 @@ export function useChatSubmit({ textareaRef }: UseChatSubmitOptions): UseChatSub
             const r = await api.listConversations();
             useStore.getState().setConversations(r.conversations);
           } catch {
-            toast.error('Failed to create conversation');
+            toast.error(t('clearFailed'));
           }
         })();
       },
     },
     {
       name: 'help',
-      description: 'Show keyboard shortcuts',
+      description: t('helpDesc'),
       icon: <HelpCircle size={13} />,
       execute: () => {
         window.dispatchEvent(new CustomEvent('nexus:open-shortcuts'));
@@ -154,17 +158,21 @@ export function useChatSubmit({ textareaRef }: UseChatSubmitOptions): UseChatSub
     },
     {
       name: 'export',
-      description: 'Export conversation as markdown',
+      description: t('exportDesc'),
       icon: <Download size={13} />,
       execute: () => {
         const msgs = useStore.getState().messages;
         if (msgs.length === 0) {
-          toast.info('No messages to export');
+          toast.info(t('exportNoMessages'));
           return;
         }
         const md = msgs
           .map((m) => {
-            const role = m.role === 'user' ? '**You**' : m.role === 'assistant' ? '**Assistant**' : '**System**';
+            const role = m.role === 'user'
+              ? t('exportRoleUser')
+              : m.role === 'assistant'
+                ? t('exportRoleAssistant')
+                : t('exportRoleSystem');
             return `### ${role}\n\n${m.content}`;
           })
           .join('\n\n---\n\n');
@@ -175,67 +183,67 @@ export function useChatSubmit({ textareaRef }: UseChatSubmitOptions): UseChatSub
         a.download = 'conversation.md';
         a.click();
         URL.revokeObjectURL(url);
-        toast.success('Conversation exported');
+        toast.success(t('exportSuccess'));
       },
     },
     {
       name: 'copy',
-      description: 'Copy last response to clipboard',
+      description: t('copyDesc'),
       icon: <ClipboardCopy size={13} />,
       execute: () => {
         const msgs = useStore.getState().messages;
         const last = [...msgs].reverse().find((m) => m.role === 'assistant');
-        if (!last) { toast.info('No assistant response to copy'); return; }
-        navigator.clipboard.writeText(last.content).then(() => toast.success('Copied to clipboard')).catch(() => toast.error('Failed to copy'));
+        if (!last) { toast.info(t('copyNoResponse')); return; }
+        navigator.clipboard.writeText(last.content).then(() => toast.success(t('copySuccess'))).catch(() => toast.error(t('copyFailed')));
       },
     },
     {
       name: 'retry',
-      description: 'Regenerate the last response',
+      description: t('retryDesc'),
       icon: <RefreshCw size={13} />,
       execute: () => {
         const { messages: msgs, activeConversationId: convId } = useStore.getState();
         const last = [...msgs].reverse().find((m) => m.role === 'assistant');
-        if (!last || !convId) { toast.info('Nothing to regenerate'); return; }
+        if (!last || !convId) { toast.info(t('retryNothing')); return; }
         window.dispatchEvent(new CustomEvent('nexus:regenerate', { detail: { conversationId: convId, messageId: last.id } }));
       },
     },
     {
       name: 'pin',
-      description: 'Pin or unpin the current conversation',
+      description: t('pinDesc'),
       icon: <Pin size={13} />,
       execute: () => {
         const convId = useStore.getState().activeConversationId;
-        if (!convId) { toast.info('No active conversation'); return; }
+        if (!convId) { toast.info(t('pinNoConversation')); return; }
         useStore.getState().togglePinConversation(convId);
         const conv = useStore.getState().conversations.find((c) => c.id === convId);
-        toast.success(conv?.pinned ? 'Conversation pinned' : 'Conversation unpinned');
+        toast.success(conv?.pinned ? t('pinSuccess') : t('unpinSuccess'));
       },
     },
     {
       name: 'system',
-      description: 'Set a system prompt — /system <prompt>',
+      description: t('systemDesc'),
       icon: <ScrollText size={13} />,
-      hint: 'Type the system prompt for this conversation',
+      hint: t('systemHint'),
       execute: (args: string) => {
         const prompt = args.trim();
-        if (!prompt) { toast.info('Usage: /system <prompt>'); return; }
+        if (!prompt) { toast.info(t('systemUsage')); return; }
         const convId = useStore.getState().activeConversationId;
-        if (!convId) { toast.info('Start a conversation first'); return; }
+        if (!convId) { toast.info(t('systemNoConversation')); return; }
         api.updateConversation(convId, { system_prompt: prompt })
-          .then(() => toast.success('System prompt set'))
-          .catch(() => toast.error('Failed to set system prompt'));
+          .then(() => toast.success(t('systemSuccess')))
+          .catch(() => toast.error(t('systemFailed')));
       },
     },
     {
       name: 'summarize',
-      description: 'Summarize the conversation so far',
+      description: t('summarizeDesc'),
       icon: <FileText size={13} />,
       execute: () => {
         const msgs = useStore.getState().messages;
-        if (msgs.length === 0) { toast.info('No messages to summarize'); return; }
+        if (msgs.length === 0) { toast.info(t('summarizeNoMessages')); return; }
         const summary = msgs.map((m) => `${m.role}: ${m.content}`).join('\n').slice(0, 12000);
-        setContent(`Please provide a concise summary of our conversation so far:\n\n${summary}`);
+        setContent(t('summarizePrompt', { summary }));
         setTimeout(() => {
           const btn = document.querySelector('[data-send-button]') as HTMLButtonElement;
           btn?.click();
@@ -244,15 +252,15 @@ export function useChatSubmit({ textareaRef }: UseChatSubmitOptions): UseChatSub
     },
     {
       name: 'search',
-      description: 'Search messages — /search <query>',
+      description: t('searchDesc'),
       icon: <Search size={13} />,
-      hint: 'Type a search term to find in messages',
+      hint: t('searchHint'),
       execute: (args: string) => {
         const query = args.trim().toLowerCase();
-        if (!query) { toast.info('Usage: /search <query>'); return; }
+        if (!query) { toast.info(t('searchUsage')); return; }
         const msgs = useStore.getState().messages;
         const matches = msgs.filter((m) => m.content.toLowerCase().includes(query));
-        if (matches.length === 0) { toast.info(`No matches for "${args.trim()}"`); return; }
+        if (matches.length === 0) { toast.info(t('searchNoMatches', { query: args.trim() })); return; }
         const firstMatch = matches[0];
         const el = document.querySelector(`[data-message-id="${firstMatch.id}"]`);
         if (el) {
@@ -260,16 +268,16 @@ export function useChatSubmit({ textareaRef }: UseChatSubmitOptions): UseChatSub
           el.classList.add('search-highlight');
           setTimeout(() => el.classList.remove('search-highlight'), 2000);
         }
-        toast.success(`Found ${matches.length} match${matches.length === 1 ? '' : 'es'}`);
+        toast.success(t('searchFoundCount', { count: matches.length }));
       },
     },
     {
       name: 'tokens',
-      description: 'Show token usage for this conversation',
+      description: t('tokensDesc'),
       icon: <Hash size={13} />,
       execute: () => {
         const msgs = useStore.getState().messages;
-        if (msgs.length === 0) { toast.info('No messages yet'); return; }
+        if (msgs.length === 0) { toast.info(t('tokensNoMessages')); return; }
         let inputTokens = 0, outputTokens = 0, totalCost = 0;
         let counted = 0;
         for (const m of msgs) {
@@ -280,64 +288,65 @@ export function useChatSubmit({ textareaRef }: UseChatSubmitOptions): UseChatSub
             counted++;
           }
         }
-        if (counted === 0) { toast.info('No token usage data available'); return; }
-        const parts = [
-          `${(inputTokens + outputTokens).toLocaleString()} tokens`,
-          `(${inputTokens.toLocaleString()} in / ${outputTokens.toLocaleString()} out)`,
-        ];
+        if (counted === 0) { toast.info(t('tokensNoData')); return; }
+        const parts = [t('tokensSummary', {
+          total: (inputTokens + outputTokens).toLocaleString(),
+          input: inputTokens.toLocaleString(),
+          output: outputTokens.toLocaleString(),
+        })];
         if (totalCost > 0) parts.push(`· $${totalCost.toFixed(4)}`);
         toast.info(parts.join(' '));
       },
     },
     {
       name: 'diff',
-      description: 'Compare branched responses side-by-side',
+      description: t('diffDesc'),
       icon: <GitCompare size={13} />,
       execute: () => {
         const { conversationTree: tree, messages: msgs, activeConversationId: convId } = useStore.getState();
-        if (!convId) { toast.info('No active conversation'); return; }
+        if (!convId) { toast.info(t('diffNoConversation')); return; }
 
         const lastAssistant = [...msgs].reverse().find((m) => m.role === 'assistant');
-        if (!lastAssistant) { toast.info('No assistant responses'); return; }
+        if (!lastAssistant) { toast.info(t('diffNoAssistant')); return; }
 
         const treeNodes = tree?.nodes || [];
         const parentId = lastAssistant.parentId;
         const siblings = parentId ? treeNodes.filter((n) => n.parentId === parentId && n.role === 'assistant') : [];
 
-        if (siblings.length < 2) { toast.info('No branched responses to compare — use /compare to generate multi-model responses'); return; }
+        if (siblings.length < 2) { toast.info(t('diffNoBranches')); return; }
 
-        toast.info('Loading branches...');
+        toast.info(t('diffLoading'));
         api.getMessageSiblings(convId, lastAssistant.id).then((raw) => {
           const siblingMsgs = raw.filter((m) => (m.role as string) === 'assistant');
-          if (siblingMsgs.length < 2) { toast.info('No branched responses to compare'); return; }
+          if (siblingMsgs.length < 2) { toast.info(t('diffNoBranches')); return; }
           useStore.getState().setDiffView({
             columns: siblingMsgs.map((m, i) => ({
-              label: ((m.model as string) || '').split('/').pop() || `Response ${i + 1}`,
+              label: ((m.model as string) || '').split('/').pop() || t('diffResponseLabel', { index: i + 1 }),
               content: (m.content as string) || '',
             })),
           });
-        }).catch(() => toast.error('Failed to load branches'));
+        }).catch(() => toast.error(t('diffFailed')));
       },
     },
     {
       name: 'compare',
-      description: 'Compare models — /compare model1, model2, ...',
+      description: t('compareDesc'),
       icon: <GitCompare size={13} />,
-      hint: 'List models separated by commas, e.g. sonnet, opus, gpt-4o',
+      hint: t('compareHint'),
       execute: (args: string) => {
         const names = args.split(/[,\s]+/).map((s) => s.trim().toLowerCase()).filter(Boolean);
-        if (names.length < 2) { toast.info('Usage: /compare sonnet, opus, gpt-4o'); return; }
+        if (names.length < 2) { toast.info(t('compareUsage')); return; }
         const resolved: string[] = [];
         for (const q of names) {
           const match = MODELS.find((m) => m.name.toLowerCase().includes(q) || m.id.toLowerCase().includes(q));
-          if (!match) { toast.error(`Model "${q}" not found`); return; }
+          if (!match) { toast.error(t('compareModelNotFound', { name: q })); return; }
           resolved.push(match.id);
         }
         setCompareModels(resolved);
-        toast.success(`Compare mode: ${resolved.map((id) => id.split('/').pop()).join(' vs ')}`);
+        toast.success(t('compareSuccess', { models: resolved.map((id) => id.split('/').pop()).join(' vs ') }));
       },
     },
-  ], []);
+  ], [t]);
 
   // Filter slash commands based on input
   const filteredSlashCommands = useMemo(() => {
@@ -381,12 +390,12 @@ export function useChatSubmit({ textareaRef }: UseChatSubmitOptions): UseChatSub
         .filter((c) => c.title && c.id !== activeConversationId)
         .filter((c) => !query || c.title.toLowerCase().includes(query.toLowerCase()))
         .slice(0, 8)
-        .map((c) => ({ id: c.id, title: c.title || 'Untitled' }));
+        .map((c) => ({ id: c.id, title: c.title || ts('untitled') }));
       setMentionResults(filtered);
     } else {
       setMentionMenuOpen(false);
     }
-  }, [content, activeConversationId]);
+  }, [activeConversationId, content, ts]);
 
   const insertMention = useCallback((conv: { id: string; title: string }) => {
     const newContent = content.replace(/@\S*$/, '');
@@ -528,7 +537,7 @@ export function useChatSubmit({ textareaRef }: UseChatSubmitOptions): UseChatSub
           const result = await api.uploadSandboxFiles(sandboxId, otherFiles);
           attachmentIds = result.ids;
         } catch {
-          toast.error('Failed to upload files');
+          toast.error(tc('failedToUpload'));
         }
       }
     }
@@ -547,7 +556,7 @@ export function useChatSubmit({ textareaRef }: UseChatSubmitOptions): UseChatSub
         api.listConversations().then((r) => setConversations(r.conversations));
       } catch (e) {
         console.error('Failed to create conversation:', e);
-        toast.error('Failed to create conversation');
+        toast.error(tc('failedToCreate'));
         return;
       }
     } else if (activePersona) {
@@ -569,7 +578,7 @@ export function useChatSubmit({ textareaRef }: UseChatSubmitOptions): UseChatSub
     // Add user message optimistically (include image previews)
     const userMsg: Message = {
       id: `temp-${Date.now()}`, conversationId: convId, role: 'user',
-      content: text || '[File upload]', createdAt: new Date().toISOString(),
+      content: text || tc('fileUploadPlaceholder'), createdAt: new Date().toISOString(),
       parentId,
       ...(attachedContexts.length > 0 ? { contexts: [...attachedContexts] } : {}),
       ...(imageDataUrls ? { images: imageDataUrls.map((img) => ({ filename: img.filename, url: img.dataUrl })) } : {}),
@@ -597,9 +606,9 @@ export function useChatSubmit({ textareaRef }: UseChatSubmitOptions): UseChatSub
       tone: tone !== 'professional' ? tone : undefined,
     });
     if (compareModels.length > 0) setCompareModels([]);
-  }, [content, pendingFiles, attachedContexts, isStreaming, activeConversationId, activeModel, activePersona, sandboxId, messages,
-    setActiveConversationId, setMessages, setConversations, branchingFromId, setBranchingFromId,
-    numResponses, verbosity, creativity, tone, setConversationMessages, streamSend, slashCommands, compareModels]);
+  }, [activeConversationId, activeModel, activePersona, attachedContexts, branchingFromId, compareModels, content, creativity,
+    isStreaming, messages, numResponses, pendingFiles, sandboxId, setActiveConversationId, setBranchingFromId,
+    setConversationMessages, setConversations, slashCommands, streamSend, tc, tone, verbosity]);
 
   // Handle regenerate events from message bubbles
   useEffect(() => {
@@ -727,7 +736,7 @@ export function useChatSubmit({ textareaRef }: UseChatSubmitOptions): UseChatSub
     try {
       let convId = activeConversationId;
       if (!convId) {
-        const conv = await api.createConversation({ title: 'New conversation', model: activeModel });
+        const conv = await api.createConversation({ title: tc('newConversationTitle'), model: activeModel });
         convId = conv.id;
         setActiveConversationId(conv.id);
         const list = await api.listConversations();
@@ -744,7 +753,7 @@ export function useChatSubmit({ textareaRef }: UseChatSubmitOptions): UseChatSub
     } finally {
       setIsGeneratingImage(false);
     }
-  }, [content, isGeneratingImage, isStreaming, activeConversationId, activeModel, imageModel, setActiveConversationId, setConversations]);
+  }, [activeConversationId, activeModel, content, imageModel, isGeneratingImage, isStreaming, setActiveConversationId, setConversations, tc]);
 
   const removeFile = useCallback((index: number) => setPendingFiles((prev) => prev.filter((_, i) => i !== index)), []);
   const hasContent = content.trim() || pendingFiles.length > 0;

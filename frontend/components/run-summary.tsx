@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import { useTranslations } from 'next-intl';
 import {
   ChevronRight,
   ChevronDown,
@@ -38,6 +39,7 @@ function formatCost(usd: number): string {
 // ── Section: What I Did ──
 
 function StepsSummary({ steps }: { steps: ExecutionStep[] }) {
+  const t = useTranslations('runSummary');
   const { succeeded, failed, skipped } = useMemo(() => {
     const succeeded = steps.filter((s) => s.status === 'success');
     const failed = steps.filter((s) => s.status === 'failed' || s.status === 'timeout');
@@ -47,7 +49,7 @@ function StepsSummary({ steps }: { steps: ExecutionStep[] }) {
 
   return (
     <div className="space-y-1.5">
-      <h4 className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider">What I did</h4>
+      <h4 className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider">{t('whatIDid')}</h4>
       <ul className="space-y-1">
         {succeeded.map((step) => (
           <li key={step.id} className="flex items-center gap-2 text-xs text-text-secondary">
@@ -73,7 +75,7 @@ function StepsSummary({ steps }: { steps: ExecutionStep[] }) {
         ))}
         {skipped.length > 0 && (
           <li className="text-[10px] text-text-tertiary">
-            {skipped.length} step{skipped.length !== 1 ? 's' : ''} skipped
+            {t('stepsSkipped', { count: skipped.length })}
           </li>
         )}
       </ul>
@@ -84,28 +86,29 @@ function StepsSummary({ steps }: { steps: ExecutionStep[] }) {
 // ── Section: What I Changed ──
 
 function ArtifactsSection({ summary }: { summary: RunSummaryType }) {
+  const t = useTranslations('runSummary');
   if (summary.artifactsCreated === 0 && !summary.sandboxUsed && !summary.retrievalUsed) return null;
 
   return (
     <div className="space-y-1.5">
-      <h4 className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider">What I changed</h4>
+      <h4 className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider">{t('whatIChanged')}</h4>
       <div className="flex flex-wrap gap-2">
         {summary.artifactsCreated > 0 && (
           <span className="inline-flex items-center gap-1 text-[10px] font-mono text-emerald-400 bg-emerald-400/10 border border-emerald-400/20 rounded px-1.5 py-0.5">
             <Sparkles size={9} />
-            {summary.artifactsCreated} artifact{summary.artifactsCreated !== 1 ? 's' : ''}
+            {t('artifactsCount', { count: summary.artifactsCreated })}
           </span>
         )}
         {summary.sandboxUsed && (
           <span className="inline-flex items-center gap-1 text-[10px] font-mono text-accent bg-accent/10 border border-accent/20 rounded px-1.5 py-0.5">
             <Terminal size={9} />
-            sandbox
+            {t('sandboxBadge')}
           </span>
         )}
         {summary.retrievalUsed && (
           <span className="inline-flex items-center gap-1 text-[10px] font-mono text-amber-400 bg-amber-400/10 border border-amber-400/20 rounded px-1.5 py-0.5">
             <Database size={9} />
-            knowledge base
+            {t('knowledgeBaseBadge')}
           </span>
         )}
       </div>
@@ -116,6 +119,7 @@ function ArtifactsSection({ summary }: { summary: RunSummaryType }) {
 // ── Section: What to Review ──
 
 function ReviewSection({ summary }: { summary: RunSummaryType }) {
+  const t = useTranslations('runSummary');
   const items = [
     ...summary.warnings.map((w) => ({ text: w, type: 'warning' as const })),
     ...summary.uncertainResults.map((u) => ({ text: u, type: 'uncertain' as const })),
@@ -125,7 +129,7 @@ function ReviewSection({ summary }: { summary: RunSummaryType }) {
 
   return (
     <div className="space-y-1.5">
-      <h4 className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider">What to review</h4>
+      <h4 className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider">{t('whatToReview')}</h4>
       <ul className="space-y-1">
         {items.map((item, i) => (
           <li key={i} className="flex items-start gap-2 text-xs">
@@ -144,6 +148,7 @@ function ReviewSection({ summary }: { summary: RunSummaryType }) {
 // ── Stats bar ──
 
 function StatsBar({ summary }: { summary: RunSummaryType }) {
+  const t = useTranslations('runSummary');
   return (
     <div className="flex items-center gap-3 text-[10px] font-mono text-text-tertiary pt-2 border-t border-border-subtle">
       {summary.totalDurationMs > 0 && (
@@ -164,7 +169,7 @@ function StatsBar({ summary }: { summary: RunSummaryType }) {
       {summary.toolsUsed.length > 0 && (
         <span className="flex items-center gap-1">
           <Layers size={9} />
-          {summary.toolsUsed.length} tool{summary.toolsUsed.length !== 1 ? 's' : ''}
+          {t('toolCount', { count: summary.toolsUsed.length })}
         </span>
       )}
     </div>
@@ -179,6 +184,7 @@ export interface RunSummaryProps {
 }
 
 export function RunSummaryPanel({ summary, defaultExpanded = false }: RunSummaryProps) {
+  const t = useTranslations('runSummary');
   const [expanded, setExpanded] = useState(defaultExpanded);
 
   if (!summary || summary.steps.length === 0) return null;
@@ -208,18 +214,18 @@ export function RunSummaryPanel({ summary, defaultExpanded = false }: RunSummary
         <Cpu size={12} className="text-text-secondary shrink-0" />
 
         <span className="text-[11px] font-mono font-medium text-text-secondary">
-          Run Summary
+          {t('headerTitle')}
         </span>
 
         {/* Compact stats when collapsed */}
         {!expanded && (
           <span className="text-[10px] font-mono text-text-tertiary ml-1">
-            {summary.steps.length} step{summary.steps.length !== 1 ? 's' : ''}
+            {t('stepCount', { count: summary.steps.length })}
             {summary.totalDurationMs > 0 && ` \u00B7 ${formatDuration(summary.totalDurationMs)}`}
             {summary.totalTokens > 0 && ` \u00B7 ${formatTokens(summary.totalTokens)}`}
             {failedCount > 0 && (
               <span className="text-amber-400 ml-1">
-                \u26A0 {failedCount} failed
+                {'\u26A0'} {t('failedCount', { count: failedCount })}
               </span>
             )}
           </span>

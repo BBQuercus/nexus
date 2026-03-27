@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { CheckCircle2, AlertCircle, AlertTriangle, XCircle, ChevronRight } from 'lucide-react';
 import type { ConfidenceLevel } from '@/lib/execution-types';
 
@@ -12,8 +13,8 @@ type ConfidenceConfig = {
   textColor: string;
   bgColor: string;
   borderColor: string;
-  label: string;
-  hint: string;
+  labelKey: 'high' | 'medium' | 'low' | 'failed';
+  hintKey: '' | 'mediumHint' | 'lowHint' | 'failedHint';
 };
 
 const CONFIDENCE_CONFIG: Record<ConfidenceLevel | 'failed', ConfidenceConfig> = {
@@ -23,8 +24,8 @@ const CONFIDENCE_CONFIG: Record<ConfidenceLevel | 'failed', ConfidenceConfig> = 
     textColor: 'text-emerald-400',
     bgColor: 'bg-emerald-400/10',
     borderColor: 'border-emerald-400/20',
-    label: 'High confidence',
-    hint: '',
+    labelKey: 'high',
+    hintKey: '',
   },
   medium: {
     icon: AlertCircle,
@@ -32,8 +33,8 @@ const CONFIDENCE_CONFIG: Record<ConfidenceLevel | 'failed', ConfidenceConfig> = 
     textColor: 'text-amber-400',
     bgColor: 'bg-amber-400/10',
     borderColor: 'border-amber-400/20',
-    label: 'Medium confidence',
-    hint: 'This result may be incomplete',
+    labelKey: 'medium',
+    hintKey: 'mediumHint',
   },
   low: {
     icon: AlertTriangle,
@@ -41,8 +42,8 @@ const CONFIDENCE_CONFIG: Record<ConfidenceLevel | 'failed', ConfidenceConfig> = 
     textColor: 'text-orange-400',
     bgColor: 'bg-orange-400/10',
     borderColor: 'border-orange-400/20',
-    label: 'Low confidence',
-    hint: 'Low confidence \u2014 weak retrieval or limited data',
+    labelKey: 'low',
+    hintKey: 'lowHint',
   },
   failed: {
     icon: XCircle,
@@ -50,8 +51,8 @@ const CONFIDENCE_CONFIG: Record<ConfidenceLevel | 'failed', ConfidenceConfig> = 
     textColor: 'text-error',
     bgColor: 'bg-error/10',
     borderColor: 'border-error/20',
-    label: 'Failed',
-    hint: 'This tool or step failed',
+    labelKey: 'failed',
+    hintKey: 'failedHint',
   },
 };
 
@@ -64,12 +65,13 @@ export function ConfidenceDot({
   level: ConfidenceLevel | 'failed';
   size?: 'sm' | 'md';
 }) {
+  const t = useTranslations('confidenceIndicator');
   const config = CONFIDENCE_CONFIG[level];
   const px = size === 'sm' ? 'w-[7px] h-[7px]' : 'w-[9px] h-[9px]';
 
   return (
     <span
-      title={config.label}
+      title={t(config.labelKey)}
       className={`inline-block rounded-full ${config.dotColor} ${px}`}
     />
   );
@@ -84,11 +86,12 @@ export function ConfidenceIcon({
   level: ConfidenceLevel | 'failed';
   size?: number;
 }) {
+  const t = useTranslations('confidenceIndicator');
   const config = CONFIDENCE_CONFIG[level];
   const Icon = config.icon;
 
   return (
-    <span title={config.label}>
+    <span title={t(config.labelKey)}>
       <Icon size={size} className={config.textColor} />
     </span>
   );
@@ -103,6 +106,7 @@ export function ConfidenceBadge({
   level: ConfidenceLevel | 'failed';
   label?: string;
 }) {
+  const t = useTranslations('confidenceIndicator');
   const config = CONFIDENCE_CONFIG[level];
 
   // High confidence: don't show badge to avoid noise
@@ -113,7 +117,7 @@ export function ConfidenceBadge({
       className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono ${config.textColor} ${config.bgColor} border ${config.borderColor}`}
     >
       <span className={`inline-block w-[6px] h-[6px] rounded-full ${config.dotColor}`} />
-      {label || config.label}
+      {label || t(config.labelKey)}
     </span>
   );
 }
@@ -127,6 +131,7 @@ export interface ConfidenceBannerProps {
 }
 
 export function ConfidenceBanner({ level, message, details }: ConfidenceBannerProps) {
+  const t = useTranslations('confidenceIndicator');
   const [expanded, setExpanded] = useState(false);
   const config = CONFIDENCE_CONFIG[level];
   const Icon = config.icon;
@@ -134,7 +139,7 @@ export function ConfidenceBanner({ level, message, details }: ConfidenceBannerPr
   // High confidence: don't render anything
   if (level === 'high') return null;
 
-  const displayMessage = message || config.hint;
+  const displayMessage = message || (config.hintKey ? t(config.hintKey) : '');
   if (!displayMessage) return null;
 
   return (

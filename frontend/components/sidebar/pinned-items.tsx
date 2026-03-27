@@ -2,6 +2,7 @@
 
 import type { Conversation } from '@/lib/types';
 import { Pin } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import ConversationItem from './conversation-item';
 
 interface PinnedItemsProps {
@@ -47,13 +48,15 @@ export default function PinnedItems({
   onRenameCancel,
   renameInputRef,
 }: PinnedItemsProps) {
+  const t = useTranslations('sidebar');
+
   if (items.length === 0) return null;
 
   return (
     <div className="mb-1">
       <div className="px-2 py-1.5 text-[10px] uppercase tracking-[0.1em] font-medium text-accent/70">
         <Pin size={8} className="inline mr-1 -mt-0.5" />
-        Pinned
+        {t('pinned')}
       </div>
       {items.map((conv) => (
         <ConversationItem

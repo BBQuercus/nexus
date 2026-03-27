@@ -2,10 +2,12 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslations } from 'next-intl';
 import type { Citation } from '@/lib/types';
 import { FileText, Hash, ExternalLink, X, ChevronRight, BookOpen } from 'lucide-react';
 
 function HighlightedPassage({ text, maxLines = 8 }: { text: string; maxLines?: number }) {
+  const t = useTranslations('citationDetail');
   const [expanded, setExpanded] = useState(false);
   const lines = text.split('\n');
   const truncated = !expanded && lines.length > maxLines;
@@ -21,7 +23,7 @@ function HighlightedPassage({ text, maxLines = 8 }: { text: string; maxLines?: n
           onClick={() => setExpanded(true)}
           className="text-[10px] text-accent hover:underline mt-1 cursor-pointer"
         >
-          Show full passage
+          {t('showFullPassage')}
         </button>
       )}
       {expanded && lines.length > maxLines && (
@@ -29,7 +31,7 @@ function HighlightedPassage({ text, maxLines = 8 }: { text: string; maxLines?: n
           onClick={() => setExpanded(false)}
           className="text-[10px] text-accent hover:underline mt-1 cursor-pointer"
         >
-          Collapse
+          {t('collapse')}
         </button>
       )}
     </div>
@@ -37,9 +39,10 @@ function HighlightedPassage({ text, maxLines = 8 }: { text: string; maxLines?: n
 }
 
 function ScoreIndicator({ score }: { score: number }) {
+  const t = useTranslations('citationDetail');
   const pct = Math.round(score * 100);
   const color = score >= 0.7 ? 'bg-accent' : score >= 0.4 ? 'bg-warning' : 'bg-error';
-  const label = score >= 0.7 ? 'High' : score >= 0.4 ? 'Moderate' : 'Low';
+  const label = score >= 0.7 ? t('scoreHigh') : score >= 0.4 ? t('scoreModerate') : t('scoreLow');
 
   return (
     <div className="flex items-center gap-2">
@@ -60,6 +63,7 @@ export function CitationDetailPanel({
   citation: Citation;
   onClose: () => void;
 }) {
+  const t = useTranslations('citationDetail');
   const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -71,9 +75,9 @@ export function CitationDetailPanel({
   }, [onClose]);
 
   const locationParts: string[] = [];
-  if (citation.page) locationParts.push(`Page ${citation.page}`);
+  if (citation.page) locationParts.push(`${t('pageLabel')} ${citation.page}`);
   if (citation.section) locationParts.push(citation.section);
-  if (citation.chunkIndex !== undefined) locationParts.push(`Chunk #${citation.chunkIndex}`);
+  if (citation.chunkIndex !== undefined) locationParts.push(`${t('chunkId')} #${citation.chunkIndex}`);
 
   return (
     <div
@@ -84,7 +88,7 @@ export function CitationDetailPanel({
       <div className="flex items-center justify-between px-4 py-3 border-b border-border-default">
         <div className="flex items-center gap-2 min-w-0">
           <BookOpen size={16} className="text-accent shrink-0" />
-          <h3 className="text-sm font-medium text-text-primary truncate">Citation Detail</h3>
+          <h3 className="text-sm font-medium text-text-primary truncate">{t('title')}</h3>
         </div>
         <button
           onClick={onClose}
@@ -113,7 +117,7 @@ export function CitationDetailPanel({
         {/* Relevance score */}
         <div>
           <label className="text-[10px] uppercase tracking-wider text-text-tertiary font-medium mb-1 block">
-            Relevance
+            {t('relevanceLabel')}
           </label>
           <ScoreIndicator score={citation.score} />
         </div>
@@ -121,7 +125,7 @@ export function CitationDetailPanel({
         {/* Retrieved passage */}
         <div>
           <label className="text-[10px] uppercase tracking-wider text-text-tertiary font-medium mb-1.5 block">
-            Retrieved Passage
+            {t('retrievedPassage')}
           </label>
           <HighlightedPassage text={citation.snippet} />
         </div>
@@ -135,7 +139,7 @@ export function CitationDetailPanel({
             className="flex items-center gap-2 px-3 py-2 bg-surface-1 border border-border-default rounded-lg text-xs text-accent hover:bg-accent/5 hover:border-accent/30 transition-colors"
           >
             <ExternalLink size={12} />
-            <span>Open in Knowledge Base</span>
+            <span>{t('openInKB')}</span>
             <ChevronRight size={12} className="ml-auto" />
           </a>
         )}
@@ -143,26 +147,26 @@ export function CitationDetailPanel({
         {/* Metadata */}
         <div className="border-t border-border-default pt-3">
           <label className="text-[10px] uppercase tracking-wider text-text-tertiary font-medium mb-2 block">
-            Details
+            {t('detailsLabel')}
           </label>
           <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[11px]">
-            <dt className="text-text-tertiary">Document ID</dt>
+            <dt className="text-text-tertiary">{t('documentId')}</dt>
             <dd className="text-text-secondary font-mono truncate" title={citation.documentId}>
               {citation.documentId.slice(0, 8)}...
             </dd>
-            <dt className="text-text-tertiary">Chunk ID</dt>
+            <dt className="text-text-tertiary">{t('chunkId')}</dt>
             <dd className="text-text-secondary font-mono truncate" title={citation.chunkId}>
               {citation.chunkId.slice(0, 8)}...
             </dd>
             {citation.page && (
               <>
-                <dt className="text-text-tertiary">Page</dt>
+                <dt className="text-text-tertiary">{t('pageLabel')}</dt>
                 <dd className="text-text-secondary">{citation.page}</dd>
               </>
             )}
             {citation.section && (
               <>
-                <dt className="text-text-tertiary">Section</dt>
+                <dt className="text-text-tertiary">{t('sectionLabel')}</dt>
                 <dd className="text-text-secondary">{citation.section}</dd>
               </>
             )}
@@ -185,6 +189,7 @@ export function CitationDetailPopover({
   anchorRect: DOMRect;
   onClose: () => void;
 }) {
+  const t = useTranslations('citationDetail');
   const popupRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ top: 0, left: 0, placement: 'above' as 'above' | 'below' });
 
@@ -228,7 +233,7 @@ export function CitationDetailPopover({
   }, [onClose]);
 
   const locationParts: string[] = [];
-  if (citation.page) locationParts.push(`Page ${citation.page}`);
+  if (citation.page) locationParts.push(`${t('pageLabel')} ${citation.page}`);
   if (citation.section) locationParts.push(citation.section);
 
   const scoreColor = citation.score >= 0.7
@@ -284,7 +289,7 @@ export function CitationDetailPopover({
           className="inline-flex items-center gap-1 mt-2 text-[10px] text-accent hover:underline"
         >
           <ExternalLink size={9} />
-          Open in Knowledge Base
+          {t('openInKB')}
         </a>
       )}
     </div>,

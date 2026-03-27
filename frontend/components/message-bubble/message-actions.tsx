@@ -3,6 +3,7 @@
 import { createPortal } from 'react-dom';
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { Copy, GitBranch, RefreshCw, Check, Download, ArrowRight, X, Link, Pencil, ThumbsUp, ThumbsDown, Volume2, SkipForward, Play, Pause, MessageSquare, Trash2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { ProviderLogo } from '../provider-logos';
 import { MODELS } from '@/lib/types';
 import type { ModelOption, ModelProvider } from '@/lib/types';
@@ -12,6 +13,7 @@ import type { Message } from './types';
 import { FEEDBACK_TAGS } from './types';
 
 export function InlineBranchInput({ messageId, onClose }: { messageId: string; onClose: () => void }) {
+  const t = useTranslations('message');
   const [branchText, setBranchText] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const activeConversationId = useStore((s) => s.activeConversationId);
@@ -42,7 +44,7 @@ export function InlineBranchInput({ messageId, onClose }: { messageId: string; o
       </div>
       <div className="bg-surface-0 border border-border-default rounded-lg p-4 shadow-xl shadow-black/20 w-80 animate-fade-in-up" style={{ animationDuration: '0.15s' }}>
         <div className="flex items-center gap-2 mb-3">
-          <span className="text-[10px] font-bold text-accent uppercase tracking-widest">Branch Thread</span>
+          <span className="text-[10px] font-bold text-accent uppercase tracking-widest">{t('branchThread')}</span>
           <span className="h-[1px] flex-1 bg-border-default/30" />
           <button onClick={onClose} className="text-text-tertiary hover:text-text-secondary cursor-pointer"><X size={12} /></button>
         </div>
@@ -54,7 +56,7 @@ export function InlineBranchInput({ messageId, onClose }: { messageId: string; o
               onChange={(e) => setBranchText(e.target.value)}
               onKeyDown={handleKeyDown}
               className="w-full bg-surface-1 border border-border-default rounded-lg p-3 text-sm text-text-primary placeholder:text-text-tertiary/50 focus:border-accent/30 focus:shadow-[0_0_12px_-4px_var(--color-accent-dim)] transition-all resize-none outline-none"
-              placeholder="Explore a different direction..."
+              placeholder={t('branchPlaceholder')}
               rows={3}
             />
             <div className="absolute bottom-2 right-2">
@@ -70,9 +72,9 @@ export function InlineBranchInput({ messageId, onClose }: { messageId: string; o
           <div className="flex justify-between items-center text-[10px] text-text-tertiary">
             <span className="flex items-center gap-1">
               <kbd className="px-1 py-0.5 bg-surface-1 border border-border-default rounded text-[9px]">&#8984;+Enter</kbd>
-              to branch
+              {t('branchKeyHint')}
             </span>
-            <span className="flex items-center gap-1"><Link size={9} /> Context locked</span>
+            <span className="flex items-center gap-1"><Link size={9} /> {t('branchContextLocked')}</span>
           </div>
         </div>
       </div>
@@ -81,6 +83,7 @@ export function InlineBranchInput({ messageId, onClose }: { messageId: string; o
 }
 
 export function InlineEditForm({ message, onClose }: { message: Message; onClose: () => void }) {
+  const t = useTranslations('message');
   const [editText, setEditText] = useState(message.content);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const isStreaming = useStore((s) => s.isStreaming);
@@ -135,14 +138,14 @@ export function InlineEditForm({ message, onClose }: { message: Message; onClose
       />
       <div className="flex justify-end gap-2 mt-2">
         <button onClick={onClose} className="px-2.5 py-1 text-[10px] text-text-tertiary hover:text-text-secondary bg-surface-2 rounded-lg cursor-pointer transition-colors">
-          Cancel
+          {t('editCancel')}
         </button>
         <button
           onClick={handleSubmit}
           disabled={!editText.trim() || editText.trim() === message.content}
           className="px-2.5 py-1 text-[10px] font-medium bg-accent text-bg rounded-lg hover:bg-accent-hover cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
-          Save & Submit
+          {t('editSave')}
         </button>
       </div>
     </div>
@@ -255,6 +258,7 @@ export function RetryWithModelMenu({ messageId, onClose, triggerRef }: { message
 }
 
 export function FeedbackPanel({ message }: { message: Message }) {
+  const t = useTranslations('message');
   const activeConversationId = useStore((s) => s.activeConversationId);
   const [feedbackState, setFeedbackState] = useState<'up' | 'down' | null>(message.feedback ?? null);
   const [showForm, setShowForm] = useState(false);
@@ -304,12 +308,12 @@ export function FeedbackPanel({ message }: { message: Message }) {
     <>
       <div className="h-3 w-[1px] bg-border-default/30 mx-0.5" />
       {thanks ? (
-        <span className="text-[10px] text-accent font-medium animate-fade-in-up" style={{ animationDuration: '0.15s' }}>Thanks!</span>
+        <span className="text-[10px] text-accent font-medium animate-fade-in-up" style={{ animationDuration: '0.15s' }}>{t('feedbackThanks')}</span>
       ) : (
         <>
           <button
             onClick={handleThumbsUp}
-            title="Good response"
+            title={t('thumbsUp')}
             className={`flex items-center gap-1 text-[10px] cursor-pointer transition-colors ${
               feedbackState === 'up' ? 'text-accent' : 'text-text-tertiary hover:text-text-secondary'
             }`}
@@ -318,7 +322,7 @@ export function FeedbackPanel({ message }: { message: Message }) {
           </button>
           <button
             onClick={handleThumbsDown}
-            title="Bad response"
+            title={t('thumbsDown')}
             className={`flex items-center gap-1 text-[10px] cursor-pointer transition-colors ${
               feedbackState === 'down' ? 'text-error' : 'text-text-tertiary hover:text-text-secondary'
             }`}
@@ -330,7 +334,7 @@ export function FeedbackPanel({ message }: { message: Message }) {
       {showForm && (
         <div className="absolute left-0 top-full mt-1.5 w-80 bg-surface-0 border border-border-default rounded-lg shadow-xl shadow-black/30 z-50 p-3 animate-fade-in-up" style={{ animationDuration: '0.12s' }}>
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-bold text-text-secondary uppercase tracking-wider">What went wrong?</span>
+            <span className="text-[10px] font-bold text-text-secondary uppercase tracking-wider">{t('feedbackHeading')}</span>
             <button onClick={() => setShowForm(false)} className="text-text-tertiary hover:text-text-secondary cursor-pointer"><X size={12} /></button>
           </div>
           <div className="flex flex-wrap gap-1.5 mb-2">
@@ -351,7 +355,7 @@ export function FeedbackPanel({ message }: { message: Message }) {
           <textarea
             value={comment}
             onChange={(e) => setComment(e.target.value)}
-            placeholder="Optional: tell us more..."
+            placeholder={t('feedbackPlaceholder')}
             className="w-full bg-surface-1 border border-border-default rounded-lg p-2 text-xs text-text-primary placeholder:text-text-tertiary/50 focus:border-accent/30 outline-none resize-none mb-2"
             rows={2}
           />
@@ -359,7 +363,7 @@ export function FeedbackPanel({ message }: { message: Message }) {
             onClick={handleSubmitDown}
             className="w-full px-3 py-1.5 text-[11px] font-medium bg-accent text-bg rounded-lg hover:bg-accent-hover cursor-pointer transition-colors"
           >
-            Submit feedback
+            {t('feedbackSubmit')}
           </button>
         </div>
       )}
@@ -368,6 +372,7 @@ export function FeedbackPanel({ message }: { message: Message }) {
 }
 
 export function AudioPlayer({ src, onClose }: { src: string; onClose: () => void }) {
+  const t = useTranslations('message');
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -436,7 +441,7 @@ export function AudioPlayer({ src, onClose }: { src: string; onClose: () => void
       <button onClick={togglePlay} className="text-text-secondary hover:text-text-primary transition-colors cursor-pointer">
         {isPlaying ? <Pause size={16} /> : <Play size={16} />}
       </button>
-      <button onClick={skipForward} className="text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer" title="Skip 10s">
+      <button onClick={skipForward} className="text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer" title={t('audioSkip')}>
         <SkipForward size={14} />
       </button>
       <span className="text-[10px] text-text-tertiary tabular-nums w-8 text-right">{fmt(currentTime)}</span>
@@ -444,10 +449,10 @@ export function AudioPlayer({ src, onClose }: { src: string; onClose: () => void
         <div className="absolute inset-y-0 left-0 bg-accent rounded-full transition-[width] duration-100" style={{ width: `${progress}%` }} />
       </div>
       <span className="text-[10px] text-text-tertiary tabular-nums w-8">{duration > 0 ? fmt(duration) : '--:--'}</span>
-      <a href={src} download="assistant-response.wav" className="text-text-tertiary hover:text-text-secondary transition-colors" title="Download">
+      <a href={src} download="assistant-response.wav" className="text-text-tertiary hover:text-text-secondary transition-colors" title={t('audioDownload')}>
         <Download size={12} />
       </a>
-      <button onClick={onClose} className="text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer" title="Close">
+      <button onClick={onClose} className="text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer" title={t('audioClose')}>
         <X size={12} />
       </button>
     </div>
@@ -472,6 +477,8 @@ export function UserMessageActions({
   onEdit?: () => void;
   onDelete?: () => void;
 }) {
+  const t = useTranslations('message');
+  const tc = useTranslations('common');
   return (
     <div className="flex justify-end gap-2 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
       <button onClick={() => {
@@ -485,10 +492,10 @@ export function UserMessageActions({
           },
         }));
       }} className="flex items-center gap-1 text-[10px] text-text-tertiary hover:text-text-secondary cursor-pointer">
-        <Pencil size={10} /> Edit
+        <Pencil size={10} /> {tc('edit')}
       </button>
       <button onClick={onCopy} className="flex items-center gap-1 text-[10px] text-text-tertiary hover:text-text-secondary cursor-pointer">
-        {copied ? <Check size={10} className="text-accent" /> : <Copy size={10} />} {copied ? 'Copied' : 'Copy'}
+        {copied ? <Check size={10} className="text-accent" /> : <Copy size={10} />} {copied ? tc('copied') : tc('copy')}
       </button>
       <button
         onClick={onToggleBranch}
@@ -498,11 +505,11 @@ export function UserMessageActions({
             : 'text-text-tertiary hover:text-text-secondary'
         }`}
       >
-        <GitBranch size={10} /> Branch
+        <GitBranch size={10} /> {t('branch')}
       </button>
       {onDelete && (
         <button onClick={onDelete} className="flex items-center gap-1 text-[10px] text-text-tertiary hover:text-error cursor-pointer transition-colors">
-          <Trash2 size={10} /> Delete
+          <Trash2 size={10} /> {tc('delete')}
         </button>
       )}
     </div>
@@ -535,6 +542,8 @@ export function AssistantMessageActions({
   onToggleBranch: () => void;
   onDelete?: () => void;
 }) {
+  const t = useTranslations('message');
+  const tc = useTranslations('common');
   const retryBtnRef = useRef<HTMLButtonElement>(null);
 
   return (
@@ -542,14 +551,14 @@ export function AssistantMessageActions({
       showRetryMenu ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
     }`}>
       <button onClick={onCopy} className="flex items-center gap-1 text-[10px] text-text-tertiary hover:text-text-secondary cursor-pointer">
-        {copied ? <Check size={10} className="text-accent" /> : <Copy size={10} />} {copied ? 'Copied' : 'Copy'}
+        {copied ? <Check size={10} className="text-accent" /> : <Copy size={10} />} {copied ? tc('copied') : tc('copy')}
       </button>
       <button onClick={onRegenerate} className="flex items-center gap-1 text-[10px] text-text-tertiary hover:text-text-secondary cursor-pointer">
-        <RefreshCw size={10} /> Regenerate
+        <RefreshCw size={10} /> {t('regenerate')}
       </button>
       {message.content && (
         <button onClick={onGenerateAudio} className="flex items-center gap-1 text-[10px] text-text-tertiary hover:text-text-secondary cursor-pointer">
-          <Volume2 size={10} /> {isGeneratingAudio ? 'Audio...' : 'Audio'}
+          <Volume2 size={10} /> {isGeneratingAudio ? t('audioLoading') : t('audio')}
         </button>
       )}
       <button
@@ -559,7 +568,7 @@ export function AssistantMessageActions({
           showRetryMenu ? 'text-accent' : 'text-text-tertiary hover:text-text-secondary'
         }`}
       >
-        <RefreshCw size={10} /> Retry with...
+        <RefreshCw size={10} /> {t('retryWith')}
       </button>
       {showRetryMenu && (
         <RetryWithModelMenu messageId={message.id} onClose={onToggleRetryMenu} triggerRef={retryBtnRef} />
@@ -572,12 +581,12 @@ export function AssistantMessageActions({
             : 'text-text-tertiary hover:text-text-secondary'
         }`}
       >
-        <GitBranch size={10} /> Branch
+        <GitBranch size={10} /> {t('branch')}
       </button>
       <FeedbackPanel message={message} />
       {onDelete && (
         <button onClick={onDelete} className="flex items-center gap-1 text-[10px] text-text-tertiary hover:text-error cursor-pointer transition-colors">
-          <Trash2 size={10} /> Delete
+          <Trash2 size={10} /> {tc('delete')}
         </button>
       )}
     </div>

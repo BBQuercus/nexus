@@ -1,11 +1,13 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import { useStore } from '@/lib/store';
 import * as api from '@/lib/api';
 import { StopCircle, Play, Trash2 } from 'lucide-react';
 
 export default function SandboxBar() {
+  const t = useTranslations('sandbox');
   const sandboxStatus = useStore((s) => s.sandboxStatus);
   const sandboxId = useStore((s) => s.sandboxId);
   const setSandboxStatus = useStore((s) => s.setSandboxStatus);
@@ -25,9 +27,9 @@ export default function SandboxBar() {
   if (sandboxStatus === 'none') return null;
 
   const labels: Record<string, string> = {
-    creating: 'Creating...',
-    running: 'Running',
-    stopped: 'Stopped',
+    creating: t('creating'),
+    running: t('running'),
+    stopped: t('stopped'),
   };
 
   const dotColor: Record<string, string> = {
@@ -51,27 +53,27 @@ export default function SandboxBar() {
           {sandboxStatus === 'running' && (
             <button onClick={async () => { try { await api.stopSandbox(sandboxId); setSandboxStatus('stopped'); } catch {} setOpen(false); }}
               className="w-full flex items-center gap-2 px-3 py-2.5 text-left text-xs text-text-secondary hover:bg-surface-1 cursor-pointer transition-colors">
-              <StopCircle size={12} /> Stop Sandbox
+              <StopCircle size={12} /> {t('stopSandbox')}
             </button>
           )}
           {sandboxStatus === 'stopped' && (
             <button onClick={async () => { try { await api.startSandbox(sandboxId); setSandboxStatus('running'); } catch {} setOpen(false); }}
               className="w-full flex items-center gap-2 px-3 py-2.5 text-left text-xs text-text-secondary hover:bg-surface-1 cursor-pointer transition-colors">
-              <Play size={12} /> Start Sandbox
+              <Play size={12} /> {t('startSandbox')}
             </button>
           )}
           <button onClick={async () => {
               const confirmed = await useStore.getState().showConfirm({
-                title: 'Delete this sandbox?',
-                message: 'This will permanently delete the sandbox and all its files. This can\'t be undone.',
-                confirmLabel: 'Delete',
+                title: t('deleteTitle'),
+                message: t('deleteMessage'),
+                confirmLabel: t('deleteLabel'),
                 variant: 'danger',
               });
               if (!confirmed) return;
               try { await api.deleteSandbox(sandboxId); setSandboxStatus('none'); setSandboxId(null); } catch {} setOpen(false);
             }}
             className="w-full flex items-center gap-2 px-3 py-2.5 text-left text-xs text-error hover:bg-surface-1 cursor-pointer transition-colors">
-            <Trash2 size={12} /> Delete Sandbox
+            <Trash2 size={12} /> {t('deleteSandbox')}
           </button>
         </div>
       )}

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import { useStore } from '@/lib/store';
 import { useIsDesktop } from '@/lib/useMediaQuery';
 import { useRouter } from 'next/navigation';
@@ -23,6 +24,7 @@ export default function PageShell({
   sidebar: React.ReactNode;
   title: string;
 }) {
+  const t = useTranslations('pageShell');
   const router = useRouter();
   const sidebarOpen = useStore((s) => s.sidebarOpen);
   const setSidebarOpen = useStore((s) => s.setSidebarOpen);
@@ -52,7 +54,7 @@ export default function PageShell({
       }`}>
         <button
           onClick={() => setSidebarOpen(true)}
-          title="Show sidebar (Cmd+B)"
+          title={t('showSidebar')}
           className="flex items-center justify-center w-8 h-8 rounded-lg cursor-pointer transition-colors text-text-tertiary hover:text-text-secondary hover:bg-surface-1"
         >
           <PanelLeft size={15} />
@@ -70,14 +72,14 @@ export default function PageShell({
       }`}>
         <button
           onClick={() => setSidebarOpen(false)}
-          title="Hide sidebar (Cmd+B)"
+          title={t('hideSidebar')}
           className="flex items-center justify-center w-8 h-8 rounded-lg mr-2 cursor-pointer transition-colors text-text-tertiary hover:text-text-secondary hover:bg-surface-1"
         >
           <PanelLeft size={15} />
         </button>
         <button
           onClick={() => router.push('/')}
-          title="Home"
+          title={t('home')}
           className="flex items-center gap-2 cursor-pointer rounded-lg px-1.5 py-1 -ml-1.5 hover:bg-surface-1 transition-colors"
         >
           <Zap size={15} className="text-accent shrink-0" />
@@ -127,6 +129,7 @@ export default function PageShell({
 
 /** Sidebar wrapper: page-specific content + back link + user dropdown at the bottom */
 function SidebarChrome({ children }: { children: React.ReactNode }) {
+  const t = useTranslations('pageShell');
   const router = useRouter();
   return (
     <div className="relative flex flex-col w-[min(75vw,320px)] xl:w-[272px] xl:min-w-[272px] bg-surface-0 border-r border-border-default shrink-0 h-full">
@@ -140,7 +143,7 @@ function SidebarChrome({ children }: { children: React.ReactNode }) {
             onClick={() => router.push('/')}
             className="w-full flex items-center gap-2 px-2.5 py-2 text-[11px] text-text-tertiary hover:text-text-secondary cursor-pointer transition-colors rounded-lg hover:bg-surface-1"
           >
-            <ArrowLeft size={11} /> Back to chat
+            <ArrowLeft size={11} /> {t('backToChat')}
           </button>
         </div>
       </div>

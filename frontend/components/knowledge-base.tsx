@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { useTranslations } from 'next-intl';
 import * as api from '@/lib/api';
 import type { KnowledgeBase, KBDocument } from '@/lib/types';
 import type { KBChunk } from '@/lib/api';
@@ -41,10 +42,11 @@ function formatBytes(bytes: number): string {
 }
 
 function StatusBadge({ status }: { status: string }) {
+  const t = useTranslations('knowledge');
   const config = {
-    ready: { label: 'Ready', cls: 'text-accent bg-accent/10' },
-    processing: { label: 'Processing', cls: 'text-warning bg-warning/10' },
-    error: { label: 'Error', cls: 'text-error bg-error/10' },
+    ready: { label: t('statusReady'), cls: 'text-accent bg-accent/10' },
+    processing: { label: t('statusProcessing'), cls: 'text-warning bg-warning/10' },
+    error: { label: t('statusError'), cls: 'text-error bg-error/10' },
   }[status] || { label: status, cls: 'text-text-tertiary bg-surface-1' };
 
   return (
@@ -66,6 +68,7 @@ function KBSidebar({
   onCreate: () => void;
   loading: boolean;
 }) {
+  const t = useTranslations('knowledge');
   return (
     <div className="flex flex-col h-full">
       <div className="px-3 py-3">
@@ -73,7 +76,7 @@ function KBSidebar({
           onClick={onCreate}
           className="w-full flex items-center justify-center gap-1.5 px-2.5 py-2 text-[11px] font-medium bg-accent text-bg rounded-lg hover:bg-accent-hover cursor-pointer transition-colors"
         >
-          <Plus size={12} /> New Knowledge Base
+          <Plus size={12} /> {t('newKnowledgeBase')}
         </button>
       </div>
 
@@ -85,7 +88,7 @@ function KBSidebar({
         ) : knowledgeBases.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-text-tertiary">
             <BookOpen size={20} className="mb-2 opacity-20" />
-            <div className="text-[11px]">No knowledge bases yet</div>
+            <div className="text-[11px]">{t('noKnowledgeBasesYet')}</div>
           </div>
         ) : (
           <div className="space-y-0.5">
@@ -107,7 +110,7 @@ function KBSidebar({
                 <div className="flex-1 min-w-0">
                   <div className="text-xs font-medium truncate">{kb.name}</div>
                   <div className="flex items-center gap-2 mt-0.5 text-[10px] text-text-tertiary font-mono">
-                    <span>{kb.documentCount} doc{kb.documentCount !== 1 ? 's' : ''}</span>
+                    <span>{t('docCount', { count: kb.documentCount })}</span>
                     <StatusBadge status={kb.status} />
                   </div>
                 </div>
@@ -123,6 +126,7 @@ function KBSidebar({
 // ── Document Row ──
 
 function DocumentRow({ doc, kbId, onDelete, onView }: { doc: KBDocument; kbId: string; onDelete: () => void; onView: () => void }) {
+  const t = useTranslations('knowledge');
   const [deleting, setDeleting] = useState(false);
 
   const handleDelete = async (e: React.MouseEvent) => {
@@ -131,8 +135,8 @@ function DocumentRow({ doc, kbId, onDelete, onView }: { doc: KBDocument; kbId: s
     try {
       await api.deleteKBDocument(kbId, doc.id);
       onDelete();
-      toast.success('Document removed');
-    } catch { toast.error('Failed to delete document'); }
+      toast.success(t('documentRemoved'));
+    } catch { toast.error(t('deleteDocError')); }
     setDeleting(false);
   };
 
@@ -154,7 +158,7 @@ function DocumentRow({ doc, kbId, onDelete, onView }: { doc: KBDocument; kbId: s
         <div className="text-xs font-medium text-text-primary truncate">{doc.filename}</div>
         <div className="text-[10px] text-text-tertiary font-mono mt-0.5">
           {formatBytes(doc.fileSizeBytes)}
-          {doc.pageCount != null && <span> · {doc.pageCount} pages</span>}
+          {doc.pageCount != null && <span> · {t('pagesLabel', { count: doc.pageCount })}</span>}
         </div>
         {doc.errorMessage && <div className="text-[10px] text-error mt-0.5 truncate">{doc.errorMessage}</div>}
       </div>
@@ -175,6 +179,7 @@ function DocumentRow({ doc, kbId, onDelete, onView }: { doc: KBDocument; kbId: s
 type DocViewTab = 'chunks' | 'full';
 
 function DocumentViewer({ doc, kbId, onBack }: { doc: KBDocument; kbId: string; onBack: () => void }) {
+  const t = useTranslations('knowledge');
   const [tab, setTab] = useState<DocViewTab>('chunks');
   const [chunks, setChunks] = useState<KBChunk[]>([]);
   const [rawText, setRawText] = useState<string | null>(null);
@@ -187,7 +192,7 @@ function DocumentViewer({ doc, kbId, onBack }: { doc: KBDocument; kbId: string; 
     setLoadingChunks(true);
     api.getKBDocumentChunks(kbId, doc.id)
       .then(setChunks)
-      .catch(() => toast.error('Failed to load document chunks'))
+      .catch(() => toast.error(t('failedToLoadChunks')))
       .finally(() => setLoadingChunks(false));
   }, [kbId, doc.id]);
 
@@ -196,7 +201,7 @@ function DocumentViewer({ doc, kbId, onBack }: { doc: KBDocument; kbId: string; 
     setLoadingContent(true);
     api.getKBDocumentContent(kbId, doc.id)
       .then((res) => setRawText(res.rawText))
-      .catch(() => toast.error('Failed to load document content'))
+      .catch(() => toast.error(t('failedToLoadContent')))
       .finally(() => setLoadingContent(false));
   }, [tab, rawText, kbId, doc.id]);
 
@@ -228,6 +233,9 @@ function DocumentViewer({ doc, kbId, onBack }: { doc: KBDocument; kbId: string; 
     URL.revokeObjectURL(url);
   };
 
+  const showLess = useTranslations('common')('showLess');
+  const showMore = useTranslations('common')('showMore');
+
   return (
     <div className="flex-1 overflow-y-auto p-6 animate-[fadeIn_0.15s_ease-out]">
       <div className="max-w-4xl mx-auto">
@@ -236,7 +244,7 @@ function DocumentViewer({ doc, kbId, onBack }: { doc: KBDocument; kbId: string; 
           onClick={onBack}
           className="flex items-center gap-1.5 text-[11px] text-text-tertiary hover:text-text-secondary cursor-pointer transition-colors mb-4"
         >
-          <ArrowLeft size={11} /> Back to documents
+          <ArrowLeft size={11} /> {t('backToDocuments')}
         </button>
 
         <div className="flex items-start justify-between mb-6">
@@ -248,9 +256,9 @@ function DocumentViewer({ doc, kbId, onBack }: { doc: KBDocument; kbId: string; 
               <h2 className="text-sm font-semibold text-text-primary">{doc.filename}</h2>
               <div className="flex items-center gap-3 mt-1 text-[10px] text-text-tertiary font-mono">
                 <span>{formatBytes(doc.fileSizeBytes)}</span>
-                {doc.pageCount != null && <span>{doc.pageCount} pages</span>}
-                <span>{chunks.length} chunks</span>
-                <span>{totalTokens.toLocaleString()} tokens</span>
+                {doc.pageCount != null && <span>{t('pagesLabel', { count: doc.pageCount })}</span>}
+                <span>{t('chunksLabel', { count: chunks.length })}</span>
+                <span>{t('tokensLabel', { count: totalTokens.toLocaleString() })}</span>
               </div>
             </div>
           </div>
@@ -260,18 +268,18 @@ function DocumentViewer({ doc, kbId, onBack }: { doc: KBDocument; kbId: string; 
         {/* Tabs */}
         <div className="flex items-center gap-1 mb-5 border-b border-border-default">
           {([
-            { id: 'chunks' as DocViewTab, label: `Chunks (${chunks.length})` },
-            { id: 'full' as DocViewTab, label: 'Full Document' },
-          ]).map((t) => (
+            { id: 'chunks' as DocViewTab, label: t('chunksTab', { count: chunks.length }) },
+            { id: 'full' as DocViewTab, label: t('fullDocumentTab') },
+          ]).map((tabItem) => (
             <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
+              key={tabItem.id}
+              onClick={() => setTab(tabItem.id)}
               className={`px-3 py-2.5 text-xs font-medium cursor-pointer transition-colors relative ${
-                tab === t.id ? 'text-accent' : 'text-text-tertiary hover:text-text-secondary'
+                tab === tabItem.id ? 'text-accent' : 'text-text-tertiary hover:text-text-secondary'
               }`}
             >
-              {t.label}
-              {tab === t.id && <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-accent rounded-full" />}
+              {tabItem.label}
+              {tab === tabItem.id && <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-accent rounded-full" />}
             </button>
           ))}
         </div>
@@ -283,7 +291,7 @@ function DocumentViewer({ doc, kbId, onBack }: { doc: KBDocument; kbId: string; 
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search within document..."
+                placeholder={t('searchWithinDoc')}
                 className="w-full bg-bg border border-border-default rounded-lg pl-8 pr-3 py-2 text-xs text-text-primary placeholder:text-text-tertiary outline-none focus:border-accent transition-colors"
               />
               {search && (
@@ -299,7 +307,7 @@ function DocumentViewer({ doc, kbId, onBack }: { doc: KBDocument; kbId: string; 
               </div>
             ) : chunks.length === 0 ? (
               <div className="text-center py-12 text-text-tertiary text-xs">
-                No chunks found. Document may still be processing.
+                {t('noChunksFound')}
               </div>
             ) : (
               <div className="space-y-2">
@@ -338,7 +346,7 @@ function DocumentViewer({ doc, kbId, onBack }: { doc: KBDocument; kbId: string; 
                         </div>
                         {hasMore && (
                           <button onClick={() => toggleChunk(chunk.chunkIndex)} className="text-[10px] text-accent hover:underline cursor-pointer mt-1">
-                            {isExpanded ? 'Show less' : 'Show more'}
+                            {isExpanded ? showLess : showMore}
                           </button>
                         )}
                       </div>
@@ -358,19 +366,19 @@ function DocumentViewer({ doc, kbId, onBack }: { doc: KBDocument; kbId: string; 
               </div>
             ) : rawText === '' ? (
               <div className="text-center py-12 text-text-tertiary text-xs">
-                No extracted text available for this document.
+                {t('noExtractedText')}
               </div>
             ) : rawText !== null ? (
               <>
                 <div className="flex items-center justify-between mb-4">
                   <span className="text-[10px] text-text-tertiary font-mono">
-                    {rawText.length.toLocaleString()} characters
+                    {t('charsLabel', { count: rawText.length.toLocaleString() })}
                   </span>
                   <button
                     onClick={handleDownload}
                     className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] text-text-secondary hover:text-text-primary bg-surface-0 border border-border-default hover:border-border-focus rounded-lg transition-colors cursor-pointer"
                   >
-                    <Download size={11} /> Download .txt
+                    <Download size={11} /> {t('downloadTxt')}
                   </button>
                 </div>
                 <div className="bg-surface-0 border border-border-default rounded-xl p-5 max-h-[70vh] overflow-y-auto">
@@ -390,6 +398,7 @@ function DocumentViewer({ doc, kbId, onBack }: { doc: KBDocument; kbId: string; 
 // ── KB Detail ──
 
 function KBDetail({ kb, onRefresh, initialDocId }: { kb: KnowledgeBase; onRefresh: () => void; initialDocId?: string | null }) {
+  const t = useTranslations('knowledge');
   const [documents, setDocuments] = useState<KBDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -399,7 +408,7 @@ function KBDetail({ kb, onRefresh, initialDocId }: { kb: KnowledgeBase; onRefres
 
   const loadDocs = useCallback(async () => {
     try { const docs = await api.listKBDocuments(kb.id); setDocuments(docs); }
-    catch { toast.error('Failed to load documents'); }
+    catch { toast.error(t('failedToLoadDocs')); }
     setLoading(false);
   }, [kb.id]);
 
@@ -424,10 +433,10 @@ function KBDetail({ kb, onRefresh, initialDocId }: { kb: KnowledgeBase; onRefres
     setUploading(true);
     try {
       await directUpload(`/api/knowledge-bases/${kb.id}/documents`, Array.from(files));
-      toast.success(`${files.length} file${files.length > 1 ? 's' : ''} uploaded`);
+      toast.success(t('uploadSuccess', { count: files.length }));
       await loadDocs();
       onRefresh();
-    } catch (e) { toast.error((e as Error).message || 'Upload failed'); }
+    } catch (e) { toast.error((e as Error).message || t('uploadFailed')); }
     setUploading(false);
   };
 
@@ -439,17 +448,17 @@ function KBDetail({ kb, onRefresh, initialDocId }: { kb: KnowledgeBase; onRefres
 
   const handleDeleteKB = async () => {
     const confirmed = await useStore.getState().showConfirm({
-      title: `Delete "${kb.name}"?`,
-      message: 'All documents and chunks will be permanently deleted.',
-      confirmLabel: 'Delete',
+      title: t('deleteKBTitle', { name: kb.name }),
+      message: t('deleteKBMessage'),
+      confirmLabel: t('deleteKBLabel'),
       variant: 'danger',
     });
     if (!confirmed) return;
     try {
       await api.deleteKnowledgeBase(kb.id);
-      toast.success('Knowledge base deleted');
+      toast.success(t('kbDeleted'));
       onRefresh();
-    } catch { toast.error('Failed to delete'); }
+    } catch { toast.error(t('kbDeleteFailed')); }
   };
 
   useEffect(() => { setViewingDoc(null); }, [kb.id]);
@@ -476,16 +485,16 @@ function KBDetail({ kb, onRefresh, initialDocId }: { kb: KnowledgeBase; onRefres
             onClick={handleDeleteKB}
             className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] text-error/60 hover:text-error rounded-lg hover:bg-error/5 cursor-pointer transition-colors"
           >
-            <Trash2 size={11} /> Delete
+            <Trash2 size={11} /> {t('deleteKBLabel')}
           </button>
         </div>
 
         {/* Stats */}
         <div className="grid grid-cols-3 gap-2 mb-6">
           {[
-            { icon: FileText, label: 'Documents', value: String(kb.documentCount) },
-            { icon: Hash, label: 'Chunks', value: String(kb.chunkCount) },
-            { icon: Database, label: 'Model', value: kb.embeddingModel.split('/').pop() || kb.embeddingModel },
+            { icon: FileText, label: t('documentsLabel'), value: String(kb.documentCount) },
+            { icon: Hash, label: t('chunksStatLabel'), value: String(kb.chunkCount) },
+            { icon: Database, label: t('modelStatLabel'), value: kb.embeddingModel.split('/').pop() || kb.embeddingModel },
           ].map((stat) => (
             <div key={stat.label} className="bg-surface-0 border border-border-default rounded-xl px-3 py-2.5">
               <div className="flex items-center gap-1.5 mb-1">
@@ -508,7 +517,7 @@ function KBDetail({ kb, onRefresh, initialDocId }: { kb: KnowledgeBase; onRefres
         >
           {uploading ? (
             <div className="flex items-center justify-center gap-2 text-xs text-text-secondary py-2">
-              <Loader2 size={14} className="animate-spin" /> Uploading and processing...
+              <Loader2 size={14} className="animate-spin" /> {t('uploading')}
             </div>
           ) : (
             <div className="flex items-center gap-4">
@@ -517,11 +526,11 @@ function KBDetail({ kb, onRefresh, initialDocId }: { kb: KnowledgeBase; onRefres
               </div>
               <div className="text-left">
                 <p className="text-xs text-text-secondary">
-                  Drag & drop files or{' '}
-                  <button onClick={() => fileInputRef.current?.click()} className="text-accent hover:underline cursor-pointer">browse</button>
+                  {t('uploadDragDrop')}{' '}
+                  <button onClick={() => fileInputRef.current?.click()} className="text-accent hover:underline cursor-pointer">{t('uploadBrowse')}</button>
                 </p>
                 <p className="text-[10px] text-text-tertiary mt-0.5">
-                  PDF, DOCX, PPTX, Excel, CSV, TXT, JSON, Markdown
+                  {t('uploadFormats')}
                 </p>
               </div>
             </div>
@@ -540,7 +549,7 @@ function KBDetail({ kb, onRefresh, initialDocId }: { kb: KnowledgeBase; onRefres
         <div className="bg-surface-0 border border-border-default rounded-xl overflow-hidden">
           <div className="px-4 py-3 border-b border-border-default">
             <h3 className="text-[11px] text-text-tertiary uppercase tracking-wider font-medium">
-              {documents.length} Document{documents.length !== 1 ? 's' : ''}
+              {t('documentsHeading', { count: documents.length })}
             </h3>
           </div>
           {loading ? (
@@ -550,7 +559,7 @@ function KBDetail({ kb, onRefresh, initialDocId }: { kb: KnowledgeBase; onRefres
           ) : documents.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <FileText size={24} className="text-text-tertiary opacity-20 mb-2" />
-              <p className="text-xs text-text-tertiary">No documents yet. Upload files to get started.</p>
+              <p className="text-xs text-text-tertiary">{t('noDocumentsYet')}</p>
             </div>
           ) : (
             <div className="divide-y divide-border-default">
@@ -575,15 +584,17 @@ function CreateKBForm({
   onSubmit: () => void;
   onCancel: () => void;
 }) {
+  const t = useTranslations('knowledge');
+  const tc = useTranslations('common');
   return (
     <div className="flex flex-col items-center justify-center h-full p-8 animate-[fadeIn_0.2s_ease-out]">
       <div className="w-full max-w-md">
         <div className="w-12 h-12 rounded-xl bg-surface-0 border border-border-default flex items-center justify-center mb-4">
           <BookOpen size={20} className="text-accent" />
         </div>
-        <h2 className="text-base font-semibold text-text-primary mb-1">New Knowledge Base</h2>
+        <h2 className="text-base font-semibold text-text-primary mb-1">{t('newKBTitle')}</h2>
         <p className="text-xs text-text-tertiary mb-5">
-          Give your knowledge base a name. You can upload documents after creating it.
+          {t('newKBDesc')}
         </p>
         <input
           autoFocus
@@ -593,7 +604,7 @@ function CreateKBForm({
             if (e.key === 'Enter') onSubmit();
             if (e.key === 'Escape') onCancel();
           }}
-          placeholder="e.g. Q4 Reports, Product Documentation..."
+          placeholder={t('newKBPlaceholder')}
           className="w-full bg-bg border border-border-default rounded-lg px-3 py-2.5 text-xs text-text-primary placeholder:text-text-tertiary outline-none focus:border-accent transition-colors mb-4"
         />
         <div className="flex items-center gap-2">
@@ -602,10 +613,10 @@ function CreateKBForm({
             disabled={!value.trim()}
             className="flex items-center gap-1.5 px-4 py-2 text-[11px] font-medium bg-accent text-bg rounded-lg hover:bg-accent-hover cursor-pointer transition-colors disabled:opacity-40"
           >
-            <Plus size={12} /> Create
+            <Plus size={12} /> {tc('create')}
           </button>
           <button onClick={onCancel} className="px-4 py-2 text-[11px] text-text-tertiary hover:text-text-secondary cursor-pointer transition-colors">
-            Cancel
+            {tc('cancel')}
           </button>
         </div>
       </div>
@@ -616,20 +627,21 @@ function CreateKBForm({
 // ── Empty state ──
 
 function EmptyContent({ onCreate }: { onCreate: () => void }) {
+  const t = useTranslations('knowledge');
   return (
     <div className="flex flex-col items-center justify-center h-full text-center p-8 animate-[fadeIn_0.2s_ease-out]">
       <div className="w-14 h-14 rounded-2xl bg-surface-0 border border-border-default flex items-center justify-center mb-4">
         <BookOpen size={24} className="text-text-tertiary opacity-30" />
       </div>
-      <h3 className="text-sm font-medium text-text-primary mb-1">No knowledge base selected</h3>
+      <h3 className="text-sm font-medium text-text-primary mb-1">{t('noKBSelected')}</h3>
       <p className="text-xs text-text-tertiary mb-5 max-w-xs">
-        Select a knowledge base from the sidebar, or create a new one to start uploading documents for RAG-powered conversations.
+        {t('noKBSelectedDesc')}
       </p>
       <button
         onClick={onCreate}
         className="flex items-center gap-1.5 px-4 py-2 text-[11px] font-medium bg-accent text-bg rounded-lg hover:bg-accent-hover cursor-pointer transition-colors"
       >
-        <Plus size={12} /> New Knowledge Base
+        <Plus size={12} /> {t('newKnowledgeBase')}
       </button>
     </div>
   );
@@ -638,6 +650,7 @@ function EmptyContent({ onCreate }: { onCreate: () => void }) {
 // ── Main view ──
 
 export default function KnowledgeBaseView() {
+  const t = useTranslations('knowledge');
   const confirmDialog = useStore((s) => s.confirmDialog);
   const resolveConfirm = useStore((s) => s.resolveConfirm);
 
@@ -653,7 +666,7 @@ export default function KnowledgeBaseView() {
       const kbs = await api.listKnowledgeBases();
       setKnowledgeBases(kbs);
       if (selectedKB && !kbs.find((kb) => kb.id === selectedKB.id)) setSelectedKB(null);
-    } catch { toast.error('Failed to load knowledge bases'); }
+    } catch { toast.error(t('failedToLoadKBs')); }
     setLoading(false);
   }, [selectedKB]);
 
@@ -682,8 +695,8 @@ export default function KnowledgeBaseView() {
       setCreating(false);
       setNewName('');
       setSelectedKB(kb);
-      toast.success('Knowledge base created');
-    } catch { toast.error('Failed to create knowledge base'); }
+      toast.success(t('kbCreated'));
+    } catch { toast.error(t('kbCreateFailed')); }
   };
 
   const sidebar = (
@@ -697,7 +710,7 @@ export default function KnowledgeBaseView() {
   );
 
   return (
-    <PageShell sidebar={sidebar} title="Knowledge Bases">
+    <PageShell sidebar={sidebar} title={t('pageTitle')}>
       {creating ? (
         <CreateKBForm value={newName} onChange={setNewName} onSubmit={handleCreate} onCancel={() => { setCreating(false); setNewName(''); }} />
       ) : selectedKB ? (

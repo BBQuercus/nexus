@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import { Mic, MicOff, LoaderCircle } from 'lucide-react';
 import * as api from '@/lib/api';
 import { toast } from '../toast';
@@ -134,6 +135,7 @@ interface VoiceInputProps {
 }
 
 export function VoiceInputButton({ onToggleRecording, isRecording }: { onToggleRecording: () => void; isRecording: boolean }) {
+  const t = useTranslations('chatInput');
   return (
     <button
       onClick={onToggleRecording}
@@ -142,7 +144,7 @@ export function VoiceInputButton({ onToggleRecording, isRecording }: { onToggleR
           ? 'text-error bg-error/10 hover:bg-error/15'
           : 'text-text-tertiary hover:text-text-secondary hover:bg-surface-2'
       }`}
-      title={isRecording ? 'Stop listening' : 'Start listening'}
+      title={isRecording ? t('stopListening') : t('startListening')}
     >
       {isRecording ? <MicOff size={14} /> : <Mic size={14} />}
     </button>
@@ -150,6 +152,7 @@ export function VoiceInputButton({ onToggleRecording, isRecording }: { onToggleR
 }
 
 export function useVoiceInput({ content, setContent, textareaRef }: VoiceInputProps) {
+  const t = useTranslations('chatInput');
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -200,7 +203,7 @@ export function useVoiceInput({ content, setContent, textareaRef }: VoiceInputPr
     }
 
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
-      toast.error('Microphone recording is not supported in this browser');
+      toast.error(t('micNotSupported'));
       return;
     }
 
@@ -230,9 +233,9 @@ export function useVoiceInput({ content, setContent, textareaRef }: VoiceInputPr
       setIsRecording(true);
     } catch (e) {
       console.error('Recording failed', e);
-      toast.error('Could not access microphone');
+      toast.error(t('micAccessFailed'));
     }
-  }, [content, flushTranscription, isRecording, textareaRef]);
+  }, [content, flushTranscription, isRecording, textareaRef, t]);
 
   return {
     isRecording,
@@ -243,25 +246,27 @@ export function useVoiceInput({ content, setContent, textareaRef }: VoiceInputPr
 }
 
 export function RecordingIndicator({ stream, onStop }: { stream: MediaStream | null; onStop: () => void }) {
+  const t = useTranslations('chatInput');
   return (
     <div className="mb-2 flex items-center justify-between gap-3 px-3 py-2.5 bg-accent/10 border border-accent/20 rounded-lg">
       <LiveWaveform stream={stream} />
       <button
         onClick={onStop}
         className="px-2.5 py-1.5 text-[11px] font-medium rounded-lg bg-error text-white hover:bg-error/90 cursor-pointer shrink-0"
-        title="Stop listening"
+        title={t('stopListening')}
       >
-        Stop
+        {t('stop')}
       </button>
     </div>
   );
 }
 
 export function TranscribingIndicator() {
+  const t = useTranslations('chatInput');
   return (
     <div className="mb-2 flex items-center gap-2.5 px-3 py-2.5 bg-surface-1 border border-border-default rounded-lg">
       <LoaderCircle size={14} className="text-accent animate-spin" />
-      <span className="text-[11px] text-text-secondary">Transcribing audio...</span>
+      <span className="text-[11px] text-text-secondary">{t('transcribing')}</span>
     </div>
   );
 }

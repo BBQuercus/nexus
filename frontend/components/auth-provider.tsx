@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useStore } from '@/lib/store';
 import { getCurrentUser, getUserSettings } from '@/lib/api';
 import {
@@ -92,6 +93,7 @@ const PROVIDER_LABELS: Record<string, string> = {
 };
 
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
+  const t = useTranslations('login');
   const router = useRouter();
   const pathname = usePathname();
   const setUser = useStore((s) => s.setUser);
@@ -120,7 +122,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         sessionStorage.removeItem('nexus_oauth_attempted');
         if (justAuthenticated) {
           const firstName = user.name?.split(' ')[0];
-          toast.success(firstName ? `Welcome back, ${firstName}!` : 'Welcome back!');
+          toast.success(firstName ? t('welcomeBackName', { firstName }) : t('welcomeBack'));
         }
         return;
       } catch {
@@ -153,7 +155,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
     checkAuth();
     return () => { cancelled = true; };
-  }, [setUser, setAuthStatus]);
+  }, [setAuthStatus, setCurrentOrg, setMemberships, setUser, setUserSettings, t]);
 
   // Redirect unauthenticated users — auto-redirect to last OAuth provider if known
   useEffect(() => {
@@ -188,7 +190,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
   // Auto OAuth re-redirect — show provider name with progress bar
   if (redirectingTo) {
-    return <TransitionScreen message={`Redirecting to ${redirectingTo}`} />;
+    return <TransitionScreen message={t('redirectingTo', { providerLabel: redirectingTo })} />;
   }
 
   // Loading state — render nothing (no intermediate "Authenticating" screen).

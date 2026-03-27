@@ -9,6 +9,7 @@
  */
 
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import { useTranslations } from 'next-intl';
 import { Check, Star, ChevronDown, Plus, Minus, ClipboardList } from 'lucide-react';
 import type { FormSpec, FormField, Message } from '@/lib/types';
 import { useStore } from '@/lib/store';
@@ -116,7 +117,7 @@ function NumberInput({ field, value, onChange }: { field: FormField; value: numb
   );
 }
 
-function SelectInput({ field, value, onChange }: { field: FormField; value: string; onChange: (v: string) => void }) {
+function SelectInput({ field, value, onChange, placeholder }: { field: FormField; value: string; onChange: (v: string) => void; placeholder: string }) {
   return (
     <div className="relative">
       <select
@@ -124,7 +125,7 @@ function SelectInput({ field, value, onChange }: { field: FormField; value: stri
         onChange={(e) => onChange(e.target.value)}
         className="w-full appearance-none px-3 py-2 pr-8 bg-surface-1 border border-border-default rounded-lg text-xs text-text-primary outline-none focus:border-border-focus focus:ring-1 focus:ring-accent/20 transition-colors cursor-pointer"
       >
-        <option value="">{field.placeholder || 'Select...'}</option>
+        <option value="">{field.placeholder || placeholder}</option>
         {field.options?.map((opt) => (
           <option key={opt} value={opt}>{opt}</option>
         ))}
@@ -285,11 +286,13 @@ function FieldRenderer({
   value,
   onChange,
   error,
+  selectPlaceholder,
 }: {
   field: FormField;
   value: unknown;
   onChange: (v: unknown) => void;
   error?: string;
+  selectPlaceholder: string;
 }) {
   const isCheckbox = field.type === 'checkbox';
 
@@ -304,7 +307,7 @@ function FieldRenderer({
       {field.type === 'text' && <TextInput field={field} value={value as string} onChange={onChange as (v: string) => void} />}
       {field.type === 'textarea' && <TextareaInput field={field} value={value as string} onChange={onChange as (v: string) => void} />}
       {field.type === 'number' && <NumberInput field={field} value={value as number} onChange={onChange as (v: number) => void} />}
-      {field.type === 'select' && <SelectInput field={field} value={value as string} onChange={onChange as (v: string) => void} />}
+      {field.type === 'select' && <SelectInput field={field} value={value as string} onChange={onChange as (v: string) => void} placeholder={selectPlaceholder} />}
       {field.type === 'multiselect' && <MultiSelectInput field={field} value={value as string[]} onChange={onChange as (v: string[]) => void} />}
       {field.type === 'checkbox' && <CheckboxInput field={field} value={value as boolean} onChange={onChange as (v: boolean) => void} />}
       {field.type === 'radio' && <RadioGroup field={field} value={value as string} onChange={onChange as (v: string) => void} />}
@@ -317,6 +320,7 @@ function FieldRenderer({
 }
 
 export default function FormRenderer({ spec, onSubmit, compact, alreadySubmitted }: FormRendererProps) {
+  const t = useTranslations('formRenderer');
   const formRef = useRef<HTMLElement>(null);
   const [values, setValues] = useState<Record<string, unknown>>(() => {
     const init: Record<string, unknown> = {};
@@ -382,7 +386,7 @@ export default function FormRenderer({ spec, onSubmit, compact, alreadySubmitted
         if (val === '' || val === undefined || val === null ||
             (Array.isArray(val) && val.length === 0) ||
             (field.type === 'rating' && val === 0)) {
-          newErrors[field.id] = field.validation?.message || `${field.label} is required`;
+          newErrors[field.id] = field.validation?.message || t('requiredError', { label: field.label });
           continue;
         }
       }
@@ -390,16 +394,16 @@ export default function FormRenderer({ spec, onSubmit, compact, alreadySubmitted
       // Validation rules
       if (field.validation && val !== '' && val !== undefined) {
         if (field.validation.min !== undefined && typeof val === 'number' && val < field.validation.min) {
-          newErrors[field.id] = field.validation.message || `Minimum value is ${field.validation.min}`;
+          newErrors[field.id] = field.validation.message || t('minValueError', { min: field.validation.min });
         }
         if (field.validation.max !== undefined && typeof val === 'number' && val > field.validation.max) {
-          newErrors[field.id] = field.validation.message || `Maximum value is ${field.validation.max}`;
+          newErrors[field.id] = field.validation.message || t('maxValueError', { max: field.validation.max });
         }
         if (field.validation.pattern && typeof val === 'string') {
           try {
             const re = new RegExp(field.validation.pattern);
             if (!re.test(val)) {
-              newErrors[field.id] = field.validation.message || 'Invalid format';
+              newErrors[field.id] = field.validation.message || t('invalidFormat');
             }
           } catch {
             // Invalid regex pattern, skip
@@ -410,7 +414,7 @@ export default function FormRenderer({ spec, onSubmit, compact, alreadySubmitted
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
-  }, [visibleFields, values]);
+  }, [visibleFields, values, t]);
 
   const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
@@ -440,7 +444,7 @@ export default function FormRenderer({ spec, onSubmit, compact, alreadySubmitted
           <div className="w-5 h-5 rounded-full bg-accent/20 flex items-center justify-center flex-shrink-0">
             <Check size={12} className="text-accent" />
           </div>
-          <span className="text-xs text-text-secondary">{spec.title} — submitted</span>
+          <span className="text-xs text-text-secondary">{spec.title} {t('submittedSuffix')}</span>
         </div>
         {spec.allow_multiple && (
           <button
@@ -448,7 +452,7 @@ export default function FormRenderer({ spec, onSubmit, compact, alreadySubmitted
             onClick={handleResubmit}
             className="px-2.5 py-1 text-[11px] font-medium rounded-lg border border-border-default bg-surface-1 text-text-secondary hover:text-text-primary hover:border-border-focus cursor-pointer transition-colors"
           >
-            Submit again
+            {t('submitAgain')}
           </button>
         )}
       </div>
@@ -481,6 +485,7 @@ export default function FormRenderer({ spec, onSubmit, compact, alreadySubmitted
             value={values[field.id]}
             onChange={(v) => setValue(field.id, v)}
             error={errors[field.id]}
+            selectPlaceholder={t('selectPlaceholder')}
           />
         ))}
       </div>
@@ -491,7 +496,7 @@ export default function FormRenderer({ spec, onSubmit, compact, alreadySubmitted
           type="submit"
           className="px-4 py-2 bg-accent hover:bg-accent/90 text-white text-xs font-medium rounded-lg transition-colors cursor-pointer"
         >
-          {spec.submit_label || 'Submit'}
+          {spec.submit_label || t('submitDefault')}
         </button>
         {editing && (
           <button

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import { useStore } from '@/lib/store';
 import type { Artifact } from '@/lib/types';
 import * as api from '@/lib/api';
@@ -12,15 +13,6 @@ import {
 } from 'lucide-react';
 
 type FilterType = 'all' | 'code' | 'charts' | 'tables' | 'documents' | 'forms';
-
-const FILTER_OPTIONS: { key: FilterType; label: string }[] = [
-  { key: 'all', label: 'All' },
-  { key: 'code', label: 'Code' },
-  { key: 'charts', label: 'Charts' },
-  { key: 'tables', label: 'Tables' },
-  { key: 'documents', label: 'Documents' },
-  { key: 'forms', label: 'Forms' },
-];
 
 function filterMatches(artifact: Artifact, filter: FilterType): boolean {
   if (filter === 'all') return true;
@@ -41,6 +33,7 @@ function getDocIcon(artifact: Artifact) {
 }
 
 function ArtifactCard({ artifact, isGrid }: { artifact: Artifact; isGrid: boolean }) {
+  const t = useTranslations('artifactsPanel');
   const [copied, setCopied] = useState(false);
   const [chartView, setChartView] = useState<{ toImageURL: (type: string) => Promise<string> } | null>(null);
   const sandboxId = useStore((s) => s.sandboxId);
@@ -182,7 +175,7 @@ function ArtifactCard({ artifact, isGrid }: { artifact: Artifact; isGrid: boolea
             <span className="px-1.5 py-0 text-[9px] font-bold uppercase rounded bg-accent/10 text-accent tracking-wide">{language}</span>
           )}
           {artifact.type === 'code' && lineCount !== undefined && (
-            <span className="text-[9px] text-text-tertiary font-mono">{lineCount} lines</span>
+            <span className="text-[9px] text-text-tertiary font-mono">{t('linesCount', { count: lineCount })}</span>
           )}
           {artifact.type === 'table' && rowColCount && (
             <span className="px-1.5 py-0 text-[9px] font-bold rounded bg-blue-500/10 text-blue-400 font-mono">
@@ -195,7 +188,7 @@ function ArtifactCard({ artifact, isGrid }: { artifact: Artifact; isGrid: boolea
             </span>
           )}
           {(artifact.type === 'image' || artifact.type === 'chart') && (
-            <span className="px-1.5 py-0 text-[9px] font-bold uppercase rounded bg-purple-500/10 text-purple-400 tracking-wide">chart</span>
+            <span className="px-1.5 py-0 text-[9px] font-bold uppercase rounded bg-purple-500/10 text-purple-400 tracking-wide">{t('chartBadge')}</span>
           )}
           {artifact.pinned && <Pin size={9} className="text-accent" />}
         </div>
@@ -226,7 +219,7 @@ function ArtifactCard({ artifact, isGrid }: { artifact: Artifact; isGrid: boolea
               onClick={() => handleDownload(artifact.label.replace(/\.[^.]+$/, '') + '.png', 'image/png')}
               className="flex items-center gap-1 px-2 py-0.5 text-[9px] font-medium rounded border border-border-default bg-surface-2 text-text-tertiary hover:text-text-secondary hover:border-border-focus cursor-pointer transition-colors"
             >
-              <Download size={9} /> Download PNG
+              <Download size={9} /> {t('downloadPng')}
             </button>
           )}
           {artifact.type === 'chart' && (
@@ -235,13 +228,13 @@ function ArtifactCard({ artifact, isGrid }: { artifact: Artifact; isGrid: boolea
                 onClick={() => void handleChartDownload('png')}
                 className="flex items-center gap-1 px-2 py-0.5 text-[9px] font-medium rounded border border-border-default bg-surface-2 text-text-tertiary hover:text-text-secondary hover:border-border-focus cursor-pointer transition-colors"
               >
-                <Download size={9} /> PNG
+                <Download size={9} /> {t('png')}
               </button>
               <button
                 onClick={() => void handleChartDownload('svg')}
                 className="flex items-center gap-1 px-2 py-0.5 text-[9px] font-medium rounded border border-border-default bg-surface-2 text-text-tertiary hover:text-text-secondary hover:border-border-focus cursor-pointer transition-colors"
               >
-                <Download size={9} /> SVG
+                <Download size={9} /> {t('svg')}
               </button>
             </>
           )}
@@ -250,7 +243,7 @@ function ArtifactCard({ artifact, isGrid }: { artifact: Artifact; isGrid: boolea
               onClick={handleExportCsv}
               className="flex items-center gap-1 px-2 py-0.5 text-[9px] font-medium rounded border border-border-default bg-surface-2 text-text-tertiary hover:text-text-secondary hover:border-border-focus cursor-pointer transition-colors"
             >
-              <Download size={9} /> Export CSV
+              <Download size={9} /> {t('exportCsv')}
             </button>
           )}
           {artifact.type === 'document' && (
@@ -264,7 +257,7 @@ function ArtifactCard({ artifact, isGrid }: { artifact: Artifact; isGrid: boolea
           <button
             onClick={handleTogglePin}
             className="flex items-center gap-1 px-1.5 py-0.5 text-[9px] rounded border border-border-default bg-surface-2 text-text-tertiary hover:text-accent hover:border-accent/20 cursor-pointer transition-colors"
-            title={artifact.pinned ? 'Unpin' : 'Pin'}
+            title={artifact.pinned ? t('unpin') : t('pin')}
           >
             {artifact.pinned ? <PinOff size={9} /> : <Pin size={9} />}
           </button>
@@ -275,9 +268,19 @@ function ArtifactCard({ artifact, isGrid }: { artifact: Artifact; isGrid: boolea
 }
 
 export default function ArtifactsPanel() {
+  const t = useTranslations('artifactsPanel');
   const artifacts = useStore((s) => s.artifacts);
   const [filter, setFilter] = useState<FilterType>('all');
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
+
+  const FILTER_OPTIONS: { key: FilterType; label: string }[] = [
+    { key: 'all', label: t('filterAll') },
+    { key: 'code', label: t('filterCode') },
+    { key: 'charts', label: t('filterCharts') },
+    { key: 'tables', label: t('filterTables') },
+    { key: 'documents', label: t('filterDocuments') },
+    { key: 'forms', label: t('filterForms') },
+  ];
 
   const filtered = useMemo(
     () => artifacts.filter((a) => filterMatches(a, filter)),
@@ -288,7 +291,7 @@ export default function ArtifactsPanel() {
     return (
       <div className="flex flex-col items-center justify-center h-full text-text-tertiary px-6">
         <BarChart3 size={24} className="mb-2 opacity-40" />
-        <p className="text-xs font-mono text-center">Charts, code, and documents will appear here</p>
+        <p className="text-xs font-mono text-center">{t('emptyState')}</p>
       </div>
     );
   }
@@ -298,20 +301,20 @@ export default function ArtifactsPanel() {
       {/* Header */}
       <div className="flex items-center justify-between px-1">
         <span className="text-[10px] text-text-tertiary font-mono tracking-wide uppercase">
-          Artifacts · {filtered.length}
+          {t('headerLabel')} · {filtered.length}
         </span>
         <div className="flex items-center gap-1">
           <button
             onClick={() => setViewMode('list')}
             className={`p-1 rounded cursor-pointer transition-colors ${viewMode === 'list' ? 'text-accent bg-accent/10' : 'text-text-tertiary hover:text-text-secondary'}`}
-            title="List view"
+            title={t('listView')}
           >
             <LayoutList size={12} />
           </button>
           <button
             onClick={() => setViewMode('grid')}
             className={`p-1 rounded cursor-pointer transition-colors ${viewMode === 'grid' ? 'text-accent bg-accent/10' : 'text-text-tertiary hover:text-text-secondary'}`}
-            title="Grid view"
+            title={t('gridView')}
           >
             <LayoutGrid size={12} />
           </button>
@@ -339,7 +342,7 @@ export default function ArtifactsPanel() {
       {/* Artifact list / grid */}
       {filtered.length === 0 ? (
         <div className="flex items-center justify-center py-8 text-text-tertiary text-xs font-mono">
-          No {filter} artifacts
+          {t('noFilteredArtifacts', { filter })}
         </div>
       ) : (
         <div className={viewMode === 'grid' ? 'grid grid-cols-2 gap-2' : 'space-y-1.5'}>

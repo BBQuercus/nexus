@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { useStore } from '@/lib/store';
 import * as api from '@/lib/api';
@@ -29,6 +30,8 @@ function AgentIcon({ name, size = 14, className = '' }: { name: string; size?: n
 }
 
 export default function AgentsView() {
+  const t = useTranslations('agents');
+  const tc = useTranslations('common');
   const router = useRouter();
   const setActivePersona = useStore((s) => s.setActivePersona);
   const setActiveModel = useStore((s) => s.setActiveModel);
@@ -83,9 +86,9 @@ export default function AgentsView() {
   const handleDelete = async () => {
     if (!editing?.id) return;
     const confirmed = await useStore.getState().showConfirm({
-      title: `Delete "${editing.name}"?`,
-      message: 'This persona will be permanently removed.',
-      confirmLabel: 'Delete',
+      title: t('deleteConfirmTitle', { name: editing.name }),
+      message: t('deleteConfirmMessage'),
+      confirmLabel: t('deleteConfirmLabel'),
       variant: 'danger',
     });
     if (!confirmed) return;
@@ -115,7 +118,7 @@ export default function AgentsView() {
           onClick={() => setEditing({ ...emptyAgent })}
           className="w-full flex items-center justify-center gap-1.5 px-2.5 py-2 text-[11px] font-medium bg-accent text-bg rounded-lg hover:bg-accent-hover cursor-pointer transition-colors"
         >
-          <Plus size={12} /> New Agent
+          <Plus size={12} /> {t('newAgent')}
         </button>
         {agents && agents.length > 3 && (
           <div className="relative">
@@ -124,7 +127,7 @@ export default function AgentsView() {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Filter agents..."
+              placeholder={t('filterPlaceholder')}
               className="w-full pl-7 pr-2.5 py-1.5 bg-bg border border-border-default rounded-lg text-[11px] text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-accent transition-colors"
             />
           </div>
@@ -148,7 +151,7 @@ export default function AgentsView() {
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-text-tertiary">
             <Bot size={24} className="mb-2 opacity-20" />
-            <div className="text-[11px]">{search ? 'No matches' : 'No agents yet'}</div>
+            <div className="text-[11px]">{search ? t('noMatches') : t('noAgentsYet')}</div>
           </div>
         ) : (
           <div className="space-y-0.5">
@@ -174,7 +177,7 @@ export default function AgentsView() {
                   )}
                 </div>
                 {agent.isPublic && (
-                  <span className="text-[9px] px-1 py-0.5 bg-accent/10 text-accent rounded shrink-0">Public</span>
+                  <span className="text-[9px] px-1 py-0.5 bg-accent/10 text-accent rounded shrink-0">{t('publicBadge')}</span>
                 )}
               </button>
             ))}
@@ -185,7 +188,7 @@ export default function AgentsView() {
   );
 
   return (
-    <PageShell title="Agents" sidebar={agentsSidebar}>
+    <PageShell title={t('pageTitle')} sidebar={agentsSidebar}>
       {editing ? (
         <div className="flex-1 overflow-y-auto p-6 animate-[fadeIn_0.15s_ease-out]">
           <div className="max-w-2xl mx-auto">
@@ -199,10 +202,10 @@ export default function AgentsView() {
                 </div>
                 <div>
                   <h2 className="text-sm font-semibold text-text-primary">
-                    {editing.id ? editing.name || 'Edit Agent' : 'New Agent'}
+                    {editing.id ? editing.name || t('editHeading') : t('newHeading')}
                   </h2>
                   <p className="text-[10px] text-text-tertiary">
-                    {editing.id ? 'Modify persona settings' : 'Create a new AI persona'}
+                    {editing.id ? t('editSubtitle') : t('newSubtitle')}
                   </p>
                 </div>
               </div>
@@ -213,20 +216,20 @@ export default function AgentsView() {
 
             {/* Identity Section */}
             <div className="bg-surface-0 border border-border-default rounded-xl p-5 mb-4">
-              <h3 className="text-[11px] text-text-tertiary uppercase tracking-wider font-medium mb-4">Identity</h3>
+              <h3 className="text-[11px] text-text-tertiary uppercase tracking-wider font-medium mb-4">{t('identitySection')}</h3>
               <div className="space-y-4">
                 <div className="grid grid-cols-[1fr_auto] gap-4">
                   <div>
-                    <Label htmlFor="agent-name" className="text-xs font-medium text-text-secondary mb-1.5">Name</Label>
+                    <Label htmlFor="agent-name" className="text-xs font-medium text-text-secondary mb-1.5">{t('nameLabel')}</Label>
                     <Input
                       id="agent-name"
                       value={editing.name}
                       onChange={(e) => setEditing({ ...editing, name: e.target.value })}
-                      placeholder="Agent name"
+                      placeholder={t('namePlaceholder')}
                     />
                   </div>
                   <div>
-                    <Label className="text-xs font-medium text-text-secondary mb-1.5">Icon</Label>
+                    <Label className="text-xs font-medium text-text-secondary mb-1.5">{t('iconLabel')}</Label>
                     <IconPicker
                       value={editing.icon}
                       onChange={(icon) => setEditing({ ...editing, icon })}
@@ -234,12 +237,12 @@ export default function AgentsView() {
                   </div>
                 </div>
                 <div>
-                  <Label htmlFor="agent-desc" className="text-xs font-medium text-text-secondary mb-1.5">Description</Label>
+                  <Label htmlFor="agent-desc" className="text-xs font-medium text-text-secondary mb-1.5">{t('descriptionLabel')}</Label>
                   <Input
                     id="agent-desc"
                     value={editing.description}
                     onChange={(e) => setEditing({ ...editing, description: e.target.value })}
-                    placeholder="Brief description of what this agent does"
+                    placeholder={t('descriptionPlaceholder')}
                   />
                 </div>
               </div>
@@ -247,28 +250,28 @@ export default function AgentsView() {
 
             {/* Configuration Section */}
             <div className="bg-surface-0 border border-border-default rounded-xl p-5 mb-4">
-              <h3 className="text-[11px] text-text-tertiary uppercase tracking-wider font-medium mb-4">Configuration</h3>
+              <h3 className="text-[11px] text-text-tertiary uppercase tracking-wider font-medium mb-4">{t('configSection')}</h3>
               <div className="space-y-4">
                 <div>
-                  <Label htmlFor="agent-prompt" className="text-xs font-medium text-text-secondary mb-1.5">System Prompt</Label>
+                  <Label htmlFor="agent-prompt" className="text-xs font-medium text-text-secondary mb-1.5">{t('systemPromptLabel')}</Label>
                   <Textarea
                     id="agent-prompt"
                     value={editing.systemPrompt}
                     onChange={(e) => setEditing({ ...editing, systemPrompt: e.target.value })}
-                    placeholder="Instructions that define how this agent behaves..."
+                    placeholder={t('systemPromptPlaceholder')}
                     rows={10}
                     className="font-mono text-[11px] leading-relaxed"
                   />
                 </div>
                 <div className="grid grid-cols-[1fr_auto] gap-4 items-end">
                   <div>
-                    <Label className="text-xs font-medium text-text-secondary mb-1.5">Default Model</Label>
+                    <Label className="text-xs font-medium text-text-secondary mb-1.5">{t('defaultModelLabel')}</Label>
                     <Select
                       value={editing.defaultModel}
                       onValueChange={(value) => setEditing({ ...editing, defaultModel: value })}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select a model" />
+                        <SelectValue placeholder={t('selectModelPlaceholder')} />
                       </SelectTrigger>
                       <SelectContent>
                         {MODEL_OPTIONS.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
@@ -276,7 +279,7 @@ export default function AgentsView() {
                     </Select>
                   </div>
                   <div className="flex items-center gap-2.5 pb-1">
-                    <Label className="mb-0 text-xs text-text-tertiary">Public</Label>
+                    <Label className="mb-0 text-xs text-text-tertiary">{t('publicLabel')}</Label>
                     <Switch
                       checked={editing.isPublic ?? false}
                       onCheckedChange={(checked) => setEditing({ ...editing, isPublic: checked })}
@@ -289,17 +292,17 @@ export default function AgentsView() {
             {/* Actions */}
             <div className="flex items-center gap-2 pt-2">
               <button onClick={handleSave} className="flex items-center justify-center gap-1.5 px-5 py-2.5 bg-accent text-bg text-[11px] font-medium rounded-lg hover:bg-accent-hover cursor-pointer transition-colors">
-                <Save size={12} /> Save
+                <Save size={12} /> {tc('save')}
               </button>
               {editing.id && (
                 <button onClick={handleTry} className="flex items-center justify-center gap-1.5 px-4 py-2.5 bg-surface-0 border border-border-default text-text-primary text-[11px] font-medium rounded-lg hover:bg-surface-1 cursor-pointer transition-colors">
-                  <Play size={12} /> Try
+                  <Play size={12} /> {t('tryButton')}
                 </button>
               )}
               <div className="flex-1" />
               {editing.id && (
                 <button onClick={handleDelete} className="flex items-center justify-center gap-1.5 px-4 py-2.5 text-error/60 hover:text-error text-[11px] rounded-lg hover:bg-error/5 cursor-pointer transition-colors">
-                  <Trash2 size={12} /> Delete
+                  <Trash2 size={12} /> {tc('delete')}
                 </button>
               )}
             </div>
@@ -314,13 +317,13 @@ export default function AgentsView() {
           <div className="w-14 h-14 rounded-2xl bg-surface-0 border border-border-default flex items-center justify-center mb-4">
             <Bot size={24} className="text-text-tertiary opacity-30" />
           </div>
-          <h2 className="text-sm font-medium text-text-primary mb-1">No agent selected</h2>
-          <p className="text-xs text-text-tertiary mb-5">Select an agent from the sidebar or create a new one</p>
+          <h2 className="text-sm font-medium text-text-primary mb-1">{t('noAgentSelected')}</h2>
+          <p className="text-xs text-text-tertiary mb-5">{t('noAgentSelectedDesc')}</p>
           <button
             onClick={() => setEditing({ ...emptyAgent })}
             className="flex items-center gap-1.5 px-4 py-2 text-[11px] font-medium bg-accent text-bg rounded-lg hover:bg-accent-hover cursor-pointer transition-colors"
           >
-            <Plus size={12} /> Create Agent
+            <Plus size={12} /> {t('createAgent')}
           </button>
         </div>
       )}

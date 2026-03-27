@@ -1,12 +1,14 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import { useStore } from '@/lib/store';
 import * as api from '@/lib/api';
 import type { KnowledgeBase } from '@/lib/types';
 import { BookOpen, Check, ChevronDown } from 'lucide-react';
 
 export default function KBPicker() {
+  const t = useTranslations('kbPicker');
   const activeIds = useStore((s) => s.activeKnowledgeBaseIds);
   const toggleKB = useStore((s) => s.toggleKnowledgeBase);
   const setActiveIds = useStore((s) => s.setActiveKnowledgeBaseIds);
@@ -37,10 +39,10 @@ export default function KBPicker() {
   const selectedKBs = knowledgeBases.filter((kb) => activeIds.includes(kb.id));
 
   const label = activeIds.length === 0
-    ? 'RAG'
+    ? t('ragLabel')
     : activeIds.length === 1 && selectedKBs.length === 1
       ? selectedKBs[0].name
-      : `${activeIds.length} KBs`;
+      : t('kbCount', { count: activeIds.length });
 
   return (
     <div ref={ref} className="relative">
@@ -64,13 +66,13 @@ export default function KBPicker() {
         >
           {/* Header */}
           <div className="flex items-center justify-between px-3 py-2 border-b border-border-default">
-            <span className="text-[11px] font-medium text-text-secondary uppercase tracking-wider">Knowledge Bases</span>
+            <span className="text-[11px] font-medium text-text-secondary uppercase tracking-wider">{t('headerTitle')}</span>
             {activeIds.length > 0 && (
               <button
                 onClick={(e) => { e.stopPropagation(); setActiveIds([]); }}
                 className="text-[10px] text-text-tertiary hover:text-text-secondary cursor-pointer"
               >
-                Clear all
+                {t('clearAll')}
               </button>
             )}
           </div>
@@ -79,8 +81,8 @@ export default function KBPicker() {
           <div className="max-h-56 overflow-y-auto py-1">
             {knowledgeBases.length === 0 ? (
               <div className="px-3 py-4 text-center text-[11px] text-text-tertiary">
-                No knowledge bases yet.{' '}
-                <a href="/knowledge" className="text-accent hover:underline" onClick={() => setOpen(false)}>Create one</a>
+                {t('noKBsYet')}{' '}
+                <a href="/knowledge" className="text-accent hover:underline" onClick={() => setOpen(false)}>{t('createOne')}</a>
               </div>
             ) : (
               knowledgeBases.map((kb) => {
@@ -105,7 +107,7 @@ export default function KBPicker() {
                     <div className="flex-1 min-w-0">
                       <div className="text-xs font-medium truncate">{kb.name}</div>
                       <div className="text-[10px] text-text-tertiary font-mono">
-                        {kb.documentCount} doc{kb.documentCount !== 1 ? 's' : ''} / {kb.chunkCount} chunks
+                        {kb.documentCount} doc{kb.documentCount !== 1 ? 's' : ''} {t('chunksSuffix', { count: kb.chunkCount })}
                       </div>
                     </div>
                   </button>
@@ -115,7 +117,7 @@ export default function KBPicker() {
           </div>
 
           <div className="px-3 py-1.5 border-t border-border-default text-[10px] text-text-tertiary">
-            Searched during this conversation
+            {t('footerHint')}
           </div>
         </div>
       )}

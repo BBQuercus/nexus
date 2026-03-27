@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { useStore } from '@/lib/store';
 import { useIsDesktop } from '@/lib/useMediaQuery';
@@ -10,6 +11,7 @@ import UserDropdown from './user-dropdown';
 
 
 export default function TopBar() {
+  const t = useTranslations('topBar');
   const router = useRouter();
   const isDesktop = useIsDesktop();
   const isStreaming = useStore((s) => s.isStreaming);
@@ -64,7 +66,7 @@ export default function TopBar() {
         )}
         <button
           onClick={() => setSidebarOpen(true)}
-          title="Show sidebar (Cmd+B)"
+          title={t('showSidebar')}
           className="flex items-center justify-center w-8 h-8 rounded-lg cursor-pointer transition-colors text-text-tertiary hover:text-text-secondary hover:bg-surface-1"
         >
           <PanelLeft size={15} />
@@ -72,14 +74,14 @@ export default function TopBar() {
         <button
           data-tour="command-palette"
           onClick={() => setCommandPaletteOpen(true)}
-          title="Search (Cmd+K)"
+          title={t('search')}
           className="flex items-center justify-center w-8 h-8 rounded-lg cursor-pointer transition-colors text-text-tertiary hover:text-text-secondary hover:bg-surface-1"
         >
           <Search size={15} />
         </button>
         <button
           onClick={handleNewChat}
-          title="New conversation (Cmd+N)"
+          title={t('newConversation')}
           className="flex items-center justify-center w-8 h-8 rounded-lg cursor-pointer transition-colors text-text-tertiary hover:text-text-secondary hover:bg-surface-1"
         >
           <Plus size={15} />
@@ -92,7 +94,7 @@ export default function TopBar() {
           <button
             data-tour="right-panel-toggle"
             onClick={() => setRightPanelOpen(!rightPanelOpen)}
-            title="Toggle side panel"
+            title={t('togglePanel')}
             className={`flex items-center justify-center w-8 h-8 rounded-lg cursor-pointer transition-colors ${
               rightPanelOpen ? 'text-accent bg-accent/10' : 'text-text-tertiary hover:text-text-secondary hover:bg-surface-1'
             }`}
@@ -118,7 +120,7 @@ export default function TopBar() {
         {/* Sidebar toggle + Brand */}
         <button
           onClick={() => setSidebarOpen(false)}
-          title="Hide sidebar (Cmd+B)"
+          title={t('hideSidebar')}
           className="flex items-center justify-center w-8 h-8 rounded-lg mr-2 cursor-pointer transition-colors text-text-tertiary hover:text-text-secondary hover:bg-surface-1"
         >
           <PanelLeft size={15} />
@@ -126,7 +128,7 @@ export default function TopBar() {
 
         <button
           onClick={() => { setActiveConversationId(null); setMessages([]); router.push('/'); }}
-          title="Home"
+          title={t('home')}
           className="flex items-center gap-2 cursor-pointer rounded-lg px-1.5 py-1 -ml-1.5 hover:bg-surface-1 transition-colors"
         >
           <Zap size={15} className="text-accent shrink-0" />

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import { useTranslations } from 'next-intl';
 import {
   ChevronRight,
   ChevronDown,
@@ -56,12 +57,14 @@ function getStepIcon(step: ExecutionStep): React.ElementType {
 
 // ── Status indicators ──
 
-const STATUS_CONFIG: Record<ExecutionStepStatus, { icon: React.ElementType; color: string; label: string }> = {
-  running: { icon: Loader2, color: 'text-accent', label: 'Running' },
-  success: { icon: Check, color: 'text-emerald-400', label: 'Done' },
-  failed: { icon: X, color: 'text-error', label: 'Failed' },
-  timeout: { icon: AlertTriangle, color: 'text-amber-400', label: 'Timeout' },
-  skipped: { icon: SkipForward, color: 'text-text-tertiary', label: 'Skipped' },
+type StatusConfig = { icon: React.ElementType; color: string; labelKey: 'statusRunning' | 'statusDone' | 'statusFailed' | 'statusTimeout' | 'statusSkipped' };
+
+const STATUS_CONFIG: Record<ExecutionStepStatus, StatusConfig> = {
+  running: { icon: Loader2, color: 'text-accent', labelKey: 'statusRunning' },
+  success: { icon: Check, color: 'text-emerald-400', labelKey: 'statusDone' },
+  failed: { icon: X, color: 'text-error', labelKey: 'statusFailed' },
+  timeout: { icon: AlertTriangle, color: 'text-amber-400', labelKey: 'statusTimeout' },
+  skipped: { icon: SkipForward, color: 'text-text-tertiary', labelKey: 'statusSkipped' },
 };
 
 function formatDuration(ms: number): string {
@@ -178,6 +181,7 @@ function TimelineStep({ step, isLast }: { step: ExecutionStep; isLast: boolean }
 // ── Collapsed summary ──
 
 function CollapsedSummary({ steps }: { steps: ExecutionStep[] }) {
+  const t = useTranslations('executionTimeline');
   const summary = useMemo(() => {
     const toolCount = steps.filter((s) => s.status !== 'skipped').length;
     const totalMs = steps.reduce((acc, s) => acc + (s.durationMs ?? 0), 0);
@@ -188,9 +192,9 @@ function CollapsedSummary({ steps }: { steps: ExecutionStep[] }) {
     parts.push(`${toolCount} step${toolCount !== 1 ? 's' : ''}`);
     if (totalMs > 0) parts.push(formatDuration(totalMs));
     if (totalTokens > 0) parts.push(`${formatTokens(totalTokens)} tok`);
-    if (failedCount > 0) parts.push(`${failedCount} failed`);
+    if (failedCount > 0) parts.push(t('failedCount', { count: failedCount }));
     return { text: parts.join(' \u00B7 '), failedCount };
-  }, [steps]);
+  }, [steps, t]);
 
   return (
     <span className="text-[11px] font-mono text-text-tertiary">
@@ -210,6 +214,7 @@ export interface ExecutionTimelineProps {
 }
 
 export function ExecutionTimeline({ steps, defaultExpanded = false }: ExecutionTimelineProps) {
+  const t = useTranslations('executionTimeline');
   const [expanded, setExpanded] = useState(defaultExpanded);
 
   if (!steps || steps.length === 0) return null;
@@ -230,7 +235,7 @@ export function ExecutionTimeline({ steps, defaultExpanded = false }: ExecutionT
         )}
 
         <span className="text-[11px] font-mono font-medium text-text-secondary">
-          Execution
+          {t('label')}
         </span>
 
         {isRunning && (

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useMemo } from 'react';
+import { useTranslations } from 'next-intl';
 import { Settings2, X, BookOpen, MessageSquare, LoaderCircle, GitCompare } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import * as api from '@/lib/api';
@@ -15,6 +16,7 @@ import { RESPONSE_COUNTS, CONTEXT_WINDOW, estimateTokens, VERBOSITY_OPTIONS, CRE
 // ── Token indicator ──
 
 function TokenIndicator({ messages }: { messages: Message[] }) {
+  const t = useTranslations('chatInput');
   const totalTokens = useMemo(() => {
     return messages.reduce((sum, msg) => {
       if (msg.cost) {
@@ -38,8 +40,8 @@ function TokenIndicator({ messages }: { messages: Message[] }) {
     : `~${totalTokens}`;
 
   return (
-    <span className={`text-[10px] font-mono ${colorClass} transition-colors`} title={`${totalTokens.toLocaleString()} tokens (~${(pct * 100).toFixed(0)}% of 128K context)`}>
-      {formatted} tokens
+    <span className={`text-[10px] font-mono ${colorClass} transition-colors`} title={t('tokenTooltip', { count: totalTokens.toLocaleString(), percent: (pct * 100).toFixed(0) })}>
+      {t('tokenCount', { formatted })}
     </span>
   );
 }
@@ -81,6 +83,7 @@ function SettingRow({ label, options, value, onChange }: { label: string; option
 }
 
 function ChatSettings({ numResponses, setNumResponses, verbosity, setVerbosity, creativity, setCreativity, tone, setTone }: ChatSettingsProps) {
+  const t = useTranslations('chatInput');
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -104,7 +107,7 @@ function ChatSettings({ numResponses, setNumResponses, verbosity, setVerbosity, 
             ? 'text-accent bg-accent/10 border-accent/30'
             : 'text-text-tertiary bg-surface-1 border-border-default hover:border-border-focus hover:text-text-secondary'
         }`}
-        title="Chat settings"
+        title={t('chatSettings')}
       >
         <Settings2 size={13} />
       </button>
@@ -112,7 +115,7 @@ function ChatSettings({ numResponses, setNumResponses, verbosity, setVerbosity, 
       {open && (
         <div className="absolute bottom-full right-0 mb-1.5 w-[min(240px,calc(100vw-24px))] bg-surface-0 border border-border-default rounded-lg shadow-2xl shadow-black/40 z-50 p-3 space-y-3">
           <div>
-            <div className="text-[10px] font-medium text-text-tertiary uppercase tracking-wider mb-1.5">Responses per turn</div>
+            <div className="text-[10px] font-medium text-text-tertiary uppercase tracking-wider mb-1.5">{t('responsesPerTurn')}</div>
             <div className="flex items-center gap-1">
               {RESPONSE_COUNTS.map((n) => (
                 <button
@@ -129,9 +132,9 @@ function ChatSettings({ numResponses, setNumResponses, verbosity, setVerbosity, 
               ))}
             </div>
           </div>
-          <SettingRow label="Verbosity" options={VERBOSITY_OPTIONS} value={verbosity} onChange={(v) => setVerbosity(v as Verbosity)} />
-          <SettingRow label="Creativity" options={CREATIVITY_OPTIONS} value={creativity} onChange={(v) => setCreativity(v as Creativity)} />
-          <SettingRow label="Tone" options={TONE_OPTIONS} value={tone} onChange={(v) => setTone(v as Tone)} />
+          <SettingRow label={t('verbosity')} options={VERBOSITY_OPTIONS} value={verbosity} onChange={(v) => setVerbosity(v as Verbosity)} />
+          <SettingRow label={t('creativity')} options={CREATIVITY_OPTIONS} value={creativity} onChange={(v) => setCreativity(v as Creativity)} />
+          <SettingRow label={t('tone')} options={TONE_OPTIONS} value={tone} onChange={(v) => setTone(v as Tone)} />
         </div>
       )}
     </div>
@@ -147,6 +150,7 @@ interface ContextChipsProps {
 }
 
 export function ContextChips({ activeKBIds, attachedContexts, onRemoveContext }: ContextChipsProps) {
+  const t = useTranslations('chatInput');
   const toggleKB = useStore((s) => s.toggleKnowledgeBase);
   const [kbNames, setKbNames] = useState<Record<string, string>>({});
 
@@ -168,7 +172,7 @@ export function ContextChips({ activeKBIds, attachedContexts, onRemoveContext }:
       {activeKBIds.map((kbId) => (
         <div key={kbId} className="flex items-center gap-1.5 px-2 py-1 bg-accent/10 border border-accent/20 rounded-lg text-[11px] text-accent">
           <BookOpen size={10} />
-          <span className="truncate max-w-[160px]">{kbNames[kbId] || 'Knowledge Base'}</span>
+          <span className="truncate max-w-[160px]">{kbNames[kbId] || t('knowledgeBase')}</span>
           <button onClick={() => toggleKB(kbId)} className="text-accent/60 hover:text-accent cursor-pointer">
             <X size={10} />
           </button>
@@ -190,11 +194,12 @@ export function ContextChips({ activeKBIds, attachedContexts, onRemoveContext }:
 // ── Image generation indicator ──
 
 export function ImageGeneratingIndicator({ imageModel }: { imageModel: string }) {
+  const t = useTranslations('chatInput');
   return (
     <div className="mb-2 flex items-center gap-2.5 px-3 py-2 bg-accent/10 border border-accent/20 rounded-lg">
       <LoaderCircle size={14} className="text-accent animate-spin shrink-0" />
       <div className="min-w-0 text-[11px] text-text-secondary">
-        Generating with {IMAGE_MODELS.find((model) => model.id === imageModel)?.name || imageModel}
+        {t('generatingWith', { modelName: IMAGE_MODELS.find((model) => model.id === imageModel)?.name || imageModel })}
       </div>
     </div>
   );
@@ -203,12 +208,13 @@ export function ImageGeneratingIndicator({ imageModel }: { imageModel: string })
 // ── Compare models banner ──
 
 export function CompareModelsBanner({ compareModels, onCancel }: { compareModels: string[]; onCancel: () => void }) {
+  const t = useTranslations('chatInput');
   if (compareModels.length < 2) return null;
 
   return (
     <div className="mb-2 flex items-center gap-2 px-3 py-2 bg-accent/8 border border-accent/20 rounded-lg">
       <GitCompare size={12} className="text-accent shrink-0" />
-      <span className="text-[11px] text-text-secondary">Comparing:</span>
+      <span className="text-[11px] text-text-secondary">{t('comparing')}</span>
       <div className="flex items-center gap-1.5 flex-wrap flex-1">
         {compareModels.map((id) => (
           <span key={id} className="px-1.5 py-0.5 text-[10px] font-medium bg-accent/10 text-accent rounded border border-accent/20">
@@ -219,7 +225,7 @@ export function CompareModelsBanner({ compareModels, onCancel }: { compareModels
       <button
         onClick={onCancel}
         className="text-text-tertiary hover:text-text-secondary cursor-pointer shrink-0"
-        title="Cancel compare"
+        title={t('cancelCompare')}
       >
         <X size={12} />
       </button>
@@ -241,13 +247,14 @@ interface SlashMenuProps {
 }
 
 export function SlashMenu({ open, commands, highlightIndex, onSelect, onHover, setContent, setSlashMenuOpen, textareaRef }: SlashMenuProps) {
+  const t = useTranslations('chatInput');
   if (!open || commands.length === 0) return null;
 
   return (
     <div className="absolute bottom-full left-0 right-0 mb-1 bg-surface-0 border border-border-default rounded-lg shadow-xl overflow-hidden z-20 animate-fade-in-up" style={{ animationDuration: '0.1s' }}>
       <div className="py-1">
         <div className="px-3 py-1.5 text-[10px] uppercase tracking-[0.1em] text-text-tertiary font-mono">
-          Slash Commands
+          {t('slashCommands')}
         </div>
         {commands.map((cmd, idx) => (
           <button
@@ -289,13 +296,14 @@ interface MentionMenuProps {
 }
 
 export function MentionMenu({ open, results, highlightIndex, onSelect, onHover }: MentionMenuProps) {
+  const t = useTranslations('chatInput');
   if (!open || results.length === 0) return null;
 
   return (
     <div className="absolute bottom-full left-0 right-0 mb-1 bg-surface-0 border border-border-default rounded-lg shadow-xl overflow-hidden z-20 animate-fade-in-up" style={{ animationDuration: '0.1s' }}>
       <div className="py-1">
         <div className="px-3 py-1.5 text-[10px] uppercase tracking-[0.1em] text-text-tertiary font-mono">
-          Reference a conversation
+          {t('referenceConversation')}
         </div>
         {results.map((conv, idx) => (
           <button
@@ -349,9 +357,10 @@ interface InputActionsBarProps {
 }
 
 export function InputActionsBar({ composeMode, imageModel, setImageModel, numResponses, setNumResponses, verbosity, setVerbosity, creativity, setCreativity, tone, setTone, isStreaming }: InputActionsBarProps) {
+  const t = useTranslations('chatInput');
   return (
     <div className="mt-2 flex items-center gap-3 pb-0.5">
-      <ModelPicker disabled={composeMode === 'image'} disabledReason="Locked while in image mode" />
+      <ModelPicker disabled={composeMode === 'image'} disabledReason={t('lockedImageMode')} />
       <AgentPicker />
       <KBPicker />
       {composeMode === 'image' && (

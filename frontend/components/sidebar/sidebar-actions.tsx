@@ -1,6 +1,7 @@
 'use client';
 
 import { Search, X, Plus, CheckSquare, Download, Trash2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
 interface SidebarActionsProps {
   search: string;
@@ -29,6 +30,7 @@ export default function SidebarActions({
   onBulkDelete,
   conversationCount,
 }: SidebarActionsProps) {
+  const t = useTranslations('sidebar');
   const allSelected = selectedCount === totalCount && totalCount > 0;
 
   return (
@@ -39,7 +41,7 @@ export default function SidebarActions({
           <Search size={13} className="text-text-tertiary shrink-0" />
           <input
             type="text"
-            placeholder="Search..."
+            placeholder={t('searchPlaceholder')}
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
             className="flex-1 bg-transparent text-xs text-text-primary placeholder:text-text-tertiary outline-none"
@@ -55,7 +57,7 @@ export default function SidebarActions({
         </div>
         <button
           onClick={onToggleBulkMode}
-          title={bulkMode ? 'Exit select mode' : 'Select multiple'}
+          title={bulkMode ? t('exitSelectMode') : t('selectMultiple')}
           className={`w-8 h-8 flex items-center justify-center border rounded-lg cursor-pointer transition-colors shrink-0 ${
             bulkMode
               ? 'bg-accent/10 border-accent/30 text-accent'
@@ -67,7 +69,7 @@ export default function SidebarActions({
         <button
           data-tour="new-chat"
           onClick={onNewConversation}
-          title="New conversation (Cmd+N)"
+          title={t('newConversation')}
           className="w-8 h-8 flex items-center justify-center bg-surface-1 border border-border-default rounded-lg text-text-tertiary hover:text-accent hover:border-accent/30 cursor-pointer transition-colors shrink-0"
         >
           <Plus size={14} />
@@ -85,7 +87,7 @@ export default function SidebarActions({
               onClick={onSelectAll}
               className="hover:text-text-secondary cursor-pointer transition-colors"
             >
-              {allSelected ? 'Deselect all' : 'Select all'}
+              {allSelected ? t('deselectAll') : t('selectAll')}
             </button>
             {selectedCount > 0 && (
               <>
@@ -94,14 +96,14 @@ export default function SidebarActions({
                   onClick={onBulkExport}
                   className="flex items-center gap-1 hover:text-text-secondary cursor-pointer transition-colors"
                 >
-                  <Download size={10} /> Export
+                  <Download size={10} /> {t('exportTooltip')}
                 </button>
                 <span>·</span>
                 <button
                   onClick={onBulkDelete}
                   className="flex items-center gap-1 hover:text-error cursor-pointer transition-colors"
                 >
-                  <Trash2 size={10} /> Delete
+                  <Trash2 size={10} /> {t('deleteTooltip')}
                 </button>
               </>
             )}
@@ -113,8 +115,8 @@ export default function SidebarActions({
       {search.trim() && (
         <div className="px-3 pb-1 text-[10px] font-mono text-text-tertiary">
           {conversationCount === 0
-            ? 'No conversations found'
-            : `${conversationCount} result${conversationCount !== 1 ? 's' : ''}`}
+            ? t('noConversationsFound')
+            : t('searchResultCount', { count: conversationCount })}
         </div>
       )}
     </>

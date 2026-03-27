@@ -2,10 +2,13 @@
 
 import { useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useStore } from '@/lib/store';
 import { logout as apiLogout, updateUserSettings } from '@/lib/api';
 import type { UserSettings } from '@/lib/types';
-import { LogOut, User, Keyboard, Shield, Users, BookOpen, Home, Compass, Bug, Building2, Check, Plus, Settings, Sun, Moon, Monitor, Type, Zap } from 'lucide-react';
+import { LogOut, User, Keyboard, Shield, Users, BookOpen, Home, Compass, Bug, Building2, Check, Plus, Settings, Sun, Moon, Monitor, Type, Zap, Globe } from 'lucide-react';
+import { useLocale } from 'next-intl';
+import { locales, type Locale } from '@/i18n/config';
 import BugReportDialog from './bug-report-dialog';
 import CreateOrgDialog from './create-org-dialog';
 import {
@@ -21,7 +24,11 @@ import {
   DropdownMenuLabel,
 } from './ui/dropdown-menu';
 
+const LOCALE_LABELS: Record<Locale, string> = { en: 'English', de: 'Deutsch' };
+
 export default function UserDropdown({ compact = false }: { compact?: boolean }) {
+  const t = useTranslations('userDropdown');
+  const locale = useLocale();
   const user = useStore((s) => s.user);
   const currentOrg = useStore((s) => s.currentOrg);
   const memberships = useStore((s) => s.memberships);
@@ -60,11 +67,11 @@ export default function UserDropdown({ compact = false }: { compact?: boolean })
   const handleLogout = async () => {
     const firstName = user?.name?.split(' ')[0];
     const confirmed = await useStore.getState().showConfirm({
-      title: 'Log out?',
+      title: t('logOutTitle'),
       message: firstName
-        ? `See you later, ${firstName}. You'll need to sign in again.`
-        : 'You will need to sign in again.',
-      confirmLabel: 'Log out',
+        ? t('logOutMessageName', { firstName })
+        : t('logOutMessage'),
+      confirmLabel: t('logOutConfirm'),
       variant: 'danger',
     });
     if (!confirmed) return;
@@ -80,6 +87,8 @@ export default function UserDropdown({ compact = false }: { compact?: boolean })
 
   const isAdmin = user?.role === 'admin' || user?.role === 'owner' || user?.isSuperadmin;
 
+  const FONT_SIZE_OPTIONS = [['sm', t('fontSmall')], ['md', t('fontMedium')], ['lg', t('fontLarge')]] as const;
+
   return (
     <>
       <DropdownMenu>
@@ -91,10 +100,10 @@ export default function UserDropdown({ compact = false }: { compact?: boolean })
               {user?.avatarUrl ? (
                 <img src={user.avatarUrl} alt="" className="w-full h-full object-cover" />
               ) : (
-                user?.name?.charAt(0)?.toUpperCase() || 'U'
+                user?.name?.charAt(0)?.toUpperCase() || t('defaultInitial')
               )}
             </div>
-            {!compact && <span className="text-xs text-text-secondary truncate">{user?.name || 'User'}</span>}
+            {!compact && <span className="text-xs text-text-secondary truncate">{user?.name || t('defaultName')}</span>}
           </button>
         </DropdownMenuTrigger>
 
@@ -111,7 +120,7 @@ export default function UserDropdown({ compact = false }: { compact?: boolean })
                 )}
               </div>
               <div className="min-w-0">
-                <div className="text-xs font-medium text-text-primary truncate">{user?.name || 'User'}</div>
+                <div className="text-xs font-medium text-text-primary truncate">{user?.name || t('defaultName')}</div>
                 <div className="text-[10px] text-text-tertiary truncate">{user?.email || ''}</div>
               </div>
             </div>
@@ -127,10 +136,10 @@ export default function UserDropdown({ compact = false }: { compact?: boolean })
           <DropdownMenuSub>
             <DropdownMenuSubTrigger>
               <Building2 size={13} />
-              <span>Organizations</span>
+              <span>{t('organizations')}</span>
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent className="w-52">
-              <DropdownMenuLabel className="text-[10px] text-text-tertiary">Your organizations</DropdownMenuLabel>
+              <DropdownMenuLabel className="text-[10px] text-text-tertiary">{t('yourOrganizations')}</DropdownMenuLabel>
               {memberships?.map((m) => (
                 <DropdownMenuItem key={m.orgId} onClick={() => handleSwitchOrg(m.orgId)} disabled={switchingOrg}>
                   <span className="truncate flex-1">{m.orgName}</span>
@@ -141,7 +150,7 @@ export default function UserDropdown({ compact = false }: { compact?: boolean })
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => setCreateOrgOpen(true)}>
                 <Plus size={13} />
-                <span>Create organization</span>
+                <span>{t('createOrganization')}</span>
               </DropdownMenuItem>
             </DropdownMenuSubContent>
           </DropdownMenuSub>
@@ -149,22 +158,22 @@ export default function UserDropdown({ compact = false }: { compact?: boolean })
           <DropdownMenuSub>
             <DropdownMenuSubTrigger>
               <Settings size={13} />
-              <span>Preferences</span>
+              <span>{t('preferences')}</span>
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent className="w-52">
-              <DropdownMenuLabel className="text-[10px] text-text-tertiary">Theme</DropdownMenuLabel>
-              {(['dark', 'light', 'system'] as const).map((t) => (
-                <DropdownMenuItem key={t} onSelect={(e) => { e.preventDefault(); handleSetting({ theme: t }); }}>
-                  {t === 'dark' && <Moon size={13} />}
-                  {t === 'light' && <Sun size={13} />}
-                  {t === 'system' && <Monitor size={13} />}
-                  <span className="capitalize">{t}</span>
-                  {(userSettings.theme ?? 'dark') === t && <Check size={12} className="ml-auto text-accent" />}
+              <DropdownMenuLabel className="text-[10px] text-text-tertiary">{t('themeLabel')}</DropdownMenuLabel>
+              {(['dark', 'light', 'system'] as const).map((theme) => (
+                <DropdownMenuItem key={theme} onSelect={(e) => { e.preventDefault(); handleSetting({ theme }); }}>
+                  {theme === 'dark' && <Moon size={13} />}
+                  {theme === 'light' && <Sun size={13} />}
+                  {theme === 'system' && <Monitor size={13} />}
+                  <span className="capitalize">{t(`theme${theme.charAt(0).toUpperCase()}${theme.slice(1)}` as 'themeDark' | 'themeLight' | 'themeSystem')}</span>
+                  {(userSettings.theme ?? 'dark') === theme && <Check size={12} className="ml-auto text-accent" />}
                 </DropdownMenuItem>
               ))}
               <DropdownMenuSeparator />
-              <DropdownMenuLabel className="text-[10px] text-text-tertiary">Font size</DropdownMenuLabel>
-              {([['sm', 'Small'], ['md', 'Medium'], ['lg', 'Large']] as const).map(([val, label]) => (
+              <DropdownMenuLabel className="text-[10px] text-text-tertiary">{t('fontSizeLabel')}</DropdownMenuLabel>
+              {FONT_SIZE_OPTIONS.map(([val, label]) => (
                 <DropdownMenuItem key={val} onSelect={(e) => { e.preventDefault(); handleSetting({ fontSize: val }); }}>
                   <Type size={13} />
                   <span>{label}</span>
@@ -174,9 +183,18 @@ export default function UserDropdown({ compact = false }: { compact?: boolean })
               <DropdownMenuSeparator />
               <DropdownMenuItem onSelect={(e) => { e.preventDefault(); handleSetting({ reduceAnimations: !userSettings.reduceAnimations }); }}>
                 <Zap size={13} />
-                <span>Reduce animations</span>
+                <span>{t('reduceAnimations')}</span>
                 {userSettings.reduceAnimations && <Check size={12} className="ml-auto text-accent" />}
               </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-[10px] text-text-tertiary">{t('language')}</DropdownMenuLabel>
+              {locales.map((loc) => (
+                <DropdownMenuItem key={loc} onSelect={(e) => { e.preventDefault(); document.cookie = `NEXT_LOCALE=${loc};path=/;max-age=${365 * 24 * 60 * 60};samesite=lax`; window.location.reload(); }}>
+                  <Globe size={13} />
+                  <span>{LOCALE_LABELS[loc]}</span>
+                  {locale === loc && <Check size={12} className="ml-auto text-accent" />}
+                </DropdownMenuItem>
+              ))}
             </DropdownMenuSubContent>
           </DropdownMenuSub>
 
@@ -185,20 +203,20 @@ export default function UserDropdown({ compact = false }: { compact?: boolean })
           {/* Navigation */}
           <DropdownMenuItem onClick={() => { useStore.getState().setActiveConversationId(null); useStore.getState().setMessages([]); navigateTo('/'); }}>
             <Home size={13} />
-            <span>Home</span>
+            <span>{t('home')}</span>
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => navigateTo('/agents')}>
             <Users size={13} />
-            <span>Agents</span>
+            <span>{t('agents')}</span>
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => navigateTo('/knowledge')}>
             <BookOpen size={13} />
-            <span>Knowledge bases</span>
+            <span>{t('knowledgeBases')}</span>
           </DropdownMenuItem>
           {isAdmin && (
             <DropdownMenuItem onClick={() => navigateTo('/admin')}>
               <Shield size={13} />
-              <span>Admin dashboard</span>
+              <span>{t('adminDashboard')}</span>
             </DropdownMenuItem>
           )}
 
@@ -207,16 +225,16 @@ export default function UserDropdown({ compact = false }: { compact?: boolean })
           {/* Utilities */}
           <DropdownMenuItem onClick={() => useStore.getState().setCommandPaletteOpen(true)}>
             <Keyboard size={13} />
-            <span>Keyboard shortcuts</span>
+            <span>{t('keyboardShortcuts')}</span>
             <DropdownMenuShortcut>&#8984;K</DropdownMenuShortcut>
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => window.dispatchEvent(new Event('nexus:start-tour'))}>
             <Compass size={13} />
-            <span>Take a tour</span>
+            <span>{t('takeATour')}</span>
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => setBugReportOpen(true)}>
             <Bug size={13} />
-            <span>Report a bug</span>
+            <span>{t('reportABug')}</span>
           </DropdownMenuItem>
 
           <DropdownMenuSeparator />
@@ -227,7 +245,7 @@ export default function UserDropdown({ compact = false }: { compact?: boolean })
             className="text-error/80 focus:text-error focus:bg-error/5 [&>svg]:text-error/80"
           >
             <LogOut size={13} />
-            <span>Log out</span>
+            <span>{t('logOut')}</span>
           </DropdownMenuItem>
 
         </DropdownMenuContent>

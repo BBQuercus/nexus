@@ -1,4 +1,6 @@
 import type { Metadata, Viewport } from 'next';
+import { NextIntlClientProvider } from 'next-intl';
+import { getLocale, getMessages } from 'next-intl/server';
 import './globals.css';
 import { SkipNav } from '@/components/accessibility';
 import AuthProvider from '@/components/auth-provider';
@@ -27,19 +29,24 @@ export const viewport: Viewport = {
   viewportFit: 'cover',
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const locale = await getLocale();
+  const messages = await getMessages();
+
   return (
-    <html lang="en">
+    <html lang={locale}>
       <body className="h-dvh overflow-hidden">
-        <SkipNav />
-        <ServiceWorkerRegister />
-        <OfflineBanner />
-        <QueryProvider>
-          <AuthProvider>
-            <ThemeProvider />
-            {children}
-          </AuthProvider>
-        </QueryProvider>
+        <NextIntlClientProvider messages={messages}>
+          <SkipNav />
+          <ServiceWorkerRegister />
+          <OfflineBanner />
+          <QueryProvider>
+            <AuthProvider>
+              <ThemeProvider />
+              {children}
+            </AuthProvider>
+          </QueryProvider>
+        </NextIntlClientProvider>
       </body>
     </html>
   );

@@ -1,6 +1,7 @@
 'use client';
 
 import { AlertTriangle } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import {
   AlertDialog,
   AlertDialogContent,
@@ -27,12 +28,13 @@ export default function ConfirmDialog({
   open,
   title,
   message,
-  confirmLabel = 'Confirm',
-  cancelLabel = 'Cancel',
+  confirmLabel,
+  cancelLabel,
   variant = 'default',
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
+  const tc = useTranslations('common');
   const isDanger = variant === 'danger';
 
   return (
@@ -52,12 +54,12 @@ export default function ConfirmDialog({
           </div>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel onClick={onCancel}>{cancelLabel}</AlertDialogCancel>
+          <AlertDialogCancel onClick={onCancel}>{cancelLabel ?? tc('cancel')}</AlertDialogCancel>
           <AlertDialogAction
             onClick={onConfirm}
             className={isDanger ? 'bg-error text-white hover:bg-error/90' : ''}
           >
-            {confirmLabel}
+            {confirmLabel ?? tc('confirm')}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

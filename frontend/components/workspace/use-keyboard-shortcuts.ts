@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
+import { useTranslations } from 'next-intl';
 import { useStore } from '@/lib/store';
 import * as api from '@/lib/api';
 import { MODELS } from '@/lib/types';
@@ -14,6 +15,8 @@ export function useKeyboardShortcuts({
   onOpenShortcuts,
   focusModeRef,
 }: UseKeyboardShortcutsOptions) {
+  const t = useTranslations('sidebar');
+  const tc = useTranslations('common');
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     const meta = e.metaKey || e.ctrlKey;
     const target = e.target as HTMLElement;
@@ -94,9 +97,9 @@ export function useKeyboardShortcuts({
       if (!convId) return;
       (async () => {
         const confirmed = await useStore.getState().showConfirm({
-          title: 'Delete this conversation?',
-          message: 'This action cannot be undone.',
-          confirmLabel: 'Delete',
+          title: t('deleteConfirmTitle', { count: 1 }),
+          message: t('deleteConfirmMessage'),
+          confirmLabel: tc('delete'),
           variant: 'danger',
         });
         if (!confirmed) return;
@@ -131,7 +134,7 @@ export function useKeyboardShortcuts({
       textarea?.focus();
       return;
     }
-  }, [onToggleFocusMode, onOpenShortcuts, focusModeRef]);
+  }, [focusModeRef, onOpenShortcuts, onToggleFocusMode, t, tc]);
 
   useEffect(() => {
     document.addEventListener('keydown', handleKeyDown, true);

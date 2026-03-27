@@ -2,18 +2,20 @@
 
 import { useState } from 'react';
 import { Terminal, Play, Check, ChevronRight, ChevronDown, FileEdit, Clock, Coins, Cpu } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { ToolCall, CostData } from './types';
 
 export function CostBadge({ data }: { data: CostData }) {
+  const t = useTranslations('toolCall');
   const model = data.model.split('/').pop() || data.model;
   return (
     <div className="flex items-center gap-3 mt-3 text-[10px] font-mono text-text-tertiary">
       <span className="flex items-center gap-1"><Cpu size={9} />{model}</span>
       {(data.inputTokens + data.outputTokens) > 0 && (
-        <span className="flex items-center gap-1"><Coins size={9} />{(data.inputTokens + data.outputTokens).toLocaleString()} tok</span>
+        <span className="flex items-center gap-1"><Coins size={9} />{t('costTokens', { tokenCount: (data.inputTokens + data.outputTokens).toLocaleString() })}</span>
       )}
       {data.totalCost > 0 && (
-        <span>{data.totalCost < 0.01 ? '<$0.01' : `$${data.totalCost.toFixed(3)}`}</span>
+        <span>{data.totalCost < 0.01 ? t('costLessThan') : t('costDollar', { cost: data.totalCost.toFixed(3) })}</span>
       )}
       {data.duration > 0 && (
         <span className="flex items-center gap-1"><Clock size={9} />{(data.duration / 1000).toFixed(1)}s</span>
@@ -23,6 +25,7 @@ export function CostBadge({ data }: { data: CostData }) {
 }
 
 export function ExecBlock({ tool }: { tool: ToolCall }) {
+  const t = useTranslations('toolCall');
   const isWriteFile = tool.name === 'write_file';
   const lang = isWriteFile ? 'write' : (tool.language || tool.name || 'code');
   const [collapsed, setCollapsed] = useState(!tool.isRunning && !!tool.output && tool.output.length > 200);
@@ -37,11 +40,11 @@ export function ExecBlock({ tool }: { tool: ToolCall }) {
         <div className="flex items-center gap-2">
           {tool.isRunning ? (
             <span className="flex items-center gap-1 text-accent">
-              <Play size={9} className="fill-current animate-pulse" /> running
+              <Play size={9} className="fill-current animate-pulse" /> {t('running')}
             </span>
           ) : tool.exitCode !== undefined ? (
             <span className={`flex items-center gap-1 ${tool.exitCode === 0 ? 'text-accent' : 'text-error'}`}>
-              {tool.exitCode === 0 ? <Check size={10} /> : <span>exit {tool.exitCode}</span>}
+              {tool.exitCode === 0 ? <Check size={10} /> : <span>{t('exitCode', { exitCode: tool.exitCode })}</span>}
               {tool.duration !== undefined && <span className="text-text-tertiary">{(tool.duration / 1000).toFixed(2)}s</span>}
             </span>
           ) : null}
@@ -58,7 +61,7 @@ export function ExecBlock({ tool }: { tool: ToolCall }) {
               className="flex items-center gap-1 px-3 py-1 text-[10px] text-text-tertiary hover:text-text-secondary font-mono cursor-pointer w-full text-left bg-bg/50"
             >
               {collapsed ? <ChevronRight size={10} /> : <ChevronDown size={10} />}
-              output ({tool.output.length} chars)
+              {t('output', { charCount: tool.output.length })}
             </button>
           )}
           {!collapsed && (
@@ -74,12 +77,13 @@ export function ExecBlock({ tool }: { tool: ToolCall }) {
 }
 
 export function ReasoningTrace({ content, tokenCount }: { content: string; tokenCount?: number }) {
+  const t = useTranslations('toolCall');
   return (
     <details className="mb-2 group/reason">
       <summary className="flex items-center gap-1.5 cursor-pointer text-[11px] text-text-tertiary hover:text-text-secondary py-1 font-mono tracking-wide">
         <ChevronRight size={11} className="group-open/reason:rotate-90 transition-transform" />
-        <span>reasoning</span>
-        {tokenCount && <span className="text-text-tertiary/60">· {tokenCount} tok</span>}
+        <span>{t('reasoning')}</span>
+        {tokenCount && <span className="text-text-tertiary/60">{t('reasoningTokens', { tokenCount })}</span>}
       </summary>
       <div className="mt-1 pl-3 border-l-2 border-accent/20 text-xs text-text-tertiary whitespace-pre-wrap leading-relaxed">{content}</div>
     </details>

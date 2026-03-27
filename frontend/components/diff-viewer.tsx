@@ -1,11 +1,13 @@
 'use client';
 
 import { useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import { useStore } from '@/lib/store';
 import { X } from 'lucide-react';
 import MarkdownContent from './markdown-content';
 
 export default function DiffViewer() {
+  const t = useTranslations('diffViewer');
   const diffView = useStore((s) => s.diffView);
   const setDiffView = useStore((s) => s.setDiffView);
 
@@ -24,13 +26,13 @@ export default function DiffViewer() {
     <div className="fixed inset-0 z-50 flex flex-col bg-bg/95 backdrop-blur-sm animate-fade-in-up" style={{ animationDuration: '0.15s' }}>
       <div className="flex items-center justify-between px-4 py-3 border-b border-border-default bg-surface-0 shrink-0">
         <div className="flex items-center gap-3">
-          <span className="text-xs font-medium text-text-primary">Response Comparison</span>
-          <span className="text-[10px] text-text-tertiary">{diffView.columns.length} responses</span>
+          <span className="text-xs font-medium text-text-primary">{t('headerTitle')}</span>
+          <span className="text-[10px] text-text-tertiary">{t('responsesCount', { count: diffView.columns.length })}</span>
         </div>
         <button
           onClick={() => setDiffView(null)}
           className="flex items-center justify-center w-7 h-7 rounded-lg text-text-tertiary hover:text-text-primary hover:bg-surface-1 cursor-pointer transition-colors"
-          title="Close (Esc)"
+          title={t('closeTitle')}
         >
           <X size={14} />
         </button>

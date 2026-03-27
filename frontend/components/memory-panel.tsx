@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import type { Memory } from '@/lib/types';
 import { listMemories, createMemory, updateMemory, deleteMemory } from '@/lib/api';
 import { Brain, Plus, Trash2, Check, X, Pencil, Filter, Globe, FolderOpen, MessageSquare } from 'lucide-react';
@@ -37,6 +38,7 @@ function MemoryCard({
   onUpdate: (id: string, params: Partial<Memory>) => void;
   onDelete: (id: string) => void;
 }) {
+  const t = useTranslations('memoryPanel');
   const [editing, setEditing] = useState(false);
   const [editContent, setEditContent] = useState(memory.content);
   const [confirming, setConfirming] = useState(false);
@@ -97,10 +99,10 @@ function MemoryCard({
 
         {!editing && (
           <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-            <button onClick={() => { setEditContent(memory.content); setEditing(true); }} className="p-1 text-text-tertiary hover:text-text-primary hover:bg-surface-2 rounded cursor-pointer" title="Edit">
+            <button onClick={() => { setEditContent(memory.content); setEditing(true); }} className="p-1 text-text-tertiary hover:text-text-primary hover:bg-surface-2 rounded cursor-pointer" title={t('editTitle')}>
               <Pencil size={12} />
             </button>
-            <button onClick={handleDelete} className={`p-1 rounded cursor-pointer ${confirming ? 'text-error bg-error/10' : 'text-text-tertiary hover:text-error hover:bg-error/10'}`} title={confirming ? 'Click again to confirm' : 'Delete'}>
+            <button onClick={handleDelete} className={`p-1 rounded cursor-pointer ${confirming ? 'text-error bg-error/10' : 'text-text-tertiary hover:text-error hover:bg-error/10'}`} title={confirming ? t('deleteConfirm') : t('deleteTitle')}>
               <Trash2 size={12} />
             </button>
           </div>
@@ -115,8 +117,8 @@ function MemoryCard({
         </div>
         <span className="text-[10px] text-text-tertiary">{createdDate}</span>
         {memory.relevance_count > 0 && (
-          <span className="text-[10px] text-text-tertiary" title="Times retrieved">
-            Used {memory.relevance_count}x
+          <span className="text-[10px] text-text-tertiary" title={t('timesRetrieved')}>
+            {t('usedCount', { count: memory.relevance_count })}
           </span>
         )}
       </div>
@@ -125,6 +127,7 @@ function MemoryCard({
 }
 
 function AddMemoryForm({ onAdd, onCancel }: { onAdd: (data: { content: string; scope: string; category: string }) => void; onCancel: () => void }) {
+  const t = useTranslations('memoryPanel');
   const [content, setContent] = useState('');
   const [scope, setScope] = useState('global');
   const [category, setCategory] = useState('preference');
@@ -141,7 +144,7 @@ function AddMemoryForm({ onAdd, onCancel }: { onAdd: (data: { content: string; s
       <textarea
         value={content}
         onChange={(e) => setContent(e.target.value)}
-        placeholder="What should the AI remember?"
+        placeholder={t('addPlaceholder')}
         className="w-full bg-surface-0 border border-border-default rounded px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary resize-none focus:outline-none focus:border-accent"
         rows={3}
         autoFocus
@@ -152,26 +155,26 @@ function AddMemoryForm({ onAdd, onCancel }: { onAdd: (data: { content: string; s
           onChange={(e) => setScope(e.target.value)}
           className="bg-surface-0 border border-border-default rounded px-2 py-1 text-xs text-text-primary focus:outline-none focus:border-accent cursor-pointer"
         >
-          <option value="global">Global</option>
-          <option value="project">Project</option>
-          <option value="conversation">Conversation</option>
+          <option value="global">{t('scopeGlobal')}</option>
+          <option value="project">{t('scopeProject')}</option>
+          <option value="conversation">{t('scopeConversation')}</option>
         </select>
         <select
           value={category}
           onChange={(e) => setCategory(e.target.value)}
           className="bg-surface-0 border border-border-default rounded px-2 py-1 text-xs text-text-primary focus:outline-none focus:border-accent cursor-pointer"
         >
-          <option value="preference">Preference</option>
-          <option value="fact">Fact</option>
-          <option value="decision">Decision</option>
-          <option value="instruction">Instruction</option>
+          <option value="preference">{t('categoryPreference')}</option>
+          <option value="fact">{t('categoryFact')}</option>
+          <option value="decision">{t('categoryDecision')}</option>
+          <option value="instruction">{t('categoryInstruction')}</option>
         </select>
         <div className="flex-1 min-w-0" />
         <button type="button" onClick={onCancel} className="px-2 py-1 text-xs text-text-tertiary hover:text-text-primary cursor-pointer">
-          Cancel
+          {t('clearFilters')}
         </button>
         <button type="submit" disabled={!content.trim()} className="px-2.5 py-1 text-xs bg-accent text-white rounded hover:bg-accent/90 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer">
-          Save
+          {t('addMemory')}
         </button>
       </div>
     </form>
@@ -179,6 +182,7 @@ function AddMemoryForm({ onAdd, onCancel }: { onAdd: (data: { content: string; s
 }
 
 export function MemoryPanel({ projectId }: { projectId?: string }) {
+  const t = useTranslations('memoryPanel');
   const [memories, setMemories] = useState<Memory[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
@@ -234,7 +238,7 @@ export function MemoryPanel({ projectId }: { projectId?: string }) {
     try {
       await deleteMemory(id);
       setMemories((prev) => prev.filter((m) => m.id !== id));
-      toast.success('Memory removed');
+      toast.success(t('memoryRemoved'));
     } catch {
       // error toast handled by apiFetch
     }
@@ -260,7 +264,7 @@ export function MemoryPanel({ projectId }: { projectId?: string }) {
       <div className="flex items-center justify-between px-4 py-3 border-b border-border-default">
         <div className="flex items-center gap-2">
           <Brain size={16} className="text-accent" />
-          <h3 className="text-sm font-medium text-text-primary">AI Memory</h3>
+          <h3 className="text-sm font-medium text-text-primary">{t('title')}</h3>
           <span className="text-[10px] text-text-tertiary bg-surface-2 px-1.5 py-0.5 rounded">
             {memories.length}
           </span>
@@ -273,14 +277,14 @@ export function MemoryPanel({ projectId }: { projectId?: string }) {
                 ? 'text-accent bg-accent/10'
                 : 'text-text-tertiary hover:text-text-primary hover:bg-surface-2'
             }`}
-            title="Filter"
+            title={t('filter')}
           >
             <Filter size={14} />
           </button>
           <button
             onClick={() => setShowAdd(!showAdd)}
             className="p-1.5 text-text-tertiary hover:text-accent hover:bg-accent/10 rounded transition-colors cursor-pointer"
-            title="Add memory"
+            title={t('addMemory')}
           >
             <Plus size={14} />
           </button>
@@ -295,28 +299,28 @@ export function MemoryPanel({ projectId }: { projectId?: string }) {
             onChange={(e) => setFilterScope(e.target.value || undefined)}
             className="bg-surface-0 border border-border-default rounded px-2 py-1 text-xs text-text-primary focus:outline-none focus:border-accent cursor-pointer"
           >
-            <option value="">All scopes</option>
-            <option value="global">Global</option>
-            <option value="project">Project</option>
-            <option value="conversation">Conversation</option>
+            <option value="">{t('allScopes')}</option>
+            <option value="global">{t('scopeGlobal')}</option>
+            <option value="project">{t('scopeProject')}</option>
+            <option value="conversation">{t('scopeConversation')}</option>
           </select>
           <select
             value={filterCategory || ''}
             onChange={(e) => setFilterCategory(e.target.value || undefined)}
             className="bg-surface-0 border border-border-default rounded px-2 py-1 text-xs text-text-primary focus:outline-none focus:border-accent cursor-pointer"
           >
-            <option value="">All categories</option>
-            <option value="preference">Preference</option>
-            <option value="fact">Fact</option>
-            <option value="decision">Decision</option>
-            <option value="instruction">Instruction</option>
+            <option value="">{t('allCategories')}</option>
+            <option value="preference">{t('categoryPreference')}</option>
+            <option value="fact">{t('categoryFact')}</option>
+            <option value="decision">{t('categoryDecision')}</option>
+            <option value="instruction">{t('categoryInstruction')}</option>
           </select>
           {hasFilters && (
             <button
               onClick={() => { setFilterScope(undefined); setFilterCategory(undefined); }}
               className="text-[10px] text-text-tertiary hover:text-text-primary cursor-pointer"
             >
-              Clear
+              {t('clearFilters')}
             </button>
           )}
         </div>
@@ -335,15 +339,15 @@ export function MemoryPanel({ projectId }: { projectId?: string }) {
         ) : memories.length === 0 ? (
           <div className="text-center py-8">
             <Brain size={24} className="mx-auto text-text-tertiary mb-2" />
-            <p className="text-sm text-text-tertiary">No memories yet</p>
+            <p className="text-sm text-text-tertiary">{t('noMemoriesYet')}</p>
             <p className="text-xs text-text-tertiary mt-1">
-              Teach Nexus your preferences, facts, and decisions so it remembers across conversations.
+              {t('noMemoriesDesc')}
             </p>
             <button
               onClick={() => setShowAdd(true)}
               className="mt-3 text-xs text-accent hover:underline cursor-pointer"
             >
-              Add your first memory
+              {t('addFirstMemory')}
             </button>
           </div>
         ) : (
