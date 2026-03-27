@@ -154,7 +154,7 @@ export default function UserDropdown({ compact = false }: { compact?: boolean })
             <DropdownMenuSubContent className="w-52">
               <DropdownMenuLabel className="text-[10px] text-text-tertiary">Theme</DropdownMenuLabel>
               {(['dark', 'light', 'system'] as const).map((t) => (
-                <DropdownMenuItem key={t} onClick={() => handleSetting({ theme: t })}>
+                <DropdownMenuItem key={t} onSelect={(e) => { e.preventDefault(); handleSetting({ theme: t }); }}>
                   {t === 'dark' && <Moon size={13} />}
                   {t === 'light' && <Sun size={13} />}
                   {t === 'system' && <Monitor size={13} />}
@@ -165,14 +165,14 @@ export default function UserDropdown({ compact = false }: { compact?: boolean })
               <DropdownMenuSeparator />
               <DropdownMenuLabel className="text-[10px] text-text-tertiary">Font size</DropdownMenuLabel>
               {([['sm', 'Small'], ['md', 'Medium'], ['lg', 'Large']] as const).map(([val, label]) => (
-                <DropdownMenuItem key={val} onClick={() => handleSetting({ fontSize: val })}>
+                <DropdownMenuItem key={val} onSelect={(e) => { e.preventDefault(); handleSetting({ fontSize: val }); }}>
                   <Type size={13} />
                   <span>{label}</span>
                   {(userSettings.fontSize ?? 'md') === val && <Check size={12} className="ml-auto text-accent" />}
                 </DropdownMenuItem>
               ))}
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => handleSetting({ reduceAnimations: !userSettings.reduceAnimations })}>
+              <DropdownMenuItem onSelect={(e) => { e.preventDefault(); handleSetting({ reduceAnimations: !userSettings.reduceAnimations }); }}>
                 <Zap size={13} />
                 <span>Reduce animations</span>
                 {userSettings.reduceAnimations && <Check size={12} className="ml-auto text-accent" />}
