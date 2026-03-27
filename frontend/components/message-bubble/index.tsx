@@ -116,6 +116,18 @@ export default function MessageBubble({ message }: { message: Message }) {
           setMessages(snapshot);
         },
       },
+      actionButtonStyle: {
+        background: '#00E599',
+        color: '#0D0D12',
+        fontSize: '11px',
+        fontWeight: '500',
+        borderRadius: '4px',
+        padding: '2px 8px',
+        height: '22px',
+        border: 'none',
+        cursor: 'pointer',
+        flexShrink: 0,
+      },
       duration: 5000,
     });
   };

@@ -6,6 +6,7 @@ import { useIsDesktop } from '@/lib/useMediaQuery';
 import * as api from '@/lib/api';
 import type { Conversation } from '@/lib/types';
 import { toast } from '../toast';
+import { toast as sonnerToast } from 'sonner';
 import { Zap, PanelLeft } from 'lucide-react';
 import ProjectSwitcher from '../project-switcher';
 import ContextWindowViz from '../context-window-viz';
@@ -64,6 +65,9 @@ export default function Sidebar() {
   const [renameValue, setRenameValue] = useState('');
   const renameInputRef = useRef<HTMLInputElement>(null);
 
+  // Delete undo timers: map from conversation id to timer handle
+  const deleteTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+
   // Preview tooltip
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [hoverPos, setHoverPos] = useState({ x: 0, y: 0 });
@@ -110,20 +114,11 @@ export default function Sidebar() {
     }
   };
 
-  const handleDelete = async (id: string, e: React.MouseEvent) => {
+  const handleDelete = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (deletingIds.has(id)) return;
+    if (deletingIds.has(id) || deleteTimers.current.has(id)) return;
 
-    const confirmed = await useStore.getState().showConfirm({
-      title: 'Delete this conversation?',
-      message: 'This action cannot be undone.',
-      confirmLabel: 'Delete',
-      variant: 'danger',
-    });
-    if (!confirmed) return;
-
-    const snapshot = useStore.getState();
-    setDeletingIds((prev) => new Set(prev).add(id));
+    const snapshotConvs = useStore.getState().conversations;
     removeConversation(id);
     setSelectedIds((prev) => {
       if (!prev.has(id)) return prev;
@@ -132,35 +127,53 @@ export default function Sidebar() {
       return next;
     });
 
-    try {
-      await api.deleteConversation(id);
-      toast.success('Conversation deleted');
-    } catch {
-      useStore.setState({
-        conversations: snapshot.conversations,
-        activeConversationId: snapshot.activeConversationId,
-        messages: snapshot.messages,
-        messagesByConversation: snapshot.messagesByConversation,
-        sandboxStatus: snapshot.sandboxStatus,
-        sandboxId: snapshot.sandboxId,
-        activeLeafId: snapshot.activeLeafId,
-        conversationTree: snapshot.conversationTree,
-        artifacts: snapshot.artifacts,
-        previewUrl: snapshot.previewUrl,
-        abortController: snapshot.abortController,
-        isStreaming: snapshot.isStreaming,
-        streaming: snapshot.streaming,
-        multiStreaming: snapshot.multiStreaming,
-      });
-      loadConversations();
-      toast.error('Failed to delete conversation');
-    } finally {
-      setDeletingIds((prev) => {
-        const next = new Set(prev);
-        next.delete(id);
-        return next;
-      });
-    }
+    const commit = async () => {
+      deleteTimers.current.delete(id);
+      setDeletingIds((prev) => new Set(prev).add(id));
+      try {
+        await api.deleteConversation(id);
+      } catch {
+        useStore.setState({ conversations: snapshotConvs });
+        loadConversations();
+        toast.error('Failed to delete conversation');
+      } finally {
+        setDeletingIds((prev) => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+      }
+    };
+
+    const timer = setTimeout(commit, 5000);
+    deleteTimers.current.set(id, timer);
+
+    sonnerToast('Conversation deleted', {
+      action: {
+        label: 'Undo',
+        onClick: () => {
+          const t = deleteTimers.current.get(id);
+          if (t) {
+            clearTimeout(t);
+            deleteTimers.current.delete(id);
+          }
+          useStore.setState({ conversations: snapshotConvs });
+        },
+      },
+      actionButtonStyle: {
+        background: '#00E599',
+        color: '#0D0D12',
+        fontSize: '11px',
+        fontWeight: '500',
+        borderRadius: '4px',
+        padding: '2px 8px',
+        height: '22px',
+        border: 'none',
+        cursor: 'pointer',
+        flexShrink: 0,
+      },
+      duration: 5000,
+    });
   };
 
   const startRename = (conv: Conversation, e: React.MouseEvent) => {
