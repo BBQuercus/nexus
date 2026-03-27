@@ -106,6 +106,21 @@ class User(Base):
     agent_personas: Mapped[list["AgentPersona"]] = relationship(back_populates="user")
     usage_logs: Mapped[list["UsageLog"]] = relationship(back_populates="user")
     memberships: Mapped[list["UserOrg"]] = relationship(back_populates="user")
+    settings: Mapped[Optional["UserSettings"]] = relationship(back_populates="user", uselist=False)
+
+
+class UserSettings(Base):
+    __tablename__ = "user_settings"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    settings: Mapped[Any] = mapped_column(JSONB, nullable=False, server_default=text("'{}'::jsonb"))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    user: Mapped["User"] = relationship(back_populates="settings")
 
 
 class Project(Base):

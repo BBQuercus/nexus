@@ -1,4 +1,4 @@
-import type { Conversation, Message, Artifact, AgentPersona, User, FileNode, ConversationTree, KnowledgeBase, KBDocument, Citation, Project, SearchResult, Organization, OrgMembership } from './types';
+import type { Conversation, Message, Artifact, AgentPersona, User, FileNode, ConversationTree, KnowledgeBase, KBDocument, Citation, Project, SearchResult, Organization, OrgMembership, UserSettings } from './types';
 import { getCsrfToken } from './auth';
 import { toApiUrl } from './runtime';
 
@@ -191,6 +191,17 @@ export async function updateConversation(id: string, params: Record<string, unkn
 
 export async function deleteConversation(id: string): Promise<void> {
   return apiFetch<void>(`/api/conversations/${id}`, { method: 'DELETE' });
+}
+
+export async function bulkDeleteConversations(ids: string[]): Promise<{ deleted: number; failed: string[] }> {
+  return apiFetch(`/api/conversations/bulk-delete`, {
+    method: 'POST',
+    body: JSON.stringify({ ids }),
+  });
+}
+
+export async function deleteMessage(conversationId: string, messageId: string): Promise<void> {
+  return apiFetch<void>(`/api/conversations/${conversationId}/messages/${messageId}`, { method: 'DELETE' });
 }
 
 // ── Messages ──
@@ -1025,4 +1036,19 @@ export async function switchOrg(orgId: string): Promise<{ ok: boolean }> {
     method: 'POST',
     body: JSON.stringify({ org_id: orgId }),
   });
+}
+
+// ── User Settings ──
+
+export async function getUserSettings(): Promise<UserSettings> {
+  const result = await apiFetch<{ settings: UserSettings }>('/api/users/me/settings');
+  return result.settings ?? {};
+}
+
+export async function updateUserSettings(settings: Partial<UserSettings>): Promise<UserSettings> {
+  const result = await apiFetch<{ settings: UserSettings }>('/api/users/me/settings', {
+    method: 'PATCH',
+    body: JSON.stringify({ settings }),
+  });
+  return result.settings;
 }

@@ -245,13 +245,15 @@ export default function Sidebar() {
     });
     ids.forEach((id) => removeConversation(id));
 
-    const results = await Promise.allSettled(ids.map(async (id) => {
-      await api.deleteConversation(id);
-      return id;
-    }));
-
-    const failed = results.filter((result) => result.status === 'rejected').length;
-    const deleted = results.length - failed;
+    let deleted = 0;
+    let failed = 0;
+    try {
+      const result = await api.bulkDeleteConversations(ids);
+      deleted = result.deleted;
+      failed = result.failed.length;
+    } catch {
+      failed = ids.length;
+    }
 
     if (failed > 0) {
       useStore.setState({
