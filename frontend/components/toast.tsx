@@ -24,16 +24,6 @@ export function Toaster() {
           borderRadius: '8px',
           boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
         },
-        actionButtonStyle: {
-          background: 'var(--color-accent)',
-          color: 'var(--color-bg)',
-          fontFamily: 'var(--font-ui)',
-          fontSize: '11px',
-          fontWeight: '500',
-          borderRadius: '5px',
-          padding: '3px 8px',
-          cursor: 'pointer',
-        },
       }}
       gap={8}
     />

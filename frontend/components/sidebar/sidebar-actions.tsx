@@ -29,6 +29,8 @@ export default function SidebarActions({
   onBulkDelete,
   conversationCount,
 }: SidebarActionsProps) {
+  const allSelected = selectedCount === totalCount && totalCount > 0;
+
   return (
     <>
       {/* Header */}
@@ -72,35 +74,38 @@ export default function SidebarActions({
         </button>
       </div>
 
-      {/* Bulk action bar */}
+      {/* Bulk action bar — compact single line */}
       {bulkMode && (
-        <div className="flex items-center gap-1.5 px-2 pb-1.5 animate-fade-in-up" style={{ animationDuration: '0.1s' }}>
-          <span className="text-[10px] text-text-tertiary font-mono flex-1">
-            {selectedCount > 0 ? `${selectedCount} selected` : 'Select conversations'}
+        <div className="flex items-center gap-3 px-3 pb-2 animate-fade-in-up" style={{ animationDuration: '0.1s' }}>
+          <span className="text-[10px] text-text-tertiary font-mono shrink-0">
+            {selectedCount > 0 ? `${selectedCount} / ${totalCount}` : `0 / ${totalCount}`}
           </span>
-          <button
-            onClick={onSelectAll}
-            className="flex items-center gap-1 px-2 py-1 text-[10px] bg-surface-1 border border-border-default rounded-lg text-text-secondary hover:text-accent hover:border-accent/30 cursor-pointer transition-colors"
-          >
-            <CheckSquare size={10} />
-            {selectedCount === totalCount && totalCount > 0 ? 'Deselect all' : 'Select all'}
-          </button>
-          {selectedCount > 0 && (
-            <>
-              <button
-                onClick={onBulkExport}
-                className="flex items-center gap-1 px-2 py-1 text-[10px] bg-surface-1 border border-border-default rounded-lg text-text-secondary hover:text-accent hover:border-accent/30 cursor-pointer transition-colors"
-              >
-                <Download size={10} /> Export
-              </button>
-              <button
-                onClick={onBulkDelete}
-                className="flex items-center gap-1 px-2 py-1 text-[10px] bg-surface-1 border border-border-default rounded-lg text-text-secondary hover:text-error hover:border-error/30 cursor-pointer transition-colors"
-              >
-                <Trash2 size={10} /> Delete
-              </button>
-            </>
-          )}
+          <div className="flex items-center gap-2 text-[10px] text-text-tertiary">
+            <button
+              onClick={onSelectAll}
+              className="hover:text-text-secondary cursor-pointer transition-colors"
+            >
+              {allSelected ? 'Deselect all' : 'Select all'}
+            </button>
+            {selectedCount > 0 && (
+              <>
+                <span>·</span>
+                <button
+                  onClick={onBulkExport}
+                  className="flex items-center gap-1 hover:text-text-secondary cursor-pointer transition-colors"
+                >
+                  <Download size={10} /> Export
+                </button>
+                <span>·</span>
+                <button
+                  onClick={onBulkDelete}
+                  className="flex items-center gap-1 hover:text-error cursor-pointer transition-colors"
+                >
+                  <Trash2 size={10} /> Delete
+                </button>
+              </>
+            )}
+          </div>
         </div>
       )}
 
