@@ -49,7 +49,6 @@ export default function UserDropdown({ compact = false }: { compact?: boolean })
     setSwitchingOrg(true);
     try {
       await switchOrg(orgId);
-      // Navigate home after switch
       if (pathname !== '/') router.push('/');
     } catch {
       // Error handled by API layer toast
@@ -75,19 +74,11 @@ export default function UserDropdown({ compact = false }: { compact?: boolean })
     window.location.href = '/login';
   };
 
-  const handleShortcuts = () => {
-    useStore.getState().setCommandPaletteOpen(true);
-  };
-
-  const handleTour = () => {
-    window.dispatchEvent(new Event('nexus:start-tour'));
-  };
-
   const navigateTo = (href: string) => {
-    if (pathname !== href) {
-      router.push(href);
-    }
+    if (pathname !== href) router.push(href);
   };
+
+  const isAdmin = user?.role === 'admin' || user?.role === 'owner' || user?.isSuperadmin;
 
   return (
     <>
@@ -108,7 +99,8 @@ export default function UserDropdown({ compact = false }: { compact?: boolean })
         </DropdownMenuTrigger>
 
         <DropdownMenuContent align="end" className="w-56">
-          {/* User info + Org context */}
+
+          {/* Identity header */}
           <div className="px-2 py-2 border-b border-border -mx-1 mb-1">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 bg-surface-2 border border-border rounded-full flex items-center justify-center text-xs font-mono text-text-secondary overflow-hidden shrink-0">
@@ -119,12 +111,8 @@ export default function UserDropdown({ compact = false }: { compact?: boolean })
                 )}
               </div>
               <div className="min-w-0">
-                <div className="text-xs font-medium text-text-primary truncate">
-                  {user?.name || 'User'}
-                </div>
-                <div className="text-[10px] text-text-tertiary truncate">
-                  {user?.email || ''}
-                </div>
+                <div className="text-xs font-medium text-text-primary truncate">{user?.name || 'User'}</div>
+                <div className="text-[10px] text-text-tertiary truncate">{user?.email || ''}</div>
               </div>
             </div>
             {currentOrg && (
@@ -135,6 +123,7 @@ export default function UserDropdown({ compact = false }: { compact?: boolean })
             )}
           </div>
 
+          {/* Account */}
           <DropdownMenuSub>
             <DropdownMenuSubTrigger>
               <Building2 size={13} />
@@ -143,11 +132,7 @@ export default function UserDropdown({ compact = false }: { compact?: boolean })
             <DropdownMenuSubContent className="w-52">
               <DropdownMenuLabel className="text-[10px] text-text-tertiary">Your organizations</DropdownMenuLabel>
               {memberships?.map((m) => (
-                <DropdownMenuItem
-                  key={m.orgId}
-                  onClick={() => handleSwitchOrg(m.orgId)}
-                  disabled={switchingOrg}
-                >
+                <DropdownMenuItem key={m.orgId} onClick={() => handleSwitchOrg(m.orgId)} disabled={switchingOrg}>
                   <span className="truncate flex-1">{m.orgName}</span>
                   {m.orgId === currentOrg?.id && <Check size={12} className="text-accent shrink-0" />}
                   <span className="text-[10px] text-text-tertiary ml-1">{m.role}</span>
@@ -160,34 +145,6 @@ export default function UserDropdown({ compact = false }: { compact?: boolean })
               </DropdownMenuItem>
             </DropdownMenuSubContent>
           </DropdownMenuSub>
-
-          <DropdownMenuItem onClick={() => { useStore.getState().setActiveConversationId(null); useStore.getState().setMessages([]); navigateTo('/'); }}>
-            <Home size={13} />
-            <span>Home</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={handleShortcuts}>
-            <Keyboard size={13} />
-            <span>Keyboard shortcuts</span>
-            <DropdownMenuShortcut>&#8984;K</DropdownMenuShortcut>
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={handleTour}>
-            <Compass size={13} />
-            <span>Take a tour</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => navigateTo('/agents')}>
-            <Users size={13} />
-            <span>Agents</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => navigateTo('/knowledge')}>
-            <BookOpen size={13} />
-            <span>Knowledge Bases</span>
-          </DropdownMenuItem>
-          {(user?.role === 'admin' || user?.role === 'owner' || user?.isSuperadmin) && (
-            <DropdownMenuItem onClick={() => navigateTo('/admin')}>
-              <Shield size={13} />
-              <span>Admin dashboard</span>
-            </DropdownMenuItem>
-          )}
 
           <DropdownMenuSub>
             <DropdownMenuSubTrigger>
@@ -225,10 +182,46 @@ export default function UserDropdown({ compact = false }: { compact?: boolean })
 
           <DropdownMenuSeparator />
 
+          {/* Navigation */}
+          <DropdownMenuItem onClick={() => { useStore.getState().setActiveConversationId(null); useStore.getState().setMessages([]); navigateTo('/'); }}>
+            <Home size={13} />
+            <span>Home</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => navigateTo('/agents')}>
+            <Users size={13} />
+            <span>Agents</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => navigateTo('/knowledge')}>
+            <BookOpen size={13} />
+            <span>Knowledge bases</span>
+          </DropdownMenuItem>
+          {isAdmin && (
+            <DropdownMenuItem onClick={() => navigateTo('/admin')}>
+              <Shield size={13} />
+              <span>Admin dashboard</span>
+            </DropdownMenuItem>
+          )}
+
+          <DropdownMenuSeparator />
+
+          {/* Utilities */}
+          <DropdownMenuItem onClick={() => useStore.getState().setCommandPaletteOpen(true)}>
+            <Keyboard size={13} />
+            <span>Keyboard shortcuts</span>
+            <DropdownMenuShortcut>&#8984;K</DropdownMenuShortcut>
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => window.dispatchEvent(new Event('nexus:start-tour'))}>
+            <Compass size={13} />
+            <span>Take a tour</span>
+          </DropdownMenuItem>
           <DropdownMenuItem onClick={() => setBugReportOpen(true)}>
             <Bug size={13} />
             <span>Report a bug</span>
           </DropdownMenuItem>
+
+          <DropdownMenuSeparator />
+
+          {/* Destructive */}
           <DropdownMenuItem
             onClick={handleLogout}
             className="text-error/80 focus:text-error focus:bg-error/5 [&>svg]:text-error/80"
@@ -236,15 +229,12 @@ export default function UserDropdown({ compact = false }: { compact?: boolean })
             <LogOut size={13} />
             <span>Log out</span>
           </DropdownMenuItem>
+
         </DropdownMenuContent>
       </DropdownMenu>
 
       <BugReportDialog open={bugReportOpen} onClose={() => setBugReportOpen(false)} />
-      <CreateOrgDialog
-        open={createOrgOpen}
-        onClose={() => setCreateOrgOpen(false)}
-        switchAfterCreate
-      />
+      <CreateOrgDialog open={createOrgOpen} onClose={() => setCreateOrgOpen(false)} switchAfterCreate />
     </>
   );
 }
