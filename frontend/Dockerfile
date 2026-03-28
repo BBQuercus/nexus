@@ -4,11 +4,9 @@ RUN apk add --no-cache libc6-compat
 
 WORKDIR /app
 
-# Install dependencies
+# Install dependencies (npm install instead of ci to resolve platform-specific optional deps)
 COPY package.json package-lock.json* ./
-RUN npm ci
-# Install platform-specific optional deps missing from macOS-generated lockfile
-RUN npm install --no-save @parcel/watcher-linux-x64-musl @next/swc-linux-x64-musl 2>/dev/null || true
+RUN npm install
 
 # Copy source and build
 COPY . .
