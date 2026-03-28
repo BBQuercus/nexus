@@ -194,23 +194,23 @@ export function CitationDetailPopover({
   const [pos, setPos] = useState({ top: 0, left: 0, placement: 'above' as 'above' | 'below' });
 
   useEffect(() => {
-    const popupW = 320;
+    const popupW = Math.min(320, window.innerWidth - 24);
     const popupH = 300;
     let left = anchorRect.left;
     let top = anchorRect.top - 8;
     let placement: 'above' | 'below' = 'above';
 
     // If not enough space above, place below
-    if (anchorRect.top - popupH < 16) {
+    if (anchorRect.top - popupH < 12) {
       top = anchorRect.bottom + 8;
       placement = 'below';
     }
 
     // Clamp horizontal
-    if (left + popupW > window.innerWidth - 16) {
-      left = window.innerWidth - popupW - 16;
+    if (left + popupW > window.innerWidth - 12) {
+      left = window.innerWidth - popupW - 12;
     }
-    if (left < 16) left = 16;
+    if (left < 12) left = 12;
 
     setPos({ top, left, placement });
   }, [anchorRect]);
@@ -245,7 +245,7 @@ export function CitationDetailPopover({
   return createPortal(
     <div
       ref={popupRef}
-      className="fixed z-[100] w-80 max-h-[300px] overflow-y-auto bg-surface-1 border border-border-default rounded-lg shadow-xl shadow-black/30 p-4 text-xs"
+      className="fixed z-[100] w-[min(320px,calc(100vw-24px))] max-h-[300px] overflow-y-auto bg-surface-1 border border-border-default rounded-lg shadow-xl shadow-black/30 p-4 text-xs"
       style={{
         top: pos.top,
         left: pos.left,

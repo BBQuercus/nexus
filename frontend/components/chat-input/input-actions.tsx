@@ -251,7 +251,7 @@ export function SlashMenu({ open, commands, highlightIndex, onSelect, onHover, s
   if (!open || commands.length === 0) return null;
 
   return (
-    <div className="absolute bottom-full left-0 right-0 mb-1 bg-surface-0 border border-border-default rounded-lg shadow-xl overflow-hidden z-20 animate-fade-in-up" style={{ animationDuration: '0.1s' }}>
+    <div className="absolute bottom-full left-0 right-0 mb-1 max-h-[min(320px,calc(100dvh-120px))] overflow-y-auto bg-surface-0 border border-border-default rounded-lg shadow-xl z-20 animate-fade-in-up" style={{ animationDuration: '0.1s' }}>
       <div className="py-1">
         <div className="px-3 py-1.5 text-[10px] uppercase tracking-[0.1em] text-text-tertiary font-mono">
           {t('slashCommands')}
@@ -300,7 +300,7 @@ export function MentionMenu({ open, results, highlightIndex, onSelect, onHover }
   if (!open || results.length === 0) return null;
 
   return (
-    <div className="absolute bottom-full left-0 right-0 mb-1 bg-surface-0 border border-border-default rounded-lg shadow-xl overflow-hidden z-20 animate-fade-in-up" style={{ animationDuration: '0.1s' }}>
+    <div className="absolute bottom-full left-0 right-0 mb-1 max-h-[min(320px,calc(100dvh-120px))] overflow-y-auto bg-surface-0 border border-border-default rounded-lg shadow-xl z-20 animate-fade-in-up" style={{ animationDuration: '0.1s' }}>
       <div className="py-1">
         <div className="px-3 py-1.5 text-[10px] uppercase tracking-[0.1em] text-text-tertiary font-mono">
           {t('referenceConversation')}

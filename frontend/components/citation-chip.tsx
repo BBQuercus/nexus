@@ -18,21 +18,29 @@ function CitationPopup({
 }) {
   const t = useTranslations('citationChip');
   const popupRef = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState({ top: 0, left: 0 });
+  const [pos, setPos] = useState({ top: 0, left: 0, placement: 'above' as 'above' | 'below' });
 
   useEffect(() => {
     // Position above the chip, clamped to viewport
-    const popupW = 288;
+    const popupW = Math.min(288, window.innerWidth - 24);
+    const popupH = 200; // approximate height
     let left = anchorRect.left;
     let top = anchorRect.top - 8; // 8px gap above
+    let placement: 'above' | 'below' = 'above';
+
+    // If not enough space above, place below
+    if (anchorRect.top - popupH < 12) {
+      top = anchorRect.bottom + 8;
+      placement = 'below';
+    }
 
     // Clamp horizontal
-    if (left + popupW > window.innerWidth - 16) {
-      left = window.innerWidth - popupW - 16;
+    if (left + popupW > window.innerWidth - 12) {
+      left = window.innerWidth - popupW - 12;
     }
-    if (left < 16) left = 16;
+    if (left < 12) left = 12;
 
-    setPos({ top, left });
+    setPos({ top, left, placement });
   }, [anchorRect]);
 
   const scoreColor = citation.score >= 0.7
@@ -49,8 +57,8 @@ function CitationPopup({
   return createPortal(
     <div
       ref={popupRef}
-      className="fixed z-[100] w-72 bg-surface-1 border border-border-default rounded-lg shadow-xl shadow-black/30 p-3 text-xs"
-      style={{ top: pos.top, left: pos.left, transform: 'translateY(-100%)' }}
+      className="fixed z-[100] w-[min(288px,calc(100vw-24px))] bg-surface-1 border border-border-default rounded-lg shadow-xl shadow-black/30 p-3 text-xs"
+      style={{ top: pos.top, left: pos.left, transform: pos.placement === 'above' ? 'translateY(-100%)' : undefined }}
     >
       <div className="flex items-center justify-between mb-1.5">
         <span className="font-medium text-text-primary truncate">{citation.filename}</span>
