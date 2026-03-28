@@ -15,6 +15,7 @@ import {
 } from '@/lib/auth';
 import { toast } from '@/components/toast';
 import { Zap } from 'lucide-react';
+import GlobalShell from '@/components/global-shell';
 
 const PUBLIC_PATHS = ['/login'];
 
@@ -205,5 +206,5 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     return null;
   }
 
-  return <>{children}</>;
+  return <GlobalShell>{children}</GlobalShell>;
 }

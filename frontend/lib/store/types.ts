@@ -79,6 +79,8 @@ export interface AppState {
   projects: Project[];
   activeProjectId: string | null;
   searchPanelOpen: boolean;
+  shortcutsOpen: boolean;
+  bugReportOpen: boolean;
   currentOrg: Organization | null;
   memberships: OrgMembership[];
   userSettings: UserSettings;
@@ -131,6 +133,8 @@ export interface AppActions {
   setProjects: (projects: Project[]) => void;
   setActiveProjectId: (id: string | null) => void;
   setSearchPanelOpen: (open: boolean) => void;
+  setShortcutsOpen: (open: boolean) => void;
+  setBugReportOpen: (open: boolean) => void;
   setCurrentOrg: (org: Organization | null) => void;
   setMemberships: (memberships: OrgMembership[]) => void;
   switchOrg: (orgId: string) => Promise<void>;

@@ -1,20 +1,10 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { useStore } from '@/lib/store';
 import * as api from '@/lib/api';
 import { MODELS } from '@/lib/types';
 
-interface UseKeyboardShortcutsOptions {
-  onToggleFocusMode: () => void;
-  onOpenShortcuts: () => void;
-  focusModeRef: React.MutableRefObject<boolean>;
-}
-
-export function useKeyboardShortcuts({
-  onToggleFocusMode,
-  onOpenShortcuts,
-  focusModeRef,
-}: UseKeyboardShortcutsOptions) {
+export function useKeyboardShortcuts() {
   const t = useTranslations('sidebar');
   const tc = useTranslations('common');
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
@@ -29,7 +19,7 @@ export function useKeyboardShortcuts({
     }
     if (meta && e.shiftKey && e.key === '.') {
       e.preventDefault();
-      onToggleFocusMode();
+      window.dispatchEvent(new CustomEvent('nexus:toggle-focus-mode'));
       return;
     }
     if (meta && e.key === 'k') {
@@ -38,10 +28,6 @@ export function useKeyboardShortcuts({
       return;
     }
     if (e.key === 'Escape') {
-      if (focusModeRef.current) {
-        onToggleFocusMode();
-        return;
-      }
       if (useStore.getState().searchPanelOpen) {
         useStore.getState().setSearchPanelOpen(false);
         return;
@@ -125,7 +111,7 @@ export function useKeyboardShortcuts({
     }
     if (e.key === '?' && !isInput && !useStore.getState().commandPaletteOpen) {
       e.preventDefault();
-      onOpenShortcuts();
+      useStore.getState().setShortcutsOpen(!useStore.getState().shortcutsOpen);
       return;
     }
     if (e.key === '/' && !isInput && !useStore.getState().commandPaletteOpen) {
@@ -134,7 +120,7 @@ export function useKeyboardShortcuts({
       textarea?.focus();
       return;
     }
-  }, [focusModeRef, onOpenShortcuts, onToggleFocusMode, t, tc]);
+  }, [t, tc]);
 
   useEffect(() => {
     document.addEventListener('keydown', handleKeyDown, true);

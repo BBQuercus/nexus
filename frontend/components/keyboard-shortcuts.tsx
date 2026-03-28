@@ -1,12 +1,7 @@
 'use client';
 
-import { useEffect, useCallback } from 'react';
-import { X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-
-interface KeyboardShortcutsProps {
-  onClose: () => void;
-}
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 
 interface ShortcutItem {
   keys: string[];
@@ -18,7 +13,7 @@ interface ShortcutGroup {
   shortcuts: ShortcutItem[];
 }
 
-export default function KeyboardShortcuts({ onClose }: KeyboardShortcutsProps) {
+export default function KeyboardShortcuts({ open, onClose }: { open: boolean; onClose: () => void }) {
   const t = useTranslations('keyboardShortcuts');
   const shortcutGroups: ShortcutGroup[] = [
     {
@@ -72,41 +67,12 @@ export default function KeyboardShortcuts({ onClose }: KeyboardShortcutsProps) {
     },
   ];
 
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (e.key === 'Escape' || e.key === '?') {
-        e.preventDefault();
-        e.stopPropagation();
-        onClose();
-      }
-    },
-    [onClose]
-  );
-
-  useEffect(() => {
-    document.addEventListener('keydown', handleKeyDown, true);
-    return () => document.removeEventListener('keydown', handleKeyDown, true);
-  }, [handleKeyDown]);
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-3 md:px-0">
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div
-        className="relative w-full max-w-lg bg-surface-0 border border-border-default rounded-lg shadow-2xl overflow-hidden animate-fade-in-up"
-        style={{ animationDuration: '0.15s' }}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-border-default">
-          <h2 className="text-sm font-semibold text-text-primary">{t('title')}</h2>
-          <button
-            onClick={onClose}
-            className="p-1 text-text-tertiary hover:text-text-secondary rounded-lg hover:bg-surface-1 transition-colors cursor-pointer"
-          >
-            <X size={14} />
-          </button>
-        </div>
-
-        {/* Content */}
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-lg p-0 overflow-hidden" hideClose>
+        <DialogHeader className="px-5 py-3.5 border-b border-border-default">
+          <DialogTitle className="text-sm font-semibold text-text-primary">{t('title')}</DialogTitle>
+        </DialogHeader>
         <div className="max-h-[60vh] overflow-y-auto p-5 space-y-5">
           {shortcutGroups.map((group) => (
             <div key={group.title}>
@@ -138,7 +104,7 @@ export default function KeyboardShortcuts({ onClose }: KeyboardShortcutsProps) {
             </div>
           ))}
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
