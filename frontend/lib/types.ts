@@ -217,7 +217,13 @@ export interface AgentPersona {
   defaultModel?: string;
   tools?: string[];
   isPublic?: boolean;
+  category?: string;
+  installedFrom?: string;
   authorId?: string;
+  approvalConfig?: Record<string, boolean>;
+  inputSchema?: Record<string, unknown>;
+  outputSchema?: Record<string, unknown>;
+  currentVersion?: number;
   createdAt?: string;
 }
 
@@ -252,6 +258,8 @@ export interface KnowledgeBase {
   chunkCount: number;
   status: 'ready' | 'processing' | 'error';
   isPublic: boolean;
+  installedFromId?: string;
+  accessMode?: 'extensible' | 'fixed';
   createdAt: string;
   updatedAt: string;
 }
@@ -279,6 +287,9 @@ export interface KBDocument {
   fileSizeBytes: number;
   pageCount?: number;
   status: 'processing' | 'ready' | 'error';
+  processingStage?: 'splitting' | 'contextualizing' | 'encoding' | 'storing';
+  chunksTotal?: number;
+  chunksDone?: number;
   errorMessage?: string;
   metadata?: Record<string, unknown>;
   createdAt: string;
@@ -368,4 +379,187 @@ export interface MultiAgentWorkflowSummary {
   workflowId: string;
   strategy: AgentStrategy;
   runs: AgentRunSummary[];
+}
+
+// ── Phase 1: Approval Gates & Agent Workflows ──
+
+export interface ApprovalGate {
+  id: string;
+  agentRunId: string;
+  conversationId: string;
+  toolName: string;
+  toolArguments?: Record<string, unknown>;
+  status: 'pending' | 'approved' | 'rejected' | 'edited';
+  decidedBy?: string;
+  decidedAt?: string;
+  editedArguments?: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface PromptTemplate {
+  id: string;
+  userId: string;
+  agentPersonaId?: string;
+  name: string;
+  description?: string;
+  template: string;
+  variables?: TemplateVariable[];
+  isPublic: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TemplateVariable {
+  name: string;
+  type: 'string' | 'number' | 'boolean' | 'select';
+  default?: string;
+  required?: boolean;
+  options?: string[];
+  description?: string;
+}
+
+export interface AgentRunRecord {
+  id: string;
+  userId: string;
+  agentPersonaId?: string;
+  conversationId?: string;
+  templateId?: string;
+  status: 'running' | 'completed' | 'failed' | 'paused' | 'cancelled';
+  inputText: string;
+  inputVariables?: Record<string, unknown>;
+  outputText?: string;
+  model?: string;
+  toolCalls?: Record<string, unknown>[];
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  costUsd?: number;
+  durationMs?: number;
+  error?: string;
+  trigger: 'manual' | 'schedule' | 'api' | 'rerun';
+  parentRunId?: string;
+  createdAt: string;
+  completedAt?: string;
+  steps?: AgentRunStep[];
+}
+
+export interface AgentRunStep {
+  id: string;
+  agentRunId: string;
+  stepIndex: number;
+  stepType: 'llm_call' | 'tool_call' | 'approval_wait';
+  toolName?: string;
+  inputData?: Record<string, unknown>;
+  outputData?: Record<string, unknown>;
+  durationMs?: number;
+  tokensUsed?: number;
+  status: 'completed' | 'failed' | 'skipped';
+  error?: string;
+  createdAt: string;
+}
+
+export interface AgentSchedule {
+  id: string;
+  userId: string;
+  agentPersonaId: string;
+  templateId?: string;
+  name: string;
+  cronExpression: string;
+  inputText?: string;
+  inputVariables?: Record<string, unknown>;
+  enabled: boolean;
+  lastRunAt?: string;
+  nextRunAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ── Phase 3: Action Layer ──
+
+export interface ExternalAction {
+  id: string;
+  userId: string;
+  agentRunId?: string;
+  actionType: 'email' | 'slack' | 'teams';
+  status: 'pending' | 'approved' | 'sent' | 'failed' | 'rejected';
+  preview: Record<string, unknown>;
+  result?: Record<string, unknown>;
+  approvedBy?: string;
+  approvedAt?: string;
+  sentAt?: string;
+  createdAt: string;
+}
+
+// ── Phase 4: Testing ──
+
+export interface TestCase {
+  id: string;
+  agentPersonaId: string;
+  name: string;
+  inputText: string;
+  inputVariables?: Record<string, unknown>;
+  expectedOutput?: string;
+  expectedToolCalls?: Record<string, unknown>[];
+  evaluationCriteria?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TestRun {
+  id: string;
+  agentPersonaId: string;
+  triggeredBy: string;
+  status: 'running' | 'completed' | 'failed';
+  totalCases: number;
+  passed: number;
+  failed: number;
+  results?: TestCaseResult[];
+  durationMs?: number;
+  createdAt: string;
+  completedAt?: string;
+}
+
+export interface TestCaseResult {
+  testCaseId: string;
+  testCaseName?: string;
+  passed: boolean;
+  actualOutput?: string;
+  expectedOutput?: string;
+  score?: number;
+  error?: string;
+}
+
+// ── Phase 6: Agent Marketplace ──
+
+export interface MarketplaceListing {
+  id: string;
+  listingType: 'agent' | 'knowledge_base';
+  agentPersonaId?: string;
+  knowledgeBaseId?: string;
+  publisherId: string;
+  publisherName?: string;
+  visibility: 'public' | 'private' | 'org';
+  status: 'pending' | 'approved' | 'rejected' | 'published';
+  category?: string;
+  tags?: string[];
+  version: string;
+  installCount: number;
+  avgRating?: number;
+  ratingCount: number;
+  featured: boolean;
+  accessMode?: 'extensible' | 'fixed';
+  publishedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  agent?: AgentPersona;
+  knowledgeBase?: KnowledgeBase;
+}
+
+export interface AgentRatingRecord {
+  id: string;
+  marketplaceListingId: string;
+  userId: string;
+  rating: number;
+  review?: string;
+  createdAt: string;
+  updatedAt: string;
 }
