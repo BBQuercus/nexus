@@ -1,4 +1,4 @@
-import type { User, Conversation, Message, Artifact, AgentPersona, ToolCall, ConversationTree, Citation, RetrievalResult, KnowledgeBase, StreamingTable, StreamingChart, FormSpec, Project, Organization, OrgMembership, UserSettings } from '../types';
+import type { User, Conversation, Message, Artifact, AgentPersona, ToolCall, ConversationTree, Citation, RetrievalResult, KnowledgeBase, StreamingTable, StreamingChart, FormSpec, Project, Organization, OrgMembership, UserSettings, ApprovalGate } from '../types';
 import type { AuthStatus } from './session-slice';
 
 export interface StreamingImage {
@@ -21,8 +21,10 @@ export interface StreamingState {
   tables: StreamingTable[];
   charts: StreamingChart[];
   forms: FormSpec[];
+  approvalGates: ApprovalGate[];
   citations: Citation[];
   retrievalResult: RetrievalResult | null;
+  error?: string;
 }
 
 export interface MultiStreamingState {
@@ -149,6 +151,7 @@ export function cloneEmptyStreaming(): StreamingState {
     tables: [],
     charts: [],
     forms: [],
+    approvalGates: [],
     citations: [],
     retrievalResult: null,
   };

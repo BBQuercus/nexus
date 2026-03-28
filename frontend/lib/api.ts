@@ -1,4 +1,4 @@
-import type { Conversation, Message, Artifact, AgentPersona, User, FileNode, ConversationTree, KnowledgeBase, KBDocument, Citation, Project, SearchResult, Organization, OrgMembership, UserSettings } from './types';
+import type { Conversation, Message, Artifact, AgentPersona, User, FileNode, ConversationTree, KnowledgeBase, KBDocument, Citation, Project, SearchResult, Organization, OrgMembership, UserSettings, ApprovalGate, PromptTemplate, AgentRunRecord, AgentRunStep, AgentSchedule, ExternalAction, TestCase, TestRun, MarketplaceListing, AgentRatingRecord } from './types';
 import { getCsrfToken } from './auth';
 import { toApiUrl } from './runtime';
 
@@ -426,7 +426,9 @@ function agentToSnake(params: Partial<AgentPersona>) {
     system_prompt: params.systemPrompt,
     default_model: params.defaultModel,
     icon: params.icon,
+    tools_enabled: params.tools,
     is_public: params.isPublic,
+    category: params.category ?? null,
   };
 }
 
@@ -440,6 +442,8 @@ function agentFromSnake(raw: Record<string, unknown>): AgentPersona {
     defaultModel: (raw.default_model as string) || (raw.defaultModel as string) || undefined,
     tools: (raw.tools_enabled as string[]) || (raw.tools as string[]) || undefined,
     isPublic: (raw.is_public as boolean) ?? (raw.isPublic as boolean) ?? false,
+    category: (raw.category as string) || undefined,
+    installedFrom: (raw.installed_from_id as string) || undefined,
     authorId: (raw.user_id as string) || (raw.authorId as string) || undefined,
     createdAt: (raw.created_at as string) || (raw.createdAt as string) || undefined,
   };
@@ -669,6 +673,8 @@ function kbFromSnake(raw: Record<string, unknown>): KnowledgeBase {
     chunkCount: (raw.chunk_count as number) || 0,
     status: (raw.status as KnowledgeBase['status']) || 'ready',
     isPublic: (raw.is_public as boolean) ?? false,
+    installedFromId: (raw.installed_from_id as string) || undefined,
+    accessMode: (raw.access_mode as KnowledgeBase['accessMode']) || undefined,
     createdAt: (raw.created_at as string) || '',
     updatedAt: (raw.updated_at as string) || '',
   };
@@ -682,6 +688,9 @@ function kbDocFromSnake(raw: Record<string, unknown>): KBDocument {
     fileSizeBytes: (raw.file_size_bytes as number) || 0,
     pageCount: (raw.page_count as number) || undefined,
     status: (raw.status as KBDocument['status']) || 'processing',
+    processingStage: raw.processing_stage as KBDocument['processingStage'] | undefined,
+    chunksTotal: raw.chunks_total as number | undefined,
+    chunksDone: raw.chunks_done as number | undefined,
     errorMessage: (raw.error_message as string) || undefined,
     metadata: raw.metadata as Record<string, unknown> | undefined,
     createdAt: (raw.created_at as string) || '',
@@ -1061,4 +1070,348 @@ export async function updateUserSettings(settings: Partial<UserSettings>): Promi
     body: JSON.stringify({ settings }),
   });
   return result.settings;
+}
+
+// ── Phase 1: Approval Gates ──
+
+export async function listApprovalGates(params?: { conversation_id?: string; status?: string }): Promise<ApprovalGate[]> {
+  const search = new URLSearchParams();
+  if (params?.conversation_id) search.set('conversation_id', params.conversation_id);
+  if (params?.status) search.set('status', params.status);
+  const qs = search.toString();
+  return apiFetch<ApprovalGate[]>(`/api/approval-gates${qs ? `?${qs}` : ''}`);
+}
+
+export async function approveGate(gateId: string): Promise<ApprovalGate> {
+  return apiFetch<ApprovalGate>(`/api/approval-gates/${gateId}/approve`, { method: 'POST' });
+}
+
+export async function rejectGate(gateId: string): Promise<ApprovalGate> {
+  return apiFetch<ApprovalGate>(`/api/approval-gates/${gateId}/reject`, { method: 'POST' });
+}
+
+export async function editGate(gateId: string, editedArguments: Record<string, unknown>): Promise<ApprovalGate> {
+  return apiFetch<ApprovalGate>(`/api/approval-gates/${gateId}/edit`, {
+    method: 'POST',
+    body: JSON.stringify({ edited_arguments: editedArguments }),
+  });
+}
+
+// ── Phase 1: Prompt Templates ──
+
+export async function listPromptTemplates(): Promise<PromptTemplate[]> {
+  return apiFetch<PromptTemplate[]>('/api/prompt-templates');
+}
+
+export async function createPromptTemplate(data: { name: string; template: string; description?: string; variables?: unknown[]; agent_persona_id?: string; is_public?: boolean }): Promise<PromptTemplate> {
+  return apiFetch<PromptTemplate>('/api/prompt-templates', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export async function updatePromptTemplate(id: string, data: Partial<{ name: string; template: string; description: string; variables: unknown[]; is_public: boolean }>): Promise<PromptTemplate> {
+  return apiFetch<PromptTemplate>(`/api/prompt-templates/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+}
+
+export async function deletePromptTemplate(id: string): Promise<{ ok: boolean }> {
+  return apiFetch<{ ok: boolean }>(`/api/prompt-templates/${id}`, { method: 'DELETE' });
+}
+
+export async function renderPromptTemplate(id: string, variables: Record<string, string>): Promise<{ rendered: string }> {
+  return apiFetch<{ rendered: string }>(`/api/prompt-templates/${id}/render`, { method: 'POST', body: JSON.stringify({ variables }) });
+}
+
+// ── Phase 1: Agent Runs ──
+
+function stepFromSnake(raw: Record<string, unknown>): AgentRunStep {
+  return {
+    id: (raw.id as string),
+    agentRunId: (raw.agent_run_id as string) || (raw.agentRunId as string) || '',
+    stepIndex: (raw.step_index as number) ?? (raw.stepIndex as number) ?? 0,
+    stepType: (raw.step_type as AgentRunStep['stepType']) || (raw.stepType as AgentRunStep['stepType']) || 'llm_call',
+    toolName: (raw.tool_name as string) || (raw.toolName as string) || undefined,
+    inputData: (raw.input_data as Record<string, unknown>) || (raw.inputData as Record<string, unknown>) || undefined,
+    outputData: (raw.output_data as Record<string, unknown>) || (raw.outputData as Record<string, unknown>) || undefined,
+    durationMs: (raw.duration_ms as number) ?? (raw.durationMs as number) ?? undefined,
+    tokensUsed: (raw.tokens_used as number) ?? (raw.tokensUsed as number) ?? undefined,
+    status: (raw.status as AgentRunStep['status']) || 'completed',
+    error: (raw.error as string) || undefined,
+    createdAt: (raw.created_at as string) || (raw.createdAt as string) || '',
+  };
+}
+
+function runFromSnake(raw: Record<string, unknown>): AgentRunRecord {
+  const steps = (raw.steps as Record<string, unknown>[]) || undefined;
+  return {
+    id: (raw.id as string),
+    userId: (raw.user_id as string) || (raw.userId as string) || '',
+    agentPersonaId: (raw.agent_persona_id as string) || (raw.agentPersonaId as string) || undefined,
+    conversationId: (raw.conversation_id as string) || (raw.conversationId as string) || undefined,
+    templateId: (raw.template_id as string) || (raw.templateId as string) || undefined,
+    status: (raw.status as AgentRunRecord['status']) || 'running',
+    inputText: (raw.input_text as string) ?? (raw.inputText as string) ?? '',
+    inputVariables: (raw.input_variables as Record<string, unknown>) || (raw.inputVariables as Record<string, unknown>) || undefined,
+    outputText: (raw.output_text as string) || (raw.outputText as string) || undefined,
+    model: (raw.model as string) || undefined,
+    toolCalls: (raw.tool_calls as Record<string, unknown>[]) || (raw.toolCalls as Record<string, unknown>[]) || undefined,
+    totalInputTokens: (raw.total_input_tokens as number) ?? (raw.totalInputTokens as number) ?? 0,
+    totalOutputTokens: (raw.total_output_tokens as number) ?? (raw.totalOutputTokens as number) ?? 0,
+    costUsd: raw.cost_usd != null ? Number(raw.cost_usd) : raw.costUsd != null ? Number(raw.costUsd) : undefined,
+    durationMs: (raw.duration_ms as number) ?? (raw.durationMs as number) ?? undefined,
+    error: (raw.error as string) || undefined,
+    trigger: (raw.trigger as AgentRunRecord['trigger']) || 'manual',
+    parentRunId: (raw.parent_run_id as string) || (raw.parentRunId as string) || undefined,
+    createdAt: (raw.created_at as string) || (raw.createdAt as string) || '',
+    completedAt: (raw.completed_at as string) || (raw.completedAt as string) || undefined,
+    steps: steps ? steps.map(s => stepFromSnake(s as Record<string, unknown>)) : undefined,
+  };
+}
+
+export async function listAgentRuns(params?: { agent_persona_id?: string; status?: string; limit?: number; offset?: number }): Promise<AgentRunRecord[]> {
+  const search = new URLSearchParams();
+  if (params?.agent_persona_id) search.set('agent_persona_id', params.agent_persona_id);
+  if (params?.status) search.set('status', params.status);
+  if (params?.limit) search.set('limit', String(params.limit));
+  if (params?.offset) search.set('offset', String(params.offset));
+  const qs = search.toString();
+  const raw = await apiFetch<Record<string, unknown>[]>(`/api/agent-runs${qs ? `?${qs}` : ''}`);
+  return raw.map(runFromSnake);
+}
+
+export async function getAgentRun(runId: string): Promise<AgentRunRecord> {
+  const raw = await apiFetch<Record<string, unknown>>(`/api/agent-runs/${runId}`);
+  return runFromSnake(raw);
+}
+
+export async function rerunAgent(runId: string, data?: { input_text?: string; input_variables?: Record<string, unknown> }): Promise<AgentRunRecord> {
+  const raw = await apiFetch<Record<string, unknown>>(`/api/agent-runs/${runId}/rerun`, { method: 'POST', body: JSON.stringify(data ?? {}) });
+  return runFromSnake(raw);
+}
+
+export async function deleteAgentRun(runId: string): Promise<{ ok: boolean }> {
+  return apiFetch<{ ok: boolean }>(`/api/agent-runs/${runId}`, { method: 'DELETE' });
+}
+
+// ── Phase 1: Agent Schedules ──
+
+function scheduleFromSnake(raw: Record<string, unknown>): AgentSchedule {
+  return {
+    id: (raw.id as string),
+    userId: (raw.user_id as string) || (raw.userId as string) || '',
+    agentPersonaId: (raw.agent_persona_id as string) || (raw.agentPersonaId as string) || '',
+    templateId: (raw.template_id as string) || (raw.templateId as string) || undefined,
+    name: (raw.name as string) || '',
+    cronExpression: (raw.cron_expression as string) || (raw.cronExpression as string) || '',
+    inputText: (raw.input_text as string) || (raw.inputText as string) || undefined,
+    inputVariables: (raw.input_variables as Record<string, unknown>) || (raw.inputVariables as Record<string, unknown>) || undefined,
+    enabled: (raw.enabled as boolean) ?? true,
+    lastRunAt: (raw.last_run_at as string) || (raw.lastRunAt as string) || undefined,
+    nextRunAt: (raw.next_run_at as string) || (raw.nextRunAt as string) || undefined,
+    createdAt: (raw.created_at as string) || (raw.createdAt as string) || '',
+    updatedAt: (raw.updated_at as string) || (raw.updatedAt as string) || '',
+  };
+}
+
+export async function listAgentSchedules(): Promise<AgentSchedule[]> {
+  const raw = await apiFetch<Record<string, unknown>[]>('/api/agent-schedules');
+  return raw.map(scheduleFromSnake);
+}
+
+export async function createAgentSchedule(data: { agent_persona_id: string; name: string; cron_expression: string; input_text?: string; input_variables?: Record<string, unknown>; template_id?: string }): Promise<AgentSchedule> {
+  const raw = await apiFetch<Record<string, unknown>>('/api/agent-schedules', { method: 'POST', body: JSON.stringify(data) });
+  return scheduleFromSnake(raw);
+}
+
+export async function updateAgentSchedule(id: string, data: Partial<{ name: string; cron_expression: string; enabled: boolean; input_text: string; input_variables: Record<string, unknown> }>): Promise<AgentSchedule> {
+  const raw = await apiFetch<Record<string, unknown>>(`/api/agent-schedules/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+  return scheduleFromSnake(raw);
+}
+
+export async function deleteAgentSchedule(id: string): Promise<{ ok: boolean }> {
+  return apiFetch<{ ok: boolean }>(`/api/agent-schedules/${id}`, { method: 'DELETE' });
+}
+
+export async function triggerAgentSchedule(id: string): Promise<AgentRunRecord> {
+  const raw = await apiFetch<Record<string, unknown>>(`/api/agent-schedules/${id}/trigger`, { method: 'POST' });
+  return runFromSnake(raw);
+}
+
+// ── Phase 3: External Actions ──
+
+export async function listExternalActions(params?: { action_type?: string; status?: string; agent_run_id?: string }): Promise<ExternalAction[]> {
+  const search = new URLSearchParams();
+  if (params?.action_type) search.set('action_type', params.action_type);
+  if (params?.status) search.set('status', params.status);
+  if (params?.agent_run_id) search.set('agent_run_id', params.agent_run_id);
+  const qs = search.toString();
+  return apiFetch<ExternalAction[]>(`/api/external-actions${qs ? `?${qs}` : ''}`);
+}
+
+export async function getExternalAction(id: string): Promise<ExternalAction> {
+  return apiFetch<ExternalAction>(`/api/external-actions/${id}`);
+}
+
+export async function createExternalAction(data: { action_type: string; preview: Record<string, unknown>; agent_run_id?: string }): Promise<ExternalAction> {
+  return apiFetch<ExternalAction>('/api/external-actions', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export async function approveExternalAction(id: string): Promise<ExternalAction> {
+  return apiFetch<ExternalAction>(`/api/external-actions/${id}/approve`, { method: 'POST' });
+}
+
+export async function rejectExternalAction(id: string): Promise<ExternalAction> {
+  return apiFetch<ExternalAction>(`/api/external-actions/${id}/reject`, { method: 'POST' });
+}
+
+// ── Phase 4: Test Cases ──
+
+function testCaseFromSnake(raw: Record<string, unknown>): TestCase {
+  return {
+    id: (raw.id as string),
+    agentPersonaId: (raw.agent_persona_id as string) || (raw.agentPersonaId as string) || '',
+    name: (raw.name as string) || '',
+    inputText: (raw.input_text as string) || (raw.inputText as string) || '',
+    inputVariables: (raw.input_variables as Record<string, unknown>) || (raw.inputVariables as Record<string, unknown>) || undefined,
+    expectedOutput: (raw.expected_output as string) || (raw.expectedOutput as string) || undefined,
+    expectedToolCalls: (raw.expected_tool_calls as Record<string, unknown>[]) || (raw.expectedToolCalls as Record<string, unknown>[]) || undefined,
+    evaluationCriteria: (raw.evaluation_criteria as string) || (raw.evaluationCriteria as string) || undefined,
+    createdAt: (raw.created_at as string) || (raw.createdAt as string) || '',
+    updatedAt: (raw.updated_at as string) || (raw.updatedAt as string) || '',
+  };
+}
+
+export async function listTestCases(agentPersonaId: string): Promise<TestCase[]> {
+  const raw = await apiFetch<Record<string, unknown>[]>(`/api/test-cases?agent_persona_id=${agentPersonaId}`);
+  return raw.map(testCaseFromSnake);
+}
+
+export async function createTestCase(data: { agent_persona_id: string; name: string; input_text: string; input_variables?: Record<string, unknown>; expected_output?: string; expected_tool_calls?: unknown[]; evaluation_criteria?: string }): Promise<TestCase> {
+  const raw = await apiFetch<Record<string, unknown>>('/api/test-cases', { method: 'POST', body: JSON.stringify(data) });
+  return testCaseFromSnake(raw);
+}
+
+export async function updateTestCase(id: string, data: Partial<{ name: string; input_text: string; expected_output: string; evaluation_criteria: string }>): Promise<TestCase> {
+  const raw = await apiFetch<Record<string, unknown>>(`/api/test-cases/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+  return testCaseFromSnake(raw);
+}
+
+export async function deleteTestCase(id: string): Promise<{ ok: boolean }> {
+  return apiFetch<{ ok: boolean }>(`/api/test-cases/${id}`, { method: 'DELETE' });
+}
+
+function testRunFromSnake(raw: Record<string, unknown>): TestRun {
+  const results = (raw.results as Record<string, unknown>[] | undefined)?.map((r) => ({
+    testCaseId: (r.test_case_id as string) || (r.testCaseId as string) || '',
+    testCaseName: (r.test_case_name as string) || (r.testCaseName as string) || undefined,
+    passed: (r.passed as boolean) ?? false,
+    actualOutput: (r.actual_output as string) || (r.actualOutput as string) || (r.actual as string) || undefined,
+    expectedOutput: (r.expected_output as string) || (r.expectedOutput as string) || undefined,
+    score: (r.score as number) ?? undefined,
+    error: (r.error as string) || undefined,
+  }));
+  return {
+    id: (raw.id as string),
+    agentPersonaId: (raw.agent_persona_id as string) || (raw.agentPersonaId as string) || '',
+    triggeredBy: (raw.triggered_by as string) || (raw.triggeredBy as string) || '',
+    status: (raw.status as TestRun['status']) || 'running',
+    totalCases: (raw.total_cases as number) ?? (raw.totalCases as number) ?? 0,
+    passed: (raw.passed as number) ?? 0,
+    failed: (raw.failed as number) ?? 0,
+    results,
+    durationMs: (raw.duration_ms as number) ?? (raw.durationMs as number) ?? undefined,
+    createdAt: (raw.created_at as string) || (raw.createdAt as string) || '',
+    completedAt: (raw.completed_at as string) || (raw.completedAt as string) || undefined,
+  };
+}
+
+export async function runTestSuite(agentPersonaId: string): Promise<TestRun> {
+  const raw = await apiFetch<Record<string, unknown>>('/api/test-cases/run', { method: 'POST', body: JSON.stringify({ agent_persona_id: agentPersonaId }) });
+  return testRunFromSnake(raw);
+}
+
+export async function listTestRuns(agentPersonaId: string): Promise<TestRun[]> {
+  const raw = await apiFetch<Record<string, unknown>[]>(`/api/test-cases/runs?agent_persona_id=${agentPersonaId}`);
+  return raw.map(testRunFromSnake);
+}
+
+export async function getTestRun(runId: string): Promise<TestRun> {
+  return apiFetch<TestRun>(`/api/test-cases/runs/${runId}`);
+}
+
+// ── Phase 6: Marketplace ──
+
+function listingFromSnake(raw: Record<string, unknown>): MarketplaceListing {
+  const agent = raw.agent as Record<string, unknown> | undefined;
+  const kb = raw.knowledge_base as Record<string, unknown> | undefined;
+  return {
+    id: (raw.id as string) || '',
+    listingType: ((raw.listing_type as string) || 'agent') as MarketplaceListing['listingType'],
+    agentPersonaId: (raw.agent_persona_id as string) || (raw.agentPersonaId as string) || undefined,
+    knowledgeBaseId: (raw.knowledge_base_id as string) || undefined,
+    publisherId: (raw.publisher_id as string) || (raw.publisherId as string) || '',
+    publisherName: (raw.publisher_name as string) || undefined,
+    visibility: ((raw.visibility as string) || 'public') as MarketplaceListing['visibility'],
+    status: ((raw.status as string) || 'published') as MarketplaceListing['status'],
+    category: (raw.category as string) || undefined,
+    tags: (raw.tags as string[]) || undefined,
+    version: (raw.version as string) || '1.0.0',
+    installCount: (raw.install_count as number) ?? (raw.installCount as number) ?? 0,
+    avgRating: (raw.avg_rating as number) ?? (raw.avgRating as number) ?? undefined,
+    ratingCount: (raw.rating_count as number) ?? (raw.ratingCount as number) ?? 0,
+    featured: (raw.featured as boolean) ?? false,
+    accessMode: (raw.access_mode as MarketplaceListing['accessMode']) || undefined,
+    publishedAt: (raw.published_at as string) || (raw.publishedAt as string) || undefined,
+    createdAt: (raw.created_at as string) || (raw.createdAt as string) || '',
+    updatedAt: (raw.updated_at as string) || (raw.updatedAt as string) || '',
+    agent: agent ? agentFromSnake(agent) : undefined,
+    knowledgeBase: kb ? kbFromSnake(kb) : undefined,
+  };
+}
+
+export async function browseMarketplace(params?: { category?: string; search?: string; sort_by?: string; limit?: number; offset?: number }): Promise<MarketplaceListing[]> {
+  const search = new URLSearchParams();
+  if (params?.category) search.set('category', params.category);
+  if (params?.search) search.set('search', params.search);
+  if (params?.sort_by) search.set('sort_by', params.sort_by);
+  if (params?.limit) search.set('limit', String(params.limit));
+  if (params?.offset) search.set('offset', String(params.offset));
+  const qs = search.toString();
+  const raw = await apiFetch<Record<string, unknown>[]>(`/api/marketplace${qs ? `?${qs}` : ''}`);
+  return raw.map(listingFromSnake);
+}
+
+export async function getFeaturedListings(): Promise<MarketplaceListing[]> {
+  const raw = await apiFetch<Record<string, unknown>[]>('/api/marketplace/featured');
+  return raw.map(listingFromSnake);
+}
+
+export async function getMarketplaceListing(id: string): Promise<MarketplaceListing> {
+  const raw = await apiFetch<Record<string, unknown>>(`/api/marketplace/${id}`);
+  return listingFromSnake(raw);
+}
+
+export async function publishToMarketplace(data: {
+  agent_persona_id?: string;
+  knowledge_base_id?: string;
+  access_mode?: 'extensible' | 'fixed';
+  visibility?: string;
+  category?: string;
+  tags?: string[];
+}): Promise<MarketplaceListing> {
+  const raw = await apiFetch<Record<string, unknown>>('/api/marketplace', { method: 'POST', body: JSON.stringify(data) });
+  return listingFromSnake(raw);
+}
+
+export async function installFromMarketplace(listingId: string): Promise<Record<string, unknown>> {
+  return apiFetch<Record<string, unknown>>(`/api/marketplace/${listingId}/install`, { method: 'POST' });
+}
+
+export async function rateMarketplaceListing(listingId: string, data: { rating: number; review?: string }): Promise<AgentRatingRecord> {
+  return apiFetch<AgentRatingRecord>(`/api/marketplace/${listingId}/rate`, { method: 'POST', body: JSON.stringify(data) });
+}
+
+export async function getListingRatings(listingId: string): Promise<AgentRatingRecord[]> {
+  return apiFetch<AgentRatingRecord[]>(`/api/marketplace/${listingId}/ratings`);
+}
+
+export async function deleteMarketplaceListing(listingId: string): Promise<{ ok: boolean }> {
+  return apiFetch<{ ok: boolean }>(`/api/marketplace/${listingId}`, { method: 'DELETE' });
 }
