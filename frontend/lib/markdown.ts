@@ -155,18 +155,6 @@ export function enhanceRenderedMarkdown(root: HTMLElement): () => void {
 
   root.addEventListener('click', handleCodeCopy);
 
-  // Wrap each standalone <img> in a fixed-height container to prevent virtualizer layout shift.
-  // Images embedded in markdown render asynchronously; without a fixed container the virtualizer
-  // measures 0px height before load and positions subsequent messages too high (overlap).
-  root.querySelectorAll<HTMLImageElement>('img').forEach((img) => {
-    const parent = img.parentElement;
-    if (!parent || parent.classList.contains('markdown-img-wrap')) return;
-    const wrapper = document.createElement('div');
-    wrapper.className = 'markdown-img-wrap';
-    parent.insertBefore(wrapper, img);
-    wrapper.appendChild(img);
-  });
-
   return () => {
     root.removeEventListener('click', handleCodeCopy);
   };
@@ -216,12 +204,15 @@ export function renderMarkdown(text: string): { html: string; mermaidBlocks: Mer
     const alt = text || '';
     const titleAttr = title ? ` title="${escapeHtml(title)}"` : '';
     const safeHref = sanitizeUrl(href, { allowData: true });
-    return `<div class="my-3 border border-[var(--color-border-default)] overflow-hidden">
-      <img src="${escapeHtml(safeHref)}" alt="${escapeHtml(alt)}"${titleAttr} class="w-full max-h-[500px] object-contain" style="background:#121214" loading="lazy" />
-      ${alt ? `<div class="flex items-center justify-between px-3 py-1.5 text-[11px] font-mono" style="background:var(--color-surface-1);color:var(--color-text-tertiary)">
-        <span>${escapeHtml(alt)}</span>
-        <a href="${escapeHtml(safeHref)}" download="${escapeHtml(alt)}" style="color:var(--color-text-tertiary)">Save</a>
-      </div>` : ''}
+    // Fixed 360px container prevents virtualizer layout shift — image height is known before load.
+    return `<div style="margin:0.75rem 0;border-radius:8px;border:1px solid var(--color-border-default);overflow:hidden">
+      <div style="position:relative;width:100%;height:360px;background:var(--color-bg)">
+        <img src="${escapeHtml(safeHref)}" alt="${escapeHtml(alt)}"${titleAttr} style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain" loading="lazy" />
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 12px;background:var(--color-surface-1);font-size:11px;font-family:var(--font-mono);color:var(--color-text-tertiary)">
+        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(alt || safeHref.split('/').pop() || '')}</span>
+        <a href="${escapeHtml(safeHref)}" download style="color:var(--color-text-tertiary);flex-shrink:0;margin-left:8px">Save</a>
+      </div>
     </div>`;
   };
   renderer.link = function ({ href, title, text }: { href: string; title?: string | null | undefined; text: string }) {
