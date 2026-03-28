@@ -42,7 +42,7 @@ export function InlineBranchInput({ messageId, onClose }: { messageId: string; o
         <div className="w-full h-[2px] bg-border-default/40" />
         <div className="w-[2px] flex-1 border-l border-dashed border-border-default/50" />
       </div>
-      <div className="bg-surface-0 border border-border-default rounded-lg p-4 shadow-xl shadow-black/20 w-80 animate-fade-in-up" style={{ animationDuration: '0.15s' }}>
+      <div className="bg-surface-0 border border-border-default rounded-lg p-4 shadow-xl shadow-black/20 w-[min(320px,calc(100vw-24px))] animate-fade-in-up" style={{ animationDuration: '0.15s' }}>
         <div className="flex items-center gap-2 mb-3">
           <span className="text-[10px] font-bold text-accent uppercase tracking-widest">{t('branchThread')}</span>
           <span className="h-[1px] flex-1 bg-border-default/30" />

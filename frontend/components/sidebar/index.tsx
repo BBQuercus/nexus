@@ -327,7 +327,15 @@ export default function Sidebar() {
     clearTimeout(hoverTimeout.current);
     hoverTimeout.current = setTimeout(() => {
       setHoveredId(conv.id);
-      setHoverPos({ x: rect.right + 8, y: rect.top });
+      const tooltipW = 256; // w-64
+      let x = rect.right + 8;
+      let y = rect.top;
+      // Clamp to viewport
+      if (x + tooltipW > window.innerWidth - 12) x = rect.left - tooltipW - 8;
+      if (x < 12) x = 12;
+      if (y + 200 > window.innerHeight - 12) y = window.innerHeight - 212;
+      if (y < 12) y = 12;
+      setHoverPos({ x, y });
     }, 500);
   };
   const handleHoverEnd = () => {
@@ -437,7 +445,7 @@ export default function Sidebar() {
       {/* Preview tooltip */}
       {hoveredConv && !bulkMode && (
         <div
-          className="fixed z-50 w-64 bg-surface-0 border border-border-default rounded-lg shadow-xl shadow-black/30 p-3 pointer-events-none"
+          className="fixed z-50 w-[min(256px,calc(100vw-24px))] bg-surface-0 border border-border-default rounded-lg shadow-xl shadow-black/30 p-3 pointer-events-none"
           style={{ left: hoverPos.x, top: hoverPos.y, maxHeight: 200 }}
         >
           <div className="text-[11px] font-medium text-text-primary truncate mb-1.5">
