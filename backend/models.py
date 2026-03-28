@@ -293,7 +293,13 @@ class AgentPersona(Base):
     tools_enabled: Mapped[Any | None] = mapped_column(JSON, nullable=True)
     knowledge_base_ids: Mapped[Any | None] = mapped_column(JSON, nullable=True)
     is_public: Mapped[bool] = mapped_column(Boolean, default=False)
+    category: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    installed_from_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     usage_count: Mapped[int] = mapped_column(Integer, default=0)
+    approval_config: Mapped[Any | None] = mapped_column(JSONB, nullable=True)  # per-tool approval toggles
+    input_schema: Mapped[Any | None] = mapped_column(JSONB, nullable=True)  # what the agent expects
+    output_schema: Mapped[Any | None] = mapped_column(JSONB, nullable=True)  # what the agent produces
+    current_version: Mapped[int] = mapped_column(Integer, default=1, server_default=text("1"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -420,6 +426,8 @@ class KnowledgeBase(Base):
     chunk_count: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
     status: Mapped[str] = mapped_column(String, default="ready")
     is_public: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"))
+    installed_from_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    access_mode: Mapped[str | None] = mapped_column(String(20), nullable=True)  # extensible, fixed (set on marketplace install)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -459,6 +467,9 @@ class Document(Base):
     raw_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     metadata_: Mapped[Any | None] = mapped_column("metadata", JSON, nullable=True)
     status: Mapped[str] = mapped_column(String, default="processing")
+    processing_stage: Mapped[str | None] = mapped_column(String(20), nullable=True)  # splitting, contextualizing, encoding, storing
+    chunks_total: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    chunks_done: Mapped[int | None] = mapped_column(Integer, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
@@ -606,3 +617,272 @@ class RetrievalLog(Base):
     retrieval_time_ms: Mapped[int] = mapped_column(Integer, default=0)
     rerank_time_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+# ── Phase 1: Approval Gates & Agent Workflows ──
+
+
+class ApprovalGate(Base):
+    """Persisted approval gate for agent tool calls. Supports async approval (user can close browser and return)."""
+
+    __tablename__ = "approval_gates"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, server_default=text("gen_random_uuid()")
+    )
+    org_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("organizations.id"), index=True)
+    agent_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("agent_runs.id", ondelete="CASCADE"), index=True, nullable=True
+    )
+    conversation_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("conversations.id", ondelete="CASCADE"), index=True
+    )
+    tool_name: Mapped[str] = mapped_column(String(100))
+    tool_arguments: Mapped[Any | None] = mapped_column(JSONB, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="pending")  # pending, approved, rejected, edited
+    decided_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    edited_arguments: Mapped[Any | None] = mapped_column(JSONB, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class PromptTemplate(Base):
+    """Parameterized agent inputs for reuse. Supports {{variable}} syntax."""
+
+    __tablename__ = "prompt_templates"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, server_default=text("gen_random_uuid()")
+    )
+    org_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("organizations.id"), index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+    agent_persona_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("agent_personas.id", ondelete="SET NULL"), nullable=True
+    )
+    name: Mapped[str] = mapped_column(String(255))
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    template: Mapped[str] = mapped_column(Text)
+    variables: Mapped[Any | None] = mapped_column(JSONB, nullable=True)  # [{name, type, default, required}]
+    is_public: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class AgentRun(Base):
+    """Log of every agent execution with inputs, outputs, tool calls, timing."""
+
+    __tablename__ = "agent_runs"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, server_default=text("gen_random_uuid()")
+    )
+    org_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("organizations.id"), index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), index=True)
+    agent_persona_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("agent_personas.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    conversation_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("conversations.id", ondelete="SET NULL"), nullable=True
+    )
+    template_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("prompt_templates.id", ondelete="SET NULL"), nullable=True
+    )
+    status: Mapped[str] = mapped_column(String(20), default="running")  # running, completed, failed, paused, cancelled
+    input_text: Mapped[str] = mapped_column(Text, default="")
+    input_variables: Mapped[Any | None] = mapped_column(JSONB, nullable=True)
+    output_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    model: Mapped[str | None] = mapped_column(String, nullable=True)
+    tool_calls: Mapped[Any | None] = mapped_column(JSONB, nullable=True)
+    total_input_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    total_output_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    cost_usd: Mapped[Decimal | None] = mapped_column(Numeric(10, 6), nullable=True)
+    duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    trigger: Mapped[str] = mapped_column(String(20), default="manual")  # manual, schedule, api, rerun
+    parent_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("agent_runs.id"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    steps: Mapped[list["AgentRunStep"]] = relationship(back_populates="agent_run", cascade="all, delete-orphan")
+    approval_gates: Mapped[list["ApprovalGate"]] = relationship(cascade="all, delete-orphan")
+
+
+class AgentRunStep(Base):
+    """Individual step within an agent run (LLM call, tool invocation, etc.)."""
+
+    __tablename__ = "agent_run_steps"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, server_default=text("gen_random_uuid()")
+    )
+    agent_run_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("agent_runs.id", ondelete="CASCADE"), index=True
+    )
+    step_index: Mapped[int] = mapped_column(Integer)
+    step_type: Mapped[str] = mapped_column(String(20))  # llm_call, tool_call, approval_wait
+    tool_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    input_data: Mapped[Any | None] = mapped_column(JSONB, nullable=True)
+    output_data: Mapped[Any | None] = mapped_column(JSONB, nullable=True)
+    duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    tokens_used: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="completed")  # completed, failed, skipped
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    agent_run: Mapped["AgentRun"] = relationship(back_populates="steps")
+
+
+class AgentSchedule(Base):
+    """Cron schedule attached to an agent. Uses existing ARQ/Redis infra."""
+
+    __tablename__ = "agent_schedules"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, server_default=text("gen_random_uuid()")
+    )
+    org_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("organizations.id"), index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+    agent_persona_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("agent_personas.id", ondelete="CASCADE"), index=True
+    )
+    template_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("prompt_templates.id", ondelete="SET NULL"), nullable=True
+    )
+    name: Mapped[str] = mapped_column(String(255))
+    cron_expression: Mapped[str] = mapped_column(String(100))
+    input_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    input_variables: Mapped[Any | None] = mapped_column(JSONB, nullable=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("true"))
+    last_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    next_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+# ── Phase 3: Action Layer ──
+
+
+class ExternalAction(Base):
+    """Log of all external actions taken by agents (email, Slack, Teams messages)."""
+
+    __tablename__ = "external_actions"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, server_default=text("gen_random_uuid()")
+    )
+    org_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("organizations.id"), index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+    agent_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("agent_runs.id", ondelete="SET NULL"), nullable=True
+    )
+    action_type: Mapped[str] = mapped_column(String(50))  # email, slack, teams
+    status: Mapped[str] = mapped_column(String(20), default="pending")  # pending, approved, sent, failed
+    preview: Mapped[Any] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))  # action preview data
+    result: Mapped[Any | None] = mapped_column(JSONB, nullable=True)
+    approved_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+# ── Phase 4: Templates, Evaluation & Debugging ──
+
+
+class TestCase(Base):
+    """Input/expected-output pairs linked to an agent for regression testing."""
+
+    __tablename__ = "test_cases"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, server_default=text("gen_random_uuid()")
+    )
+    org_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("organizations.id"), index=True)
+    agent_persona_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("agent_personas.id", ondelete="CASCADE"), index=True
+    )
+    name: Mapped[str] = mapped_column(String(255))
+    input_text: Mapped[str] = mapped_column(Text)
+    input_variables: Mapped[Any | None] = mapped_column(JSONB, nullable=True)
+    expected_output: Mapped[str | None] = mapped_column(Text, nullable=True)
+    expected_tool_calls: Mapped[Any | None] = mapped_column(JSONB, nullable=True)
+    evaluation_criteria: Mapped[str | None] = mapped_column(Text, nullable=True)  # LLM-as-judge prompt
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class TestRun(Base):
+    """Execution of test cases against an agent config."""
+
+    __tablename__ = "test_runs"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, server_default=text("gen_random_uuid()")
+    )
+    org_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("organizations.id"), index=True)
+    agent_persona_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("agent_personas.id", ondelete="CASCADE"), index=True
+    )
+    triggered_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+    status: Mapped[str] = mapped_column(String(20), default="running")  # running, completed, failed
+    total_cases: Mapped[int] = mapped_column(Integer, default=0)
+    passed: Mapped[int] = mapped_column(Integer, default=0)
+    failed: Mapped[int] = mapped_column(Integer, default=0)
+    results: Mapped[Any | None] = mapped_column(JSONB, nullable=True)  # [{test_case_id, passed, actual, score, error}]
+    duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+
+# ── Phase 6: Agent Marketplace ──
+
+
+class MarketplaceListing(Base):
+    """Published agent or knowledge base listing in the marketplace."""
+
+    __tablename__ = "marketplace_listings"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, server_default=text("gen_random_uuid()")
+    )
+    org_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("organizations.id"), index=True)
+    listing_type: Mapped[str] = mapped_column(String(20), default="agent")  # agent, knowledge_base
+    agent_persona_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("agent_personas.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    knowledge_base_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True, index=True)
+    access_mode: Mapped[str | None] = mapped_column(String(20), nullable=True)  # extensible, fixed (KB only)
+    publisher_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+    visibility: Mapped[str] = mapped_column(String(20), default="public")  # public, private, org
+    status: Mapped[str] = mapped_column(String(20), default="pending")  # pending, approved, rejected, published
+    category: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    tags: Mapped[Any | None] = mapped_column(JSONB, nullable=True)
+    version: Mapped[str] = mapped_column(String(20), default="1.0.0")
+    install_count: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
+    avg_rating: Mapped[Decimal | None] = mapped_column(Numeric(3, 2), nullable=True)
+    rating_count: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
+    featured: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"))
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class AgentRating(Base):
+    """User ratings and reviews for marketplace agents."""
+
+    __tablename__ = "agent_ratings"
+    __table_args__ = (UniqueConstraint("marketplace_listing_id", "user_id"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, server_default=text("gen_random_uuid()")
+    )
+    marketplace_listing_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("marketplace_listings.id", ondelete="CASCADE"), index=True
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+    rating: Mapped[int] = mapped_column(Integer)  # 1-5
+    review: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

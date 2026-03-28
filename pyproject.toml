@@ -36,6 +36,8 @@ dependencies = [
     "opentelemetry-exporter-otlp>=1.28.0",
     "prometheus-client>=0.21.0",
     "redis[hiredis]>=5.0.0",
+    "aiosmtplib>=3.0.0",
+    "croniter>=2.0.0",
 ]
 
 [project.optional-dependencies]

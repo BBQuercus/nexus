@@ -57,6 +57,15 @@ class Settings(BaseSettings):
     # Redis
     REDIS_URL: str = "redis://localhost:6379/0"
 
+    # Notifications / External Actions
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USERNAME: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM_EMAIL: str = "noreply@nexus.ai"
+    SMTP_USE_TLS: bool = True
+    SLACK_WEBHOOK_URL: str = ""  # Default Slack incoming webhook
+
     TEAMS_WEBHOOK_URL: str = ""
 
     ENVIRONMENT: str = "development"

@@ -116,6 +116,9 @@ async def ensure_vector_schema() -> None:
             "CREATE INDEX IF NOT EXISTS ix_documents_knowledge_base_id ON documents (knowledge_base_id)",
             "CREATE INDEX IF NOT EXISTS ix_documents_conversation_id ON documents (conversation_id)",
             "CREATE INDEX IF NOT EXISTS ix_retrieval_logs_message_id ON retrieval_logs (message_id)",
+            "ALTER TABLE documents ADD COLUMN IF NOT EXISTS processing_stage VARCHAR(20)",
+            "ALTER TABLE documents ADD COLUMN IF NOT EXISTS chunks_total INTEGER",
+            "ALTER TABLE documents ADD COLUMN IF NOT EXISTS chunks_done INTEGER",
         ]
         for statement in statements:
             await conn.execute(text(statement))
@@ -143,6 +146,9 @@ async def ensure_vector_schema() -> None:
                 created_at TIMESTAMPTZ NOT NULL DEFAULT now()
             )
             """,
+            # org_id has no FK — organizations lives in the main DB, not the vector DB
+            "ALTER TABLE chunks ADD COLUMN IF NOT EXISTS org_id UUID",
+            "CREATE INDEX IF NOT EXISTS ix_chunks_org_id ON chunks (org_id)",
             "CREATE INDEX IF NOT EXISTS ix_chunks_document_id ON chunks (document_id)",
             "CREATE INDEX IF NOT EXISTS ix_chunks_knowledge_base_id ON chunks (knowledge_base_id)",
             "CREATE INDEX IF NOT EXISTS ix_chunks_conversation_id ON chunks (conversation_id)",
