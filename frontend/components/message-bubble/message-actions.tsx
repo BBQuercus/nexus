@@ -185,7 +185,7 @@ export function RetryWithModelMenu({ messageId, onClose, triggerRef }: { message
     const el = triggerRef.current;
     if (!el) return;
     const rect = el.getBoundingClientRect();
-    const menuW = 288; // w-72
+    const menuW = Math.min(288, window.innerWidth - 24); // w-72, clamped to viewport
     const menuMaxH = 288; // max-h-72
     const gap = 6;
 
@@ -193,8 +193,8 @@ export function RetryWithModelMenu({ messageId, onClose, triggerRef }: { message
     let left = rect.left;
 
     // Clamp right edge
-    if (left + menuW > window.innerWidth - 8) left = window.innerWidth - menuW - 8;
-    if (left < 8) left = 8;
+    if (left + menuW > window.innerWidth - 12) left = window.innerWidth - menuW - 12;
+    if (left < 12) left = 12;
 
     // If not enough space below, open upward
     if (top + menuMaxH > window.innerHeight - 8 && rect.top > menuMaxH + gap) {
@@ -228,7 +228,7 @@ export function RetryWithModelMenu({ messageId, onClose, triggerRef }: { message
   return createPortal(
     <div
       ref={menuRef}
-      className="w-72 max-h-72 overflow-y-auto bg-surface-0 border border-border-default rounded-lg shadow-2xl shadow-black/40 z-[100] animate-fade-in-up"
+      className="w-[min(288px,calc(100vw-24px))] max-h-72 overflow-y-auto bg-surface-0 border border-border-default rounded-lg shadow-2xl shadow-black/40 z-[100] animate-fade-in-up"
       style={{ animationDuration: '0.1s', ...style }}
     >
       {PROVIDER_ORDER.filter((p) => grouped[p]?.length).map((provider, gi) => (
@@ -332,7 +332,7 @@ export function FeedbackPanel({ message }: { message: Message }) {
         </>
       )}
       {showForm && (
-        <div className="absolute left-0 top-full mt-1.5 w-80 bg-surface-0 border border-border-default rounded-lg shadow-xl shadow-black/30 z-50 p-3 animate-fade-in-up" style={{ animationDuration: '0.12s' }}>
+        <div className="absolute left-0 top-full mt-1.5 w-[min(320px,calc(100vw-24px))] bg-surface-0 border border-border-default rounded-lg shadow-xl shadow-black/30 z-50 p-3 animate-fade-in-up" style={{ animationDuration: '0.12s' }}>
           <div className="flex items-center justify-between mb-2">
             <span className="text-[10px] font-bold text-text-secondary uppercase tracking-wider">{t('feedbackHeading')}</span>
             <button onClick={() => setShowForm(false)} className="text-text-tertiary hover:text-text-secondary cursor-pointer"><X size={12} /></button>

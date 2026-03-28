@@ -81,7 +81,7 @@ export default function AgentPicker() {
       )}
 
       {open && !isLocked && (
-        <div className="absolute bottom-full left-0 mb-1.5 w-64 max-h-72 overflow-y-auto bg-surface-0 border border-border-default rounded-lg shadow-2xl shadow-black/40 z-50">
+        <div className="absolute bottom-full left-0 mb-1.5 w-[min(256px,calc(100vw-24px))] max-h-72 overflow-y-auto bg-surface-0 border border-border-default rounded-lg shadow-2xl shadow-black/40 z-50">
           {activePersona && (
             <button
               onClick={() => { setActivePersona(null); setOpen(false); }}

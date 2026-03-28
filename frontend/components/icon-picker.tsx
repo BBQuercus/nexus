@@ -117,7 +117,7 @@ export default function IconPicker({ value, onChange }: IconPickerProps) {
       </button>
 
       {open && (
-        <div className="absolute top-full left-0 mt-1.5 w-72 bg-surface-0 border border-border-default rounded-lg shadow-2xl shadow-black/40 z-50 overflow-hidden">
+        <div className="absolute top-full left-0 mt-1.5 w-[min(288px,calc(100vw-24px))] bg-surface-0 border border-border-default rounded-lg shadow-2xl shadow-black/40 z-50 overflow-hidden">
           {/* Search */}
           <div className="flex items-center gap-2 px-3 py-2 border-b border-border-default">
             <Search size={12} className="text-text-tertiary shrink-0" />
