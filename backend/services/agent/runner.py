@@ -27,6 +27,52 @@ from .usage import link_retrieval_logs, log_usage, save_artifacts, save_assistan
 logger = get_logger("agent")
 
 
+def _user_facing_error(e: Exception) -> str:
+    """Map an internal exception to a clean, user-facing message.
+
+    The raw exception is always logged before this is called; this function
+    only decides what the user sees.
+    """
+    msg = str(e).lower()
+
+    # Context / token limits
+    if any(k in msg for k in ("context_length_exceeded", "context window", "maximum context", "too many tokens", "token limit", "input is too long")):
+        return (
+            "Your conversation has exceeded the model's context limit. "
+            "Try starting a new conversation, removing some messages, or switching to a model with a larger context window."
+        )
+
+    # Rate limits
+    if any(k in msg for k in ("rate limit", "rate_limit", "ratelimiterror", "429", "too many requests", "quota")):
+        return "The model is currently rate-limited. Please wait a moment and try again, or switch to a different model."
+
+    # Content / safety filters
+    if any(k in msg for k in ("content_filter", "content filter", "safety", "policy", "moderat", "harmful", "blocked")):
+        return "The response was blocked by the content policy. Please rephrase your request and try again."
+
+    # Authentication / permission issues
+    if any(k in msg for k in ("unauthorized", "invalid_api_key", "authentication", "permission", "forbidden", "401", "403")):
+        return "There's a configuration issue with the AI provider. Please contact your administrator."
+
+    # Timeout
+    if any(k in msg for k in ("timeout", "timed out", "deadline", "apitimeouterror")):
+        return "The model took too long to respond. Please try again — complex requests may need to be simplified."
+
+    # Connection / network
+    if any(k in msg for k in ("connection", "network", "unreachable", "service unavailable", "apiconnectionerror", "502", "503", "504")):
+        return "Could not reach the AI provider. Please check your connection and try again in a moment."
+
+    # Model not found / invalid
+    if any(k in msg for k in ("model_not_found", "no such model", "does not exist", "invalid model", "404")):
+        return "The selected model is unavailable or no longer supported. Please switch to a different model."
+
+    # Overloaded
+    if any(k in msg for k in ("overloaded", "capacity", "server_error", "500", "internal server")):
+        return "The AI provider is temporarily overloaded. Please try again in a moment."
+
+    return "Something went wrong while generating a response. Please try again."
+
+
 async def _load_selected_knowledge_bases(db: AsyncSession, knowledge_base_ids: list[uuid.UUID]) -> list[dict[str, str]]:
     if not knowledge_base_ids:
         return []
@@ -141,6 +187,9 @@ async def run_agent_loop(
         user_message=user_message,
     )
 
+    # Attach persona for approval gate checks
+    ctx.persona = persona
+
     total_input_tokens = 0
     total_output_tokens = 0
     max_iterations = 15
@@ -207,14 +256,14 @@ async def run_agent_loop(
             errors_total.labels(error_type="llm_unavailable", component="api").inc()
             active_streams.dec()
             stream_duration.observe(time.monotonic() - start_time)
-            yield sse_event("error", {"message": str(e)})
+            yield sse_event("error", {"message": _user_facing_error(e)})
             return
         except Exception as e:
             logger.error("llm_stream_error", error=str(e), model=model, iteration=iteration)
             errors_total.labels(error_type="llm_stream_error", component="api").inc()
             active_streams.dec()
             stream_duration.observe(time.monotonic() - start_time)
-            yield sse_event("error", {"message": f"An error occurred while generating a response: {e}"})
+            yield sse_event("error", {"message": _user_facing_error(e)})
             return
 
         total_input_tokens += input_tokens
@@ -381,7 +430,7 @@ async def run_multi_agent_loop(
                             pass
         except Exception as e:
             logger.error("branch_error", branch_index=branch_idx, error=str(e))
-            await queue.put(sse_event("error", {"message": str(e), "branch_index": branch_idx}))
+            await queue.put(sse_event("error", {"message": _user_facing_error(e), "branch_index": branch_idx}))
         finally:
             await queue.put(("BRANCH_DONE", branch_idx))
 

@@ -164,8 +164,8 @@ async def stream_chat(
 
     llm_request_duration.labels(model=model).observe(time.monotonic() - request_start)
     raise LLMUnavailableError(
-        f"Model '{model}' is temporarily unavailable. Please try again or switch to a different model. "
-        f"(Last error: {last_error})"
+        f"Model '{model}' is temporarily unavailable after {_MAX_RETRIES + 1} attempts "
+        f"[{type(last_error).__name__}: {last_error}]"
     )
 
 

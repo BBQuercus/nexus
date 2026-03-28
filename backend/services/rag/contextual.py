@@ -68,33 +68,39 @@ async def generate_context_prefix(
         return ""
 
 
+_CONTEXT_CONCURRENCY = 20
+
+
 async def generate_context_prefixes(
     document_text: str,
     chunk_texts: list[str],
     model: str | None = None,
 ) -> list[str]:
-    """Generate contextual prefixes for multiple chunks.
+    """Generate contextual prefixes for all chunks with bounded concurrency.
 
-    Processes sequentially to stay within rate limits on cheap models.
+    Runs up to _CONTEXT_CONCURRENCY requests in parallel, which is ~4x faster
+    than the old fixed-batch-of-5 approach on large documents.
     """
     import asyncio
 
-    # Process in small concurrent batches to balance speed and rate limits
-    batch_size = 5
-    prefixes: list[str] = []
+    semaphore = asyncio.Semaphore(_CONTEXT_CONCURRENCY)
 
-    for i in range(0, len(chunk_texts), batch_size):
-        batch = chunk_texts[i : i + batch_size]
-        results = await asyncio.gather(
-            *[generate_context_prefix(document_text, text, model) for text in batch],
-            return_exceptions=True,
-        )
-        for r in results:
-            if isinstance(r, BaseException):
-                logger.warning("context_prefix_batch_error", error=str(r))
-                prefixes.append("")
-            else:
-                prefixes.append(r)
+    async def _bounded(text: str) -> str:
+        async with semaphore:
+            return await generate_context_prefix(document_text, text, model)
+
+    results = await asyncio.gather(
+        *[_bounded(text) for text in chunk_texts],
+        return_exceptions=True,
+    )
+
+    prefixes: list[str] = []
+    for r in results:
+        if isinstance(r, BaseException):
+            logger.warning("context_prefix_failed", error=str(r))
+            prefixes.append("")
+        else:
+            prefixes.append(r)
 
     logger.info(
         "context_prefixes_generated",

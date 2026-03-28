@@ -1,5 +1,6 @@
 """Tool call execution logic and tool result handling."""
 
+import asyncio
 import json
 import time
 import uuid
@@ -9,7 +10,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.logging_config import get_logger
-from backend.models import RetrievalLog
+from backend.models import ApprovalGate, RetrievalLog
 from backend.services import sandbox as sandbox_service
 from backend.services.chart_tool import normalize_chart_spec
 from backend.services.search import web_search
@@ -86,6 +87,90 @@ class ToolExecutionContext:
         self.retrieval_log_ids: list[uuid.UUID] = []
         self.enriched_tool_calls: list[dict] = []
 
+        # Set by runner if available
+        self.persona = None
+        self.agent_run_id = None
+
+
+async def _check_approval_gate(
+    func_name: str,
+    args: dict,
+    tool_call_id: str,
+    ctx: ToolExecutionContext,
+) -> AsyncGenerator[dict, None]:
+    """Check if tool requires approval. If so, create gate and wait for decision.
+
+    Yields SSE events. Returns the final gate status and potentially edited args.
+    The last yielded event has __gate_result__ set.
+    """
+    persona = ctx.persona
+    if not persona or not getattr(persona, "approval_config", None):
+        yield {"__gate_result__": "approved", "args": args}
+        return
+
+    approval_config = persona.approval_config or {}
+    tool_config = approval_config.get(func_name, {})
+
+    # Check if this specific tool requires approval
+    if not tool_config.get("required", False):
+        yield {"__gate_result__": "approved", "args": args}
+        return
+
+    # Create approval gate
+    gate = ApprovalGate(
+        org_id=ctx.conversation.org_id,
+        agent_run_id=getattr(ctx, "agent_run_id", None),
+        conversation_id=ctx.conversation_id,
+        tool_name=func_name,
+        tool_arguments=args,
+        status="pending",
+    )
+    ctx.db.add(gate)
+    await ctx.db.flush()
+
+    # Emit SSE event for the frontend
+    yield sse_event("approval_required", {
+        "gate_id": str(gate.id),
+        "tool": func_name,
+        "arguments": sanitize_tool_arguments(func_name, args),
+        "tool_call_id": tool_call_id,
+    })
+
+    # Poll for decision (max 10 minutes)
+    max_wait = 600  # seconds
+    poll_interval = 1.0  # seconds
+    elapsed = 0.0
+
+    while elapsed < max_wait:
+        await asyncio.sleep(poll_interval)
+        elapsed += poll_interval
+
+        # Refresh gate from DB
+        await ctx.db.refresh(gate)
+
+        if gate.status == "approved":
+            logger.info("approval_gate_approved", gate_id=str(gate.id), tool=func_name)
+            yield sse_event("approval_resolved", {"gate_id": str(gate.id), "status": "approved", "tool_call_id": tool_call_id})
+            yield {"__gate_result__": "approved", "args": args}
+            return
+        elif gate.status == "rejected":
+            logger.info("approval_gate_rejected", gate_id=str(gate.id), tool=func_name)
+            yield sse_event("approval_resolved", {"gate_id": str(gate.id), "status": "rejected", "tool_call_id": tool_call_id})
+            yield {"__gate_result__": "rejected", "args": args}
+            return
+        elif gate.status == "edited":
+            edited_args = gate.edited_arguments or args
+            logger.info("approval_gate_edited", gate_id=str(gate.id), tool=func_name)
+            yield sse_event("approval_resolved", {"gate_id": str(gate.id), "status": "edited", "tool_call_id": tool_call_id})
+            yield {"__gate_result__": "approved", "args": edited_args}
+            return
+
+    # Timeout — treat as rejected
+    gate.status = "rejected"
+    await ctx.db.commit()
+    yield sse_event("approval_resolved", {"gate_id": str(gate.id), "status": "timeout", "tool_call_id": tool_call_id})
+    yield {"__gate_result__": "rejected", "args": args}
+
 
 async def execute_tool_call(
     tc: dict,
@@ -102,6 +187,34 @@ async def execute_tool_call(
         args = {}
 
     tool_call_id = tc["id"]
+
+    # Check approval gate
+    gate_result = None
+    async for event in _check_approval_gate(func_name, args, tool_call_id, ctx):
+        if event.get("__gate_result__"):
+            gate_result = event
+        else:
+            yield event
+
+    if gate_result and gate_result["__gate_result__"] == "rejected":
+        tool_output = f"Tool '{func_name}' was rejected by the user."
+        yield sse_event("tool_start", {"tool": func_name, "arguments": sanitize_tool_arguments(func_name, args), "tool_call_id": tool_call_id})
+        yield sse_event("tool_output", {"tool": func_name, "output": tool_output, "tool_call_id": tool_call_id})
+        yield sse_event("tool_end", {"tool": func_name, "tool_call_id": tool_call_id})
+        ctx.enriched_tool_calls.append({
+            "id": tool_call_id,
+            "name": func_name,
+            "language": "",
+            "code": "",
+            "output": tool_output,
+            "exitCode": 0,
+        })
+        return
+
+    # Use potentially edited args
+    if gate_result:
+        args = gate_result["args"]
+
     yield sse_event(
         "tool_start",
         {
