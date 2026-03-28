@@ -57,7 +57,7 @@ function StreamingImage({ filename, url }: { filename: string; url: string }) {
       <img
         src={url}
         alt={filename}
-        className="w-full max-h-[500px] object-contain bg-bg"
+        className="w-full max-h-[500px] min-h-[120px] object-contain bg-bg"
         loading="eager"
       />
       <div className="flex items-center justify-between px-3 py-1.5 bg-surface-1 text-[11px] font-mono text-text-tertiary">
