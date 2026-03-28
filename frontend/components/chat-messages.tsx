@@ -82,7 +82,11 @@ export default function ChatMessages() {
   const virtualizer = useVirtualizer({
     count: visibleMessages.length,
     getScrollElement: () => containerRef.current,
-    estimateSize: () => 120,
+    // 420px for messages with images (360px image + bar + padding), 100px otherwise
+    estimateSize: (index) => {
+      const msg = visibleMessages[index];
+      return (msg?.images?.length ?? 0) > 0 ? 420 : 100;
+    },
     overscan: 5,
     getItemKey: (index) => visibleMessages[index]?.id ?? index,
   });

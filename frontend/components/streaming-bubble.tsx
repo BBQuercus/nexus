@@ -54,12 +54,15 @@ function StreamingImage({ filename, url }: { filename: string; url: string }) {
   const t = useTranslations('streamingBubble');
   return (
     <div className="my-3 rounded-lg border border-border-default overflow-hidden animate-fade-in-up">
-      <img
-        src={url}
-        alt={filename}
-        className="w-full max-h-[500px] min-h-[120px] object-contain bg-bg"
-        loading="eager"
-      />
+      {/* Fixed-height container prevents layout shift while image loads */}
+      <div className="relative w-full h-[360px] bg-bg">
+        <img
+          src={url}
+          alt={filename}
+          className="absolute inset-0 w-full h-full object-contain"
+          loading="eager"
+        />
+      </div>
       <div className="flex items-center justify-between px-3 py-1.5 bg-surface-1 text-[11px] font-mono text-text-tertiary">
         <span className="truncate">{filename}</span>
         <a href={url} download={filename} className="flex items-center gap-1 text-text-tertiary hover:text-accent transition-colors shrink-0 ml-2">

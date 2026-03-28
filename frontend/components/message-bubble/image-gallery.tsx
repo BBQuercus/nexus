@@ -30,7 +30,14 @@ export function InlineImage({ img }: { img: { filename: string; url: string } })
   if (isVideoFile(img.filename)) return <InlineVideo img={img} />;
   return (
     <div className="rounded-lg border border-border-default overflow-hidden">
-      <img src={img.url} alt={img.filename} className="w-full max-h-[500px] min-h-[120px] object-contain bg-bg" />
+      {/* Fixed-height container prevents layout shift while image loads */}
+      <div className="relative w-full h-[360px] bg-bg">
+        <img
+          src={img.url}
+          alt={img.filename}
+          className="absolute inset-0 w-full h-full object-contain"
+        />
+      </div>
       <div className="flex items-center justify-between px-3 py-1.5 bg-surface-1 text-[11px] font-mono text-text-tertiary">
         <span className="truncate">{img.filename}</span>
         <a href={img.url} download={img.filename} className="flex items-center gap-1 text-text-tertiary hover:text-accent transition-colors shrink-0 ml-2">
