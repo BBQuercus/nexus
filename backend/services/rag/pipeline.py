@@ -54,9 +54,19 @@ async def ingest_document(
                 return
 
             # 1. Parse document into chunks
+            import asyncio
+            import functools
+
             from backend.services.rag.ingestion import parse_document
 
-            parsed = parse_document(file_bytes, filename)
+            await db.execute(
+                update(Document).where(Document.id == document_id).values(processing_stage="splitting")
+            )
+            await db.commit()
+
+            # Run CPU-heavy parsing in a thread so the event loop stays free
+            loop = asyncio.get_event_loop()
+            parsed = await loop.run_in_executor(None, functools.partial(parse_document, file_bytes, filename))
 
             # Update document with parsed metadata
             await db.execute(
@@ -68,6 +78,7 @@ async def ingest_document(
                     metadata_=parsed.metadata,
                 )
             )
+            await db.commit()
 
             if not parsed.chunks:
                 await _mark_document_error(db, document_id, "No text content extracted")
@@ -85,6 +96,11 @@ async def ingest_document(
             if chunk_strategy == "contextual" and parsed.raw_text:
                 from backend.services.rag.contextual import generate_context_prefixes
 
+                await db.execute(
+                    update(Document).where(Document.id == document_id).values(processing_stage="contextualizing")
+                )
+                await db.commit()
+
                 chunk_texts = [c.content for c in parsed.chunks]
                 prefixes = await generate_context_prefixes(
                     parsed.raw_text[:15_000],
@@ -94,18 +110,38 @@ async def ingest_document(
             # 3. Generate embeddings
             from backend.services.rag.embeddings import embed_texts
 
+            n_chunks = len(parsed.chunks)
+            await db.execute(
+                update(Document)
+                .where(Document.id == document_id)
+                .values(processing_stage="encoding", chunks_total=n_chunks, chunks_done=0)
+            )
+            await db.commit()
+
             # Embed the combined prefix + content for better retrieval
             texts_to_embed = [
                 f"{prefix}\n\n{chunk.content}" if prefix else chunk.content
                 for prefix, chunk in zip(prefixes, parsed.chunks, strict=False)
             ]
-            embeddings = await embed_texts(texts_to_embed, model=embedding_model)
+
+            async def _on_batch(chunks_done: int) -> None:
+                await db.execute(
+                    update(Document).where(Document.id == document_id).values(chunks_done=chunks_done)
+                )
+                await db.commit()
+
+            embeddings = await embed_texts(texts_to_embed, model=embedding_model, on_batch_complete=_on_batch)
 
             logger.info(
                 "embeddings_complete",
                 document_id=str(document_id),
                 count=len(embeddings),
             )
+
+            await db.execute(
+                update(Document).where(Document.id == document_id).values(processing_stage="storing")
+            )
+            await db.commit()
 
             # 4. Store chunks with embeddings
             # Get org_id from the document record
@@ -138,7 +174,11 @@ async def ingest_document(
             db.add_all(chunk_records)
 
             # 5. Mark document as ready
-            await db.execute(update(Document).where(Document.id == document_id).values(status="ready"))
+            await db.execute(
+                update(Document)
+                .where(Document.id == document_id)
+                .values(status="ready", processing_stage=None, chunks_done=n_chunks)
+            )
 
             # 6. Update KB counters
             if knowledge_base_id:

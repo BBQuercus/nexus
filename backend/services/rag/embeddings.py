@@ -1,5 +1,7 @@
 """Embedding generation via LiteLLM proxy (OpenAI-compatible)."""
 
+from collections.abc import Awaitable, Callable
+
 import openai
 
 from backend.config import settings
@@ -22,10 +24,12 @@ _BATCH_SIZE = 100
 async def embed_texts(
     texts: list[str],
     model: str | None = None,
+    on_batch_complete: Callable[[int], Awaitable[None]] | None = None,
 ) -> list[list[float]]:
     """Batch-embed texts via LiteLLM proxy.
 
     Splits into batches of _BATCH_SIZE and returns vectors in the same order.
+    on_batch_complete(chunks_done) is called after each batch if provided.
     """
     model = model or settings.EMBEDDING_MODEL
     all_embeddings: list[list[float]] = []
@@ -36,6 +40,8 @@ async def embed_texts(
             response = await _client.embeddings.create(model=model, input=batch)
             batch_embeddings = [item.embedding for item in response.data]
             all_embeddings.extend(batch_embeddings)
+            if on_batch_complete:
+                await on_batch_complete(len(all_embeddings))
         except Exception:
             logger.exception("embedding_batch_failed", model=model, batch_start=i, batch_size=len(batch))
             raise
