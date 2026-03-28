@@ -269,6 +269,23 @@ pre code {
   max-width: 100%;
   display: block;
 }
+.markdown-img-wrap {
+  position: relative;
+  width: 100%;
+  height: 360px;
+  margin: 0.75rem 0;
+  border-radius: 8px;
+  border: 1px solid var(--color-border-default);
+  overflow: hidden;
+  background: var(--color-bg);
+}
+.markdown-img-wrap img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
 
 /* Code block wrapper with header */
 .code-block-wrapper {

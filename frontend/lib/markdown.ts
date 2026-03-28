@@ -155,6 +155,18 @@ export function enhanceRenderedMarkdown(root: HTMLElement): () => void {
 
   root.addEventListener('click', handleCodeCopy);
 
+  // Wrap each standalone <img> in a fixed-height container to prevent virtualizer layout shift.
+  // Images embedded in markdown render asynchronously; without a fixed container the virtualizer
+  // measures 0px height before load and positions subsequent messages too high (overlap).
+  root.querySelectorAll<HTMLImageElement>('img').forEach((img) => {
+    const parent = img.parentElement;
+    if (!parent || parent.classList.contains('markdown-img-wrap')) return;
+    const wrapper = document.createElement('div');
+    wrapper.className = 'markdown-img-wrap';
+    parent.insertBefore(wrapper, img);
+    wrapper.appendChild(img);
+  });
+
   return () => {
     root.removeEventListener('click', handleCodeCopy);
   };
