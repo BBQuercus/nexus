@@ -13,6 +13,8 @@ export interface WorkspaceSlice {
   projects: Project[];
   activeProjectId: string | null;
   searchPanelOpen: boolean;
+  shortcutsOpen: boolean;
+  bugReportOpen: boolean;
   setRightPanelTab: (tab: WorkspaceSlice['rightPanelTab']) => void;
   setRightPanelOpen: (open: boolean) => void;
   setPreviewUrl: (url: string | null) => void;
@@ -21,6 +23,8 @@ export interface WorkspaceSlice {
   setProjects: (projects: Project[]) => void;
   setActiveProjectId: (id: string | null) => void;
   setSearchPanelOpen: (open: boolean) => void;
+  setShortcutsOpen: (open: boolean) => void;
+  setBugReportOpen: (open: boolean) => void;
   showConfirm: (opts: { title: string; message?: string; confirmLabel?: string; variant?: 'danger' | 'default' }) => Promise<boolean>;
   resolveConfirm: (confirmed: boolean) => void;
 }
@@ -35,6 +39,8 @@ export const createWorkspaceSlice: StateCreator<StoreState, [], [], WorkspaceSli
   projects: [],
   activeProjectId: null,
   searchPanelOpen: false,
+  shortcutsOpen: false,
+  bugReportOpen: false,
   setRightPanelTab: (tab) => set({ rightPanelTab: tab }),
   setRightPanelOpen: (open) => set({ rightPanelOpen: open }),
   setPreviewUrl: (url) => set({ previewUrl: url }),
@@ -49,6 +55,8 @@ export const createWorkspaceSlice: StateCreator<StoreState, [], [], WorkspaceSli
     } catch {}
   },
   setSearchPanelOpen: (open) => set({ searchPanelOpen: open }),
+  setShortcutsOpen: (open) => set({ shortcutsOpen: open }),
+  setBugReportOpen: (open) => set({ bugReportOpen: open }),
   showConfirm: (opts) =>
     new Promise<boolean>((resolve) => {
       set({

@@ -5,19 +5,14 @@ import { useTranslations } from 'next-intl';
 import { useStore } from '@/lib/store';
 import { useIsDesktop } from '@/lib/useMediaQuery';
 import { useVisualViewport } from '@/lib/useVisualViewport';
-import { initErrorReporter } from '@/lib/error-reporter';
-import { toast } from '@/components/toast';
 import TopBar from '../top-bar';
 import ChatMessages from '../chat-messages';
 import ChatInput from '../chat-input';
 import EmptyState from '../empty-state';
-import ConfirmDialog from '../confirm-dialog';
-import { Toaster } from '../toast';
 import PanelErrorBoundary from '../panel-error-boundary';
 import HealthBanner from '../health-banner';
 import InstallPrompt from '../install-prompt';
 import ShellLayout from './shell-layout';
-import { useKeyboardShortcuts } from './use-keyboard-shortcuts';
 import { useFocusMode } from './use-focus-mode';
 import { TooltipProvider } from '../ui/tooltip';
 import { Upload } from 'lucide-react';
@@ -25,12 +20,10 @@ import { startTour, isTourCompleted } from '@/lib/onboarding-tour';
 
 const CommandPalette = lazy(() => import('../command-palette'));
 const SearchPanel = lazy(() => import('../search-panel'));
-const KeyboardShortcuts = lazy(() => import('../keyboard-shortcuts'));
 const DiffViewer = lazy(() => import('../diff-viewer'));
 
 export default function Workspace() {
   const t = useTranslations('workspace');
-  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const dragCounterRef = useRef(0);
   const activeConversationId = useStore((s) => s.activeConversationId);
@@ -38,35 +31,12 @@ export default function Workspace() {
   const commandPaletteOpen = useStore((s) => s.commandPaletteOpen);
   const searchPanelOpen = useStore((s) => s.searchPanelOpen);
   const setSearchPanelOpen = useStore((s) => s.setSearchPanelOpen);
-  const confirmDialog = useStore((s) => s.confirmDialog);
-  const resolveConfirm = useStore((s) => s.resolveConfirm);
   const setSidebarOpen = useStore((s) => s.setSidebarOpen);
 
   const isDesktop = useIsDesktop();
   useVisualViewport();
 
-  const { focusMode, focusModeRef, toggleFocusMode } = useFocusMode();
-
-  const openShortcuts = useCallback(() => {
-    setShortcutsOpen((prev) => !prev);
-  }, []);
-
-  useKeyboardShortcuts({
-    onToggleFocusMode: toggleFocusMode,
-    onOpenShortcuts: openShortcuts,
-    focusModeRef,
-  });
-
-  useEffect(() => {
-    initErrorReporter();
-  }, []);
-
-  // Listen for open-shortcuts event from slash commands / command palette
-  useEffect(() => {
-    const handler = () => setShortcutsOpen(true);
-    window.addEventListener('nexus:open-shortcuts', handler);
-    return () => window.removeEventListener('nexus:open-shortcuts', handler);
-  }, []);
+  const { focusMode } = useFocusMode();
 
   // Onboarding tour: auto-start only for genuinely new users, listen for manual trigger
   const user = useStore((s) => s.user);
@@ -218,20 +188,9 @@ export default function Workspace() {
       <Suspense fallback={null}>
         {commandPaletteOpen && <CommandPalette />}
         {searchPanelOpen && <SearchPanel />}
-        {shortcutsOpen && <KeyboardShortcuts onClose={() => setShortcutsOpen(false)} />}
         <DiffViewer />
       </Suspense>
       <InstallPrompt />
-      <Toaster />
-      <ConfirmDialog
-        open={confirmDialog.open}
-        title={confirmDialog.title}
-        message={confirmDialog.message}
-        confirmLabel={confirmDialog.confirmLabel}
-        variant={confirmDialog.variant}
-        onConfirm={() => resolveConfirm(true)}
-        onCancel={() => resolveConfirm(false)}
-      />
     </div>
     </TooltipProvider>
   );

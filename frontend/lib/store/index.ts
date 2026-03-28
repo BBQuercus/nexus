@@ -66,6 +66,8 @@ const initialState: AppState = {
   projects: [],
   activeProjectId: null,
   searchPanelOpen: false,
+  shortcutsOpen: false,
+  bugReportOpen: false,
   currentOrg: null,
   memberships: [],
   userSettings: {},

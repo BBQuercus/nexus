@@ -9,7 +9,6 @@ import type { UserSettings } from '@/lib/types';
 import { LogOut, User, Keyboard, Shield, Users, BookOpen, Home, Compass, Bug, Building2, Check, Plus, Settings, Sun, Moon, Monitor, Type, Zap, Globe, Store } from 'lucide-react';
 import { useLocale } from 'next-intl';
 import { locales, type Locale } from '@/i18n/config';
-import BugReportDialog from './bug-report-dialog';
 import CreateOrgDialog from './create-org-dialog';
 import {
   DropdownMenu,
@@ -35,7 +34,7 @@ export default function UserDropdown({ compact = false }: { compact?: boolean })
   const switchOrg = useStore((s) => s.switchOrg);
   const userSettings = useStore((s) => s.userSettings);
   const setUserSettings = useStore((s) => s.setUserSettings);
-  const [bugReportOpen, setBugReportOpen] = useState(false);
+  const setBugReportOpen = useStore((s) => s.setBugReportOpen);
   const [createOrgOpen, setCreateOrgOpen] = useState(false);
   const [switchingOrg, setSwitchingOrg] = useState(false);
 
@@ -255,7 +254,6 @@ export default function UserDropdown({ compact = false }: { compact?: boolean })
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <BugReportDialog open={bugReportOpen} onClose={() => setBugReportOpen(false)} />
       <CreateOrgDialog open={createOrgOpen} onClose={() => setCreateOrgOpen(false)} switchAfterCreate />
     </>
   );
