@@ -43,6 +43,31 @@ class AuditAction(StrEnum):
     AGENT_DELETED = "agent.deleted"
     AGENT_PUBLISHED = "agent.published"
 
+    # Agent runs
+    AGENT_RUN_CREATED = "agent_run.created"
+    AGENT_RUN_DELETED = "agent_run.deleted"
+
+
+    # Agent schedules
+    SCHEDULE_CREATED = "schedule.created"
+    SCHEDULE_DELETED = "schedule.deleted"
+
+    # Approval gates
+    AGENT_APPROVAL_DECIDED = "agent_approval.decided"
+
+    # Prompt templates
+    TEMPLATE_CREATED = "template.created"
+    TEMPLATE_DELETED = "template.deleted"
+
+    # External actions
+    EXTERNAL_ACTION_APPROVED = "external_action.approved"
+    EXTERNAL_ACTION_REJECTED = "external_action.rejected"
+
+    # Marketplace
+    MARKETPLACE_PUBLISHED = "marketplace.published"
+    MARKETPLACE_INSTALLED = "marketplace.installed"
+
+
     # Knowledge bases
     KB_CREATED = "kb.created"
     KB_DELETED = "kb.deleted"
