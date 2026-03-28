@@ -8,31 +8,53 @@ import type { KBChunk } from '@/lib/api';
 import {
   BookOpen, Plus, Trash2, Upload, X, FileText, Check,
   Loader2, Search, ArrowLeft, Download, Database, Hash,
+  Globe, Lock, Unlock,
 } from 'lucide-react';
 import { toast } from './toast';
 import { getCsrfToken } from '@/lib/auth';
 import PageShell from './page-shell';
 import ConfirmDialog from './confirm-dialog';
+import { Input } from './ui/input';
+import { Button } from './ui/button';
+import { Badge } from './ui/badge';
 import { useStore } from '@/lib/store';
 import { toApiUrl } from '@/lib/runtime';
+import { publishToMarketplace, updateKnowledgeBase, browseMarketplace, deleteMarketplaceListing } from '@/lib/api';
 
-async function directUpload(url: string, files: File[]): Promise<{ documents: Record<string, unknown>[] }> {
+async function directUpload(
+  url: string,
+  files: File[],
+  onProgress?: (pct: number) => void,
+): Promise<{ documents: Record<string, unknown>[] }> {
   const formData = new FormData();
   files.forEach((file) => formData.append('files', file));
-  const headers: Record<string, string> = {};
   const csrfToken = getCsrfToken();
-  if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
-  const resp = await fetch(toApiUrl(url), {
-    method: 'POST',
-    headers,
-    credentials: 'include',
-    body: formData,
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', toApiUrl(url));
+    xhr.withCredentials = true;
+    if (csrfToken) xhr.setRequestHeader('X-CSRF-Token', csrfToken);
+
+    xhr.upload.addEventListener('progress', (e) => {
+      if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100));
+    });
+
+    xhr.addEventListener('load', () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try { resolve(JSON.parse(xhr.responseText)); }
+        catch { reject(new Error('Invalid response')); }
+      } else {
+        try {
+          const err = JSON.parse(xhr.responseText);
+          reject(new Error(err.detail || xhr.statusText));
+        } catch { reject(new Error(xhr.statusText)); }
+      }
+    });
+
+    xhr.addEventListener('error', () => reject(new Error('Upload failed')));
+    xhr.send(formData);
   });
-  if (!resp.ok) {
-    const err = await resp.json().catch(() => ({}));
-    throw new Error((err as { detail?: string }).detail || resp.statusText);
-  }
-  return resp.json();
 }
 
 function formatBytes(bytes: number): string {
@@ -41,17 +63,38 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({ status, processingStage, chunksTotal, chunksDone }: {
+  status: string;
+  processingStage?: string;
+  chunksTotal?: number;
+  chunksDone?: number;
+}) {
   const t = useTranslations('knowledge');
+
+  if (status === 'processing') {
+    const isEncoding = processingStage === 'encoding' && chunksTotal;
+    const label = isEncoding
+      ? t('stageEncodingProgress', { done: chunksDone ?? 0, total: chunksTotal })
+      : processingStage === 'splitting' ? t('stageSplitting')
+      : processingStage === 'contextualizing' ? t('stageContextualizing')
+      : processingStage === 'storing' ? t('stageStoring')
+      : t('statusProcessing');
+
+    return (
+      <span className="flex items-center gap-1 text-[10px] font-medium text-warning bg-warning/10 px-1.5 py-0.5 rounded whitespace-nowrap">
+        <Loader2 size={9} className="animate-spin shrink-0" />
+        {label}
+      </span>
+    );
+  }
+
   const config = {
     ready: { label: t('statusReady'), cls: 'text-accent bg-accent/10' },
-    processing: { label: t('statusProcessing'), cls: 'text-warning bg-warning/10' },
     error: { label: t('statusError'), cls: 'text-error bg-error/10' },
   }[status] || { label: status, cls: 'text-text-tertiary bg-surface-1' };
 
   return (
     <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${config.cls}`}>
-      {status === 'processing' && <Loader2 size={9} className="inline animate-spin mr-1" />}
       {config.label}
     </span>
   );
@@ -123,9 +166,10 @@ function KBSidebar({
   );
 }
 
+
 // ── Document Row ──
 
-function DocumentRow({ doc, kbId, onDelete, onView }: { doc: KBDocument; kbId: string; onDelete: () => void; onView: () => void }) {
+function DocumentRow({ doc, kbId, onDelete, onView, readOnly }: { doc: KBDocument; kbId: string; onDelete: () => void; onView: () => void; readOnly?: boolean }) {
   const t = useTranslations('knowledge');
   const [deleting, setDeleting] = useState(false);
 
@@ -162,14 +206,16 @@ function DocumentRow({ doc, kbId, onDelete, onView }: { doc: KBDocument; kbId: s
         </div>
         {doc.errorMessage && <div className="text-[10px] text-error mt-0.5 truncate">{doc.errorMessage}</div>}
       </div>
-      <StatusBadge status={doc.status} />
-      <button
-        onClick={handleDelete}
-        disabled={deleting}
-        className="p-1 text-text-tertiary hover:text-error cursor-pointer transition-colors disabled:opacity-50"
-      >
-        <Trash2 size={12} />
-      </button>
+      <StatusBadge status={doc.status} processingStage={doc.processingStage} chunksTotal={doc.chunksTotal} chunksDone={doc.chunksDone} />
+      {!readOnly && (
+        <button
+          onClick={handleDelete}
+          disabled={deleting}
+          className="p-1 text-text-tertiary hover:text-error cursor-pointer transition-colors disabled:opacity-50"
+        >
+          <Trash2 size={12} />
+        </button>
+      )}
     </div>
   );
 }
@@ -287,12 +333,12 @@ function DocumentViewer({ doc, kbId, onBack }: { doc: KBDocument; kbId: string; 
         {tab === 'chunks' && (
           <>
             <div className="relative mb-4">
-              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
-              <input
+              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary z-10" />
+              <Input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder={t('searchWithinDoc')}
-                className="w-full bg-bg border border-border-default rounded-lg pl-8 pr-3 py-2 text-xs text-text-primary placeholder:text-text-tertiary outline-none focus:border-accent transition-colors"
+                className="pl-8 pr-12 text-xs"
               />
               {search && (
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-text-tertiary font-mono">
@@ -402,9 +448,16 @@ function KBDetail({ kb, onRefresh, initialDocId }: { kb: KnowledgeBase; onRefres
   const [documents, setDocuments] = useState<KBDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
   const [viewingDoc, setViewingDoc] = useState<KBDocument | null>(null);
+  const [publishOpen, setPublishOpen] = useState(false);
+  const [publishAccessMode, setPublishAccessMode] = useState<'extensible' | 'fixed'>('extensible');
+  const [publishing, setPublishing] = useState(false);
+
+  const isReadOnly = kb.accessMode === 'fixed' && !!kb.installedFromId;
+  const isInstalled = !!kb.installedFromId;
 
   const loadDocs = useCallback(async () => {
     try { const docs = await api.listKBDocuments(kb.id); setDocuments(docs); }
@@ -431,13 +484,15 @@ function KBDetail({ kb, onRefresh, initialDocId }: { kb: KnowledgeBase; onRefres
   const handleUpload = async (files: FileList | File[]) => {
     if (!files.length) return;
     setUploading(true);
+    setUploadProgress(0);
     try {
-      await directUpload(`/api/knowledge-bases/${kb.id}/documents`, Array.from(files));
+      await directUpload(`/api/knowledge-bases/${kb.id}/documents`, Array.from(files), setUploadProgress);
       toast.success(t('uploadSuccess', { count: files.length }));
       await loadDocs();
       onRefresh();
     } catch (e) { toast.error((e as Error).message || t('uploadFailed')); }
     setUploading(false);
+    setUploadProgress(0);
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -461,6 +516,44 @@ function KBDetail({ kb, onRefresh, initialDocId }: { kb: KnowledgeBase; onRefres
     } catch { toast.error(t('kbDeleteFailed')); }
   };
 
+  const handlePublish = async () => {
+    const confirmed = await useStore.getState().showConfirm({
+      title: t('publishConfirmTitle', { name: kb.name }),
+      message: t('publishConfirmMessage'),
+      confirmLabel: t('publishButton'),
+    });
+    if (!confirmed) return;
+    setPublishing(true);
+    try {
+      await publishToMarketplace({ knowledge_base_id: kb.id, access_mode: publishAccessMode });
+      toast.success(t('publishSuccess'));
+      setPublishOpen(false);
+      onRefresh();
+    } catch (e) { toast.error((e as Error).message || t('publishFailed')); }
+    setPublishing(false);
+  };
+
+  const handleUnpublish = async () => {
+    const confirmed = await useStore.getState().showConfirm({
+      title: t('unpublishConfirmTitle', { name: kb.name }),
+      message: t('unpublishConfirmMessage'),
+      confirmLabel: t('unpublishConfirmLabel'),
+      variant: 'danger',
+    });
+    if (!confirmed) return;
+    setPublishing(true);
+    try {
+      // Find and remove the marketplace listing for this KB
+      const listings = await browseMarketplace({});
+      const kbListing = listings.find((l) => l.knowledgeBaseId === kb.id);
+      if (kbListing) await deleteMarketplaceListing(kbListing.id);
+      await updateKnowledgeBase(kb.id, { isPublic: false });
+      toast.success(t('unpublishSuccess'));
+      onRefresh();
+    } catch (e) { toast.error((e as Error).message || t('unpublishFailed')); }
+    setPublishing(false);
+  };
+
   useEffect(() => { setViewingDoc(null); }, [kb.id]);
 
   if (viewingDoc) {
@@ -477,17 +570,89 @@ function KBDetail({ kb, onRefresh, initialDocId }: { kb: KnowledgeBase; onRefres
               <BookOpen size={18} className="text-text-tertiary" />
             </div>
             <div>
-              <h2 className="text-sm font-semibold text-text-primary">{kb.name}</h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-semibold text-text-primary">{kb.name}</h2>
+                {isInstalled && (
+                  <Badge variant="outline" className="text-[9px]">
+                    {isReadOnly ? <><Lock size={8} className="mr-0.5" /> {t('readOnlyBadge')}</> : <><Unlock size={8} className="mr-0.5" /> {t('extensibleBadge')}</>}
+                  </Badge>
+                )}
+                {kb.isPublic && <Badge variant="outline" className="text-[9px]"><Globe size={8} className="mr-0.5" /> {t('published')}</Badge>}
+              </div>
               {kb.description && <p className="text-[11px] text-text-tertiary mt-0.5">{kb.description}</p>}
             </div>
           </div>
-          <button
-            onClick={handleDeleteKB}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] text-error/60 hover:text-error rounded-lg hover:bg-error/5 cursor-pointer transition-colors"
-          >
-            <Trash2 size={11} /> {t('deleteKBLabel')}
-          </button>
+          <div className="flex items-center gap-2">
+            {!isInstalled && (
+              kb.isPublic ? (
+                <button
+                  onClick={handleUnpublish}
+                  disabled={publishing}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] text-text-secondary hover:text-text-primary rounded-lg hover:bg-surface-1 cursor-pointer transition-colors disabled:opacity-50"
+                >
+                  {publishing ? <Loader2 size={11} className="animate-spin" /> : <Globe size={11} />} {t('unpublish')}
+                </button>
+              ) : (
+                <button
+                  onClick={() => setPublishOpen(!publishOpen)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] text-text-secondary hover:text-text-primary rounded-lg hover:bg-surface-1 cursor-pointer transition-colors"
+                >
+                  <Globe size={11} /> {t('publishToMarketplace')}
+                </button>
+              )
+            )}
+            {!isReadOnly && (
+              <button
+                onClick={handleDeleteKB}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] text-error/60 hover:text-error rounded-lg hover:bg-error/5 cursor-pointer transition-colors"
+              >
+                <Trash2 size={11} /> {t('deleteKBLabel')}
+              </button>
+            )}
+          </div>
         </div>
+
+        {/* Publish panel */}
+        {publishOpen && !isInstalled && (
+          <div className="mb-6 p-4 rounded-xl border border-accent/20 bg-accent/5 animate-[fadeIn_0.15s_ease-out]">
+            <h3 className="text-xs font-semibold text-text-primary mb-2">{t('publishTitle')}</h3>
+            <p className="text-[11px] text-text-tertiary mb-3">{t('publishDescription')}</p>
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              <button
+                onClick={() => setPublishAccessMode('extensible')}
+                className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                  publishAccessMode === 'extensible' ? 'border-accent bg-accent/10' : 'border-border-default hover:border-border-focus'
+                }`}
+              >
+                <Unlock size={16} className={`shrink-0 ${publishAccessMode === 'extensible' ? 'text-accent' : 'text-text-tertiary'}`} />
+                <div className="text-left">
+                  <div className="text-[11px] font-medium text-text-primary">{t('extensibleLabel')}</div>
+                  <div className="text-[10px] text-text-tertiary">{t('extensibleHint')}</div>
+                </div>
+              </button>
+              <button
+                onClick={() => setPublishAccessMode('fixed')}
+                className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                  publishAccessMode === 'fixed' ? 'border-accent bg-accent/10' : 'border-border-default hover:border-border-focus'
+                }`}
+              >
+                <Lock size={16} className={`shrink-0 ${publishAccessMode === 'fixed' ? 'text-accent' : 'text-text-tertiary'}`} />
+                <div className="text-left">
+                  <div className="text-[11px] font-medium text-text-primary">{t('fixedLabel')}</div>
+                  <div className="text-[10px] text-text-tertiary">{t('fixedHint')}</div>
+                </div>
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button size="sm" onClick={handlePublish} disabled={publishing} className="gap-1.5 text-[11px]">
+                {publishing ? <Loader2 size={10} className="animate-spin" /> : <Globe size={10} />} {t('publishButton')}
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setPublishOpen(false)} className="text-[11px]">
+                {t('cancelPublish')}
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Stats */}
         <div className="grid grid-cols-3 gap-2 mb-6">
@@ -507,7 +672,7 @@ function KBDetail({ kb, onRefresh, initialDocId }: { kb: KnowledgeBase; onRefres
         </div>
 
         {/* Upload zone */}
-        <div
+        {!isReadOnly && <div
           onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
           onDragLeave={() => setDragOver(false)}
           onDrop={handleDrop}
@@ -516,8 +681,19 @@ function KBDetail({ kb, onRefresh, initialDocId }: { kb: KnowledgeBase; onRefres
           }`}
         >
           {uploading ? (
-            <div className="flex items-center justify-center gap-2 text-xs text-text-secondary py-2">
-              <Loader2 size={14} className="animate-spin" /> {t('uploading')}
+            <div className="py-2 px-1">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs text-text-secondary flex items-center gap-1.5">
+                  <Loader2 size={12} className="animate-spin" /> {t('uploading')}
+                </span>
+                <span className="text-[10px] text-text-tertiary font-mono">{uploadProgress}%</span>
+              </div>
+              <div className="h-1.5 w-full rounded-full bg-surface-1 overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-accent transition-all duration-150"
+                  style={{ width: `${uploadProgress}%` }}
+                />
+              </div>
             </div>
           ) : (
             <div className="flex items-center gap-4">
@@ -543,7 +719,7 @@ function KBDetail({ kb, onRefresh, initialDocId }: { kb: KnowledgeBase; onRefres
             className="hidden"
             onChange={(e) => { if (e.target.files) handleUpload(e.target.files); e.target.value = ''; }}
           />
-        </div>
+        </div>}
 
         {/* Documents */}
         <div className="bg-surface-0 border border-border-default rounded-xl overflow-hidden">
@@ -564,7 +740,7 @@ function KBDetail({ kb, onRefresh, initialDocId }: { kb: KnowledgeBase; onRefres
           ) : (
             <div className="divide-y divide-border-default">
               {documents.map((doc) => (
-                <DocumentRow key={doc.id} doc={doc} kbId={kb.id} onDelete={() => { loadDocs(); onRefresh(); }} onView={() => setViewingDoc(doc)} />
+                <DocumentRow key={doc.id} doc={doc} kbId={kb.id} readOnly={isReadOnly} onDelete={() => { loadDocs(); onRefresh(); }} onView={() => setViewingDoc(doc)} />
               ))}
             </div>
           )}
@@ -596,7 +772,7 @@ function CreateKBForm({
         <p className="text-xs text-text-tertiary mb-5">
           {t('newKBDesc')}
         </p>
-        <input
+        <Input
           autoFocus
           value={value}
           onChange={(e) => onChange(e.target.value)}
@@ -605,7 +781,7 @@ function CreateKBForm({
             if (e.key === 'Escape') onCancel();
           }}
           placeholder={t('newKBPlaceholder')}
-          className="w-full bg-bg border border-border-default rounded-lg px-3 py-2.5 text-xs text-text-primary placeholder:text-text-tertiary outline-none focus:border-accent transition-colors mb-4"
+          className="mb-4"
         />
         <div className="flex items-center gap-2">
           <button
@@ -665,10 +841,14 @@ export default function KnowledgeBaseView() {
     try {
       const kbs = await api.listKnowledgeBases();
       setKnowledgeBases(kbs);
-      if (selectedKB && !kbs.find((kb) => kb.id === selectedKB.id)) setSelectedKB(null);
+      setSelectedKB((prev) => {
+        if (!prev) return prev;
+        const updated = kbs.find((kb) => kb.id === prev.id);
+        return updated ?? null;
+      });
     } catch { toast.error(t('failedToLoadKBs')); }
     setLoading(false);
-  }, [selectedKB]);
+  }, []);
 
   useEffect(() => {
     loadKBs().then(async () => {
