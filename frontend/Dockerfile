@@ -6,7 +6,9 @@ WORKDIR /app
 
 # Install dependencies
 COPY package.json package-lock.json* ./
-RUN npm ci --include=optional
+RUN npm ci
+# Install platform-specific optional deps missing from macOS-generated lockfile
+RUN npm install --no-save @parcel/watcher-linux-x64-musl @next/swc-linux-x64-musl 2>/dev/null || true
 
 # Copy source and build
 COPY . .
