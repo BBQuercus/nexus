@@ -12,10 +12,11 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 COPY pyproject.toml uv.lock* ./
 RUN uv sync --frozen --no-dev --no-install-project
 
-# Copy backend source
+# Copy backend source and migrations
 COPY backend/ backend/
+COPY migrations/ migrations/
 COPY alembic.ini alembic.ini
 
 EXPOSE 8000
 
-CMD ["uv", "run", "uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "uv run alembic upgrade head && uv run uvicorn backend.main:app --host 0.0.0.0 --port 8000"]
