@@ -225,16 +225,20 @@ export default function UserDropdown({ compact = false }: { compact?: boolean })
 
           <DropdownMenuSeparator />
 
-          {/* Utilities */}
-          <DropdownMenuItem onClick={() => useStore.getState().setCommandPaletteOpen(true)}>
-            <Keyboard size={13} />
-            <span>{t('keyboardShortcuts')}</span>
-            <DropdownMenuShortcut>&#8984;K</DropdownMenuShortcut>
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => window.dispatchEvent(new Event('nexus:start-tour'))}>
-            <Compass size={13} />
-            <span>{t('takeATour')}</span>
-          </DropdownMenuItem>
+          {/* Utilities — only on chat pages */}
+          {(pathname === '/' || pathname.startsWith('/c/')) && (
+            <>
+              <DropdownMenuItem onClick={() => useStore.getState().setCommandPaletteOpen(true)}>
+                <Keyboard size={13} />
+                <span>{t('keyboardShortcuts')}</span>
+                <DropdownMenuShortcut>&#8984;K</DropdownMenuShortcut>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => window.dispatchEvent(new Event('nexus:start-tour'))}>
+                <Compass size={13} />
+                <span>{t('takeATour')}</span>
+              </DropdownMenuItem>
+            </>
+          )}
           <DropdownMenuItem onClick={() => setBugReportOpen(true)}>
             <Bug size={13} />
             <span>{t('reportABug')}</span>

@@ -119,6 +119,9 @@ async def ensure_vector_schema() -> None:
             "ALTER TABLE documents ADD COLUMN IF NOT EXISTS processing_stage VARCHAR(20)",
             "ALTER TABLE documents ADD COLUMN IF NOT EXISTS chunks_total INTEGER",
             "ALTER TABLE documents ADD COLUMN IF NOT EXISTS chunks_done INTEGER",
+            "ALTER TABLE knowledge_bases ADD COLUMN IF NOT EXISTS org_id UUID",
+            "ALTER TABLE knowledge_bases ADD COLUMN IF NOT EXISTS installed_from_id UUID",
+            "ALTER TABLE knowledge_bases ADD COLUMN IF NOT EXISTS access_mode VARCHAR(20)",
         ]
         for statement in statements:
             await conn.execute(text(statement))

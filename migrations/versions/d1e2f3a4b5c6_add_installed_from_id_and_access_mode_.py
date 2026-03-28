@@ -19,10 +19,10 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.add_column("knowledge_bases", sa.Column("installed_from_id", sa.UUID(), nullable=True))
-    op.add_column("knowledge_bases", sa.Column("access_mode", sa.String(20), nullable=True))
+    # knowledge_bases lives in the vector DB, not the main DB.
+    # These columns are now added via ensure_vector_schema() in vector_db.py.
+    pass
 
 
 def downgrade() -> None:
-    op.drop_column("knowledge_bases", "access_mode")
-    op.drop_column("knowledge_bases", "installed_from_id")
+    pass
