@@ -22,6 +22,7 @@ class CreateAgentRequest(BaseModel):
     icon: str = "\U0001f916"
     tools_enabled: list[str] | None = None
     is_public: bool = False
+    category: str | None = None
 
 
 class UpdateAgentRequest(BaseModel):
@@ -33,6 +34,7 @@ class UpdateAgentRequest(BaseModel):
     icon: str | None = None
     tools_enabled: list[str] | None = None
     is_public: bool | None = None
+    category: str | None = None
 
 
 def _serialize_agent(a: AgentPersona) -> dict:
@@ -48,6 +50,12 @@ def _serialize_agent(a: AgentPersona) -> dict:
         "tools_enabled": a.tools_enabled,
         "is_public": a.is_public,
         "usage_count": a.usage_count,
+        "approval_config": a.approval_config,
+        "input_schema": a.input_schema,
+        "output_schema": a.output_schema,
+        "current_version": a.current_version,
+        "category": a.category,
+        "installed_from_id": str(a.installed_from_id) if a.installed_from_id else None,
         "created_at": a.created_at.isoformat() if a.created_at else None,
         "updated_at": a.updated_at.isoformat() if a.updated_at else None,
     }
@@ -71,6 +79,7 @@ async def create_agent(
         icon=body.icon,
         tools_enabled=body.tools_enabled,
         is_public=body.is_public,
+        category=body.category,
     )
     db.add(agent)
     await db.flush()
@@ -88,12 +97,7 @@ async def list_agents(
 ):
     result = await db.execute(
         select(AgentPersona)
-        .where(
-            or_(
-                AgentPersona.user_id == user_id,
-                AgentPersona.is_public == True,  # noqa: E712
-            )
-        )
+        .where(AgentPersona.user_id == user_id)
         .order_by(AgentPersona.created_at.desc())
     )
     agents = result.scalars().all()
@@ -158,6 +162,8 @@ async def update_agent(
         agent.tools_enabled = body.tools_enabled
     if body.is_public is not None:
         agent.is_public = body.is_public
+    if body.category is not None:
+        agent.category = body.category
 
     await db.commit()
     return _serialize_agent(agent)

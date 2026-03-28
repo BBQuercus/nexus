@@ -28,23 +28,30 @@ from backend.middleware import (
 from backend.models import FrontendError, User
 from backend.routers.admin import router as admin_router
 from backend.routers.admin_analytics import router as admin_analytics_router
+from backend.routers.agent_runs import router as agent_runs_router
+from backend.routers.agent_schedules import router as agent_schedules_router
 from backend.routers.agents import router as agents_router
 from backend.routers.analytics import router as analytics_router
+from backend.routers.approval_gates import router as approval_gates_router
 from backend.routers.chat import artifact_router
 from backend.routers.chat import router as chat_router
 from backend.routers.compliance import router as compliance_router
+from backend.routers.external_actions import router as external_actions_router
 from backend.routers.feedback import router as feedback_router
 from backend.routers.integrations import router as integrations_router
 from backend.routers.jobs import router as jobs_router
 from backend.routers.knowledge import doc_router as knowledge_doc_router
 from backend.routers.knowledge import retrieval_router as knowledge_retrieval_router
 from backend.routers.knowledge import router as knowledge_router
+from backend.routers.marketplace import router as marketplace_router
 from backend.routers.media import router as media_router
 from backend.routers.memory import router as memory_router
 from backend.routers.orgs import router as orgs_router
 from backend.routers.projects import router as projects_router
+from backend.routers.prompt_templates import router as prompt_templates_router
 from backend.routers.sandboxes import router as sandboxes_router
 from backend.routers.search import router as search_router
+from backend.routers.test_cases import router as test_cases_router
 from backend.routers.tts import router as tts_router
 from backend.routers.users import router as users_router
 from backend.services import sandbox as sandbox_service
@@ -72,6 +79,7 @@ async def lifespan(app: FastAPI):
     from backend.redis import close_redis, get_redis
     from backend.services.cleanup import start_cleanup_loop
     from backend.services.jobs import start_job_worker
+    from backend.services.schedule_worker import start_schedule_worker
 
     await ensure_vector_schema()
 
@@ -82,14 +90,18 @@ async def lifespan(app: FastAPI):
         setup_telemetry(app=app, db_engine=engine)
         cleanup_task = asyncio.create_task(start_cleanup_loop())
         job_worker_task = await start_job_worker()
+        schedule_worker_task = await start_schedule_worker()
         yield
         logger.info("graceful_shutdown_started")
         cleanup_task.cancel()
         job_worker_task.cancel()
+        schedule_worker_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await cleanup_task
         with contextlib.suppress(asyncio.CancelledError):
             await job_worker_task
+        with contextlib.suppress(asyncio.CancelledError):
+            await schedule_worker_task
         await close_redis()
         await flush_audit_buffer()
         await asyncio.sleep(1)
@@ -126,14 +138,18 @@ async def lifespan(app: FastAPI):
     setup_telemetry(app=app, db_engine=engine)
     cleanup_task = asyncio.create_task(start_cleanup_loop())
     job_worker_task = await start_job_worker()
+    schedule_worker_task = await start_schedule_worker()
     yield
     logger.info("graceful_shutdown_started")
     cleanup_task.cancel()
     job_worker_task.cancel()
+    schedule_worker_task.cancel()
     with contextlib.suppress(asyncio.CancelledError):
         await cleanup_task
     with contextlib.suppress(asyncio.CancelledError):
         await job_worker_task
+    with contextlib.suppress(asyncio.CancelledError):
+        await schedule_worker_task
     await close_redis()
     await flush_audit_buffer()
     await asyncio.sleep(1)
@@ -202,6 +218,13 @@ app.include_router(integrations_router)
 app.include_router(jobs_router)
 app.include_router(compliance_router)
 app.include_router(admin_analytics_router)
+app.include_router(approval_gates_router)
+app.include_router(prompt_templates_router)
+app.include_router(agent_runs_router)
+app.include_router(agent_schedules_router)
+app.include_router(external_actions_router)
+app.include_router(test_cases_router)
+app.include_router(marketplace_router)
 
 
 # ── Model Catalog ──
@@ -554,11 +577,12 @@ def _store_screenshot(data_url: str) -> str:
 @app.get("/api/bug-reports/screenshots/{screenshot_id}")
 async def get_bug_screenshot(screenshot_id: str):
     """Serve a cached bug report screenshot (public, no auth — needed for Teams)."""
+    from fastapi import HTTPException as _HTTPException
     from fastapi.responses import Response as FastAPIResponse
 
     entry = _screenshot_cache.get(screenshot_id)
     if not entry:
-        raise HTTPException(status_code=404, detail="Screenshot not found or expired")
+        raise _HTTPException(status_code=404, detail="Screenshot not found or expired")
     data, content_type = entry
     return FastAPIResponse(content=data, media_type=content_type, headers={"Cache-Control": "public, max-age=86400"})
 
