@@ -221,6 +221,7 @@
     "startListening": "Aufnahme starten",
     "stop": "Stopp",
     "transcribing": "Audio wird transkribiert...",
+    "transcriptionFailed": "Audioformat nicht unterstützt. Bitte erneut aufnehmen.",
     "micNotSupported": "Mikrofonaufnahme wird in diesem Browser nicht unterstützt",
     "micAccessFailed": "Zugriff auf Mikrofon nicht möglich",
     "fileSizeError": "{fileName} überschreitet das {limit}-Limit ({actualSize})",

@@ -188,8 +188,8 @@ export function useVoiceInput({ content, setContent, textareaRef }: VoiceInputPr
         });
         recordingBaseContentRef.current = [recordingBaseContentRef.current.trim(), transcript].filter(Boolean).join(recordingBaseContentRef.current.trim() ? ' ' : '');
       }
-    } catch (e) {
-      console.error('Transcription failed', e);
+    } catch {
+      toast.error(t('transcriptionFailed'));
     } finally {
       setIsTranscribing(false);
     }

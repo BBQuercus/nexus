@@ -104,7 +104,8 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
 
     // Toast for all other API errors (except error reporting and stale conversation loads)
     const isStaleConversationLoad = response.status === 404 && path.match(/\/api\/conversations\/[^/]+$/);
-    if (!path.includes('/api/errors') && !isStaleConversationLoad) {
+    const isTranscription = path.includes('/api/media/transcribe');
+    if (!path.includes('/api/errors') && !isStaleConversationLoad && !isTranscription) {
       const friendly = _friendlyError(response.status, message, path);
       getToast()?.error(friendly);
     }
