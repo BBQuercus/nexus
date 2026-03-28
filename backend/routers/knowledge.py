@@ -61,6 +61,8 @@ def _serialize_kb(kb: KnowledgeBase) -> dict:
         "chunk_count": kb.chunk_count,
         "status": kb.status,
         "is_public": kb.is_public,
+        "installed_from_id": str(kb.installed_from_id) if kb.installed_from_id else None,
+        "access_mode": kb.access_mode,
         "created_at": kb.created_at.isoformat() if kb.created_at else None,
         "updated_at": kb.updated_at.isoformat() if kb.updated_at else None,
     }
@@ -74,6 +76,9 @@ def _serialize_document(doc: Document) -> dict:
         "file_size_bytes": doc.file_size_bytes,
         "page_count": doc.page_count,
         "status": doc.status,
+        "processing_stage": doc.processing_stage,
+        "chunks_total": doc.chunks_total,
+        "chunks_done": doc.chunks_done,
         "error_message": doc.error_message,
         "metadata": doc.metadata_,
         "created_at": doc.created_at.isoformat() if doc.created_at else None,
@@ -179,7 +184,22 @@ async def delete_knowledge_base(
     await _get_kb_owned_or_403(db, kb_id, user_id)
     db.expire_all()  # Evict loaded objects to prevent ORM cascade on commit
 
-    # Delete children manually via raw SQL to avoid ORM cascade issues
+    # Find all KBs that reference this one (installed via marketplace)
+    ref_result = await db.execute(
+        select(KnowledgeBase.id).where(KnowledgeBase.installed_from_id == kb_id)
+    )
+    ref_kb_ids = [row[0] for row in ref_result.all()]
+
+    # Delete referencing KBs and their local additions (extensible mode docs/chunks)
+    for ref_id in ref_kb_ids:
+        await _safe_delete_chunks(db, knowledge_base_id=ref_id)
+        await db.execute(sa_text("DELETE FROM documents WHERE knowledge_base_id = :kid"), {"kid": str(ref_id)})
+        await db.execute(
+            sa_text("DELETE FROM knowledge_base_agents WHERE knowledge_base_id = :kid"), {"kid": str(ref_id)}
+        )
+        await db.execute(sa_text("DELETE FROM knowledge_bases WHERE id = :kid"), {"kid": str(ref_id)})
+
+    # Delete the original KB's children via raw SQL to avoid ORM cascade issues
     await _safe_delete_chunks(db, knowledge_base_id=kb_id)
     await db.execute(sa_text("DELETE FROM documents WHERE knowledge_base_id = :kid"), {"kid": str(kb_id)})
     await db.execute(sa_text("DELETE FROM knowledge_base_agents WHERE knowledge_base_id = :kid"), {"kid": str(kb_id)})
@@ -204,6 +224,8 @@ async def upload_documents(
 ):
     """Upload documents to a knowledge base. Processing happens in background."""
     kb = await _get_kb_owned_or_403(db, kb_id, user_id)
+    if kb.access_mode == "fixed" and kb.installed_from_id is not None:
+        raise HTTPException(status_code=403, detail="This knowledge base is read-only")
 
     documents = []
     tasks = []
@@ -259,9 +281,10 @@ async def list_documents(
     user_id: uuid.UUID = Depends(get_current_user),
     db: AsyncSession = Depends(get_vector_db),
 ):
-    await _get_kb_or_404(db, kb_id, user_id)
+    kb = await _get_kb_or_404(db, kb_id, user_id)
+    source_ids = _resolve_source_kb_ids(kb)
     result = await db.execute(
-        select(Document).where(Document.knowledge_base_id == kb_id).order_by(Document.created_at.desc())
+        select(Document).where(Document.knowledge_base_id.in_(source_ids)).order_by(Document.created_at.desc())
     )
     return [_serialize_document(d) for d in result.scalars().all()]
 
@@ -274,8 +297,11 @@ async def get_document_content(
     db: AsyncSession = Depends(get_vector_db),
 ):
     """Return the extracted raw text for a document."""
-    await _get_kb_or_404(db, kb_id, user_id)
-    result = await db.execute(select(Document).where(Document.id == doc_id, Document.knowledge_base_id == kb_id))
+    kb = await _get_kb_or_404(db, kb_id, user_id)
+    source_ids = _resolve_source_kb_ids(kb)
+    result = await db.execute(
+        select(Document).where(Document.id == doc_id, Document.knowledge_base_id.in_(source_ids))
+    )
     doc = result.scalar_one_or_none()
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
@@ -295,9 +321,12 @@ async def get_document_chunks(
     db: AsyncSession = Depends(get_vector_db),
 ):
     """Return all chunks for a document, ordered by chunk_index."""
-    await _get_kb_or_404(db, kb_id, user_id)
+    kb = await _get_kb_or_404(db, kb_id, user_id)
+    source_ids = _resolve_source_kb_ids(kb)
     result = await db.execute(
-        select(Chunk).where(Chunk.document_id == doc_id, Chunk.knowledge_base_id == kb_id).order_by(Chunk.chunk_index)
+        select(Chunk)
+        .where(Chunk.document_id == doc_id, Chunk.knowledge_base_id.in_(source_ids))
+        .order_by(Chunk.chunk_index)
     )
     chunks = result.scalars().all()
     return [
@@ -321,7 +350,9 @@ async def delete_document(
     user_id: uuid.UUID = Depends(get_current_user),
     db: AsyncSession = Depends(get_vector_db),
 ):
-    await _get_kb_owned_or_403(db, kb_id, user_id)
+    kb = await _get_kb_owned_or_403(db, kb_id, user_id)
+    if kb.access_mode == "fixed" and kb.installed_from_id is not None:
+        raise HTTPException(status_code=403, detail="This knowledge base is read-only")
 
     # Check existence without loading the ORM object (avoids cascade issues)
     from sqlalchemy import func as sa_func
@@ -356,14 +387,15 @@ async def search_knowledge_base(
     db: AsyncSession = Depends(get_vector_db),
 ):
     """Search a knowledge base directly (useful for testing)."""
-    await _get_kb_or_404(db, kb_id, user_id)
+    kb = await _get_kb_or_404(db, kb_id, user_id)
+    source_ids = _resolve_source_kb_ids(kb)
 
     from backend.services.rag.retrieval import SearchScope, retrieve
 
     result = await retrieve(
         db=db,
         query=body.query,
-        scope=SearchScope(knowledge_base_ids=[kb_id]),
+        scope=SearchScope(knowledge_base_ids=source_ids),
         top_k=body.top_k,
     )
 
@@ -396,13 +428,22 @@ async def get_kb_stats(
     db: AsyncSession = Depends(get_vector_db),
 ):
     kb = await _get_kb_or_404(db, kb_id, user_id)
+    source_ids = _resolve_source_kb_ids(kb)
     from sqlalchemy import func
 
-    total_tokens = await db.scalar(select(func.sum(Chunk.token_count)).where(Chunk.knowledge_base_id == kb_id))
+    total_tokens = await db.scalar(
+        select(func.sum(Chunk.token_count)).where(Chunk.knowledge_base_id.in_(source_ids))
+    )
+    doc_count = await db.scalar(
+        select(func.count(Document.id)).where(Document.knowledge_base_id.in_(source_ids))
+    )
+    chunk_count = await db.scalar(
+        select(func.count(Chunk.id)).where(Chunk.knowledge_base_id.in_(source_ids))
+    )
 
     return {
-        "document_count": kb.document_count,
-        "chunk_count": kb.chunk_count,
+        "document_count": doc_count or 0,
+        "chunk_count": chunk_count or 0,
         "total_tokens": total_tokens or 0,
         "embedding_model": kb.embedding_model,
         "chunk_strategy": kb.chunk_strategy,
@@ -539,6 +580,21 @@ async def _get_kb_or_404(db: AsyncSession, kb_id: uuid.UUID, user_id: uuid.UUID)
     if kb.user_id != user_id and not kb.is_public:
         raise HTTPException(status_code=403, detail="Access denied")
     return kb
+
+
+def _resolve_source_kb_ids(kb: KnowledgeBase) -> list[uuid.UUID]:
+    """Return the KB IDs whose documents/chunks should be visible for this KB.
+
+    - Regular KB: just its own ID.
+    - Installed reference (fixed mode): only the original KB's ID.
+    - Installed reference (extensible mode): original + local IDs.
+    """
+    if not kb.installed_from_id:
+        return [kb.id]
+    if kb.access_mode == "extensible":
+        return [kb.installed_from_id, kb.id]
+    # fixed mode — only show original content
+    return [kb.installed_from_id]
 
 
 async def _get_kb_owned_or_403(db: AsyncSession, kb_id: uuid.UUID, user_id: uuid.UUID) -> KnowledgeBase:
