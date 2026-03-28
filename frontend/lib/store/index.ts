@@ -68,6 +68,7 @@ const initialState: AppState = {
   searchPanelOpen: false,
   shortcutsOpen: false,
   bugReportOpen: false,
+  lightboxUrl: null,
   currentOrg: null,
   memberships: [],
   userSettings: {},

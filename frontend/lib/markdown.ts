@@ -153,10 +153,21 @@ export function enhanceRenderedMarkdown(root: HTMLElement): () => void {
     }).catch(console.error);
   };
 
+  const handleLightbox = (event: Event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    const container = target.closest('[data-lightbox-src]');
+    if (!(container instanceof HTMLElement)) return;
+    const src = container.dataset.lightboxSrc;
+    if (src) window.dispatchEvent(new CustomEvent('nexus:lightbox', { detail: { src } }));
+  };
+
   root.addEventListener('click', handleCodeCopy);
+  root.addEventListener('click', handleLightbox);
 
   return () => {
     root.removeEventListener('click', handleCodeCopy);
+    root.removeEventListener('click', handleLightbox);
   };
 }
 
@@ -204,13 +215,14 @@ export function renderMarkdown(text: string): { html: string; mermaidBlocks: Mer
     const alt = text || '';
     const titleAttr = title ? ` title="${escapeHtml(title)}"` : '';
     const safeHref = sanitizeUrl(href, { allowData: true });
-    // Fixed 360px container prevents virtualizer layout shift — image height is known before load.
+    const label = escapeHtml(alt || safeHref.split('/').pop() || '');
+    // Fixed 240px container prevents virtualizer layout shift. Clicking opens the global lightbox.
     return `<div style="margin:0.75rem 0;border-radius:8px;border:1px solid var(--color-border-default);overflow:hidden">
-      <div style="position:relative;width:100%;height:360px;background:var(--color-bg)">
-        <img src="${escapeHtml(safeHref)}" alt="${escapeHtml(alt)}"${titleAttr} style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain" loading="lazy" />
+      <div data-lightbox-src="${escapeHtml(safeHref)}" style="position:relative;width:100%;height:240px;background:var(--color-bg);cursor:zoom-in" title="${escapeHtml(title || alt || '')}">
+        <img src="${escapeHtml(safeHref)}" alt="${escapeHtml(alt)}"${titleAttr} style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;pointer-events:none" loading="lazy" />
       </div>
       <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 12px;background:var(--color-surface-1);font-size:11px;font-family:var(--font-mono);color:var(--color-text-tertiary)">
-        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(alt || safeHref.split('/').pop() || '')}</span>
+        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${label}</span>
         <a href="${escapeHtml(safeHref)}" download style="color:var(--color-text-tertiary);flex-shrink:0;margin-left:8px">Save</a>
       </div>
     </div>`;

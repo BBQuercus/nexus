@@ -52,14 +52,15 @@ function StreamingExecBlock({ tool }: { tool: ToolCall }) {
 
 function StreamingImage({ filename, url }: { filename: string; url: string }) {
   const t = useTranslations('streamingBubble');
+  const openLightbox = () => window.dispatchEvent(new CustomEvent('nexus:lightbox', { detail: { src: url } }));
   return (
     <div className="my-3 rounded-lg border border-border-default overflow-hidden animate-fade-in-up">
-      {/* Fixed-height container prevents layout shift while image loads */}
-      <div className="relative w-full h-[360px] bg-bg">
+      {/* Fixed 240px height prevents virtualizer layout shift while image loads */}
+      <div className="relative w-full h-[240px] bg-bg cursor-zoom-in" onClick={openLightbox}>
         <img
           src={url}
           alt={filename}
-          className="absolute inset-0 w-full h-full object-contain"
+          className="absolute inset-0 w-full h-full object-contain pointer-events-none"
           loading="eager"
         />
       </div>

@@ -43,7 +43,7 @@ export default function MessageBubble({ message }: { message: Message }) {
   const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const openLightbox = (url: string) => window.dispatchEvent(new CustomEvent('nexus:lightbox', { detail: { src: url } }));
   const allMessages = useStore((s) => s.messages);
   const submittedFormTitles = useMemo(() => {
     const titles = new Set<string>();
@@ -189,7 +189,7 @@ export default function MessageBubble({ message }: { message: Message }) {
                     img.filename.match(/\.(mp4|webm|mov|avi)$/i)
                       ? <video key={i} src={img.url} controls className="w-[200px] h-[160px] rounded-lg object-cover" />
                       : (
-                        <div key={i} className="w-[200px] h-[160px] rounded-lg overflow-hidden flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setLightboxUrl(img.url)}>
+                        <div key={i} className="w-[200px] h-[160px] rounded-lg overflow-hidden flex-shrink-0 cursor-zoom-in hover:opacity-80 transition-opacity" onClick={() => openLightbox(img.url)}>
                           <img src={img.url} alt={img.filename} className="w-full h-full object-cover" />
                         </div>
                       )
@@ -233,14 +233,6 @@ export default function MessageBubble({ message }: { message: Message }) {
             <InlineBranchInput messageId={message.id} onClose={() => setShowBranchInput(false)} />
           )}
         </div>
-        {lightboxUrl && (
-          <div
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm cursor-zoom-out"
-            onClick={() => setLightboxUrl(null)}
-          >
-            <img src={lightboxUrl} alt="" className="max-w-[90vw] max-h-[90vh] rounded-lg object-contain shadow-2xl" />
-          </div>
-        )}
       </div>
     );
   }

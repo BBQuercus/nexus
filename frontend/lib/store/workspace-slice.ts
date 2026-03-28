@@ -15,6 +15,7 @@ export interface WorkspaceSlice {
   searchPanelOpen: boolean;
   shortcutsOpen: boolean;
   bugReportOpen: boolean;
+  lightboxUrl: string | null;
   setRightPanelTab: (tab: WorkspaceSlice['rightPanelTab']) => void;
   setRightPanelOpen: (open: boolean) => void;
   setPreviewUrl: (url: string | null) => void;
@@ -25,6 +26,7 @@ export interface WorkspaceSlice {
   setSearchPanelOpen: (open: boolean) => void;
   setShortcutsOpen: (open: boolean) => void;
   setBugReportOpen: (open: boolean) => void;
+  setLightboxUrl: (url: string | null) => void;
   showConfirm: (opts: { title: string; message?: string; confirmLabel?: string; variant?: 'danger' | 'default' }) => Promise<boolean>;
   resolveConfirm: (confirmed: boolean) => void;
 }
@@ -41,6 +43,7 @@ export const createWorkspaceSlice: StateCreator<StoreState, [], [], WorkspaceSli
   searchPanelOpen: false,
   shortcutsOpen: false,
   bugReportOpen: false,
+  lightboxUrl: null,
   setRightPanelTab: (tab) => set({ rightPanelTab: tab }),
   setRightPanelOpen: (open) => set({ rightPanelOpen: open }),
   setPreviewUrl: (url) => set({ previewUrl: url }),
@@ -57,6 +60,7 @@ export const createWorkspaceSlice: StateCreator<StoreState, [], [], WorkspaceSli
   setSearchPanelOpen: (open) => set({ searchPanelOpen: open }),
   setShortcutsOpen: (open) => set({ shortcutsOpen: open }),
   setBugReportOpen: (open) => set({ bugReportOpen: open }),
+  setLightboxUrl: (url) => set({ lightboxUrl: url }),
   showConfirm: (opts) =>
     new Promise<boolean>((resolve) => {
       set({

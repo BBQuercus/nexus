@@ -28,14 +28,18 @@ export function InlineVideo({ img }: { img: { filename: string; url: string } })
 export function InlineImage({ img }: { img: { filename: string; url: string } }) {
   const t = useTranslations('imageGallery');
   if (isVideoFile(img.filename)) return <InlineVideo img={img} />;
+  const openLightbox = () => window.dispatchEvent(new CustomEvent('nexus:lightbox', { detail: { src: img.url } }));
   return (
     <div className="rounded-lg border border-border-default overflow-hidden">
       {/* Fixed-height container prevents layout shift while image loads */}
-      <div className="relative w-full h-[360px] bg-bg">
+      <div
+        className="relative w-full h-[240px] bg-bg cursor-zoom-in"
+        onClick={openLightbox}
+      >
         <img
           src={img.url}
           alt={img.filename}
-          className="absolute inset-0 w-full h-full object-contain"
+          className="absolute inset-0 w-full h-full object-contain pointer-events-none"
         />
       </div>
       <div className="flex items-center justify-between px-3 py-1.5 bg-surface-1 text-[11px] font-mono text-text-tertiary">

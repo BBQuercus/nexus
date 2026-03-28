@@ -81,6 +81,7 @@ export interface AppState {
   searchPanelOpen: boolean;
   shortcutsOpen: boolean;
   bugReportOpen: boolean;
+  lightboxUrl: string | null;
   currentOrg: Organization | null;
   memberships: OrgMembership[];
   userSettings: UserSettings;
@@ -135,6 +136,7 @@ export interface AppActions {
   setSearchPanelOpen: (open: boolean) => void;
   setShortcutsOpen: (open: boolean) => void;
   setBugReportOpen: (open: boolean) => void;
+  setLightboxUrl: (url: string | null) => void;
   setCurrentOrg: (org: Organization | null) => void;
   setMemberships: (memberships: OrgMembership[]) => void;
   switchOrg: (orgId: string) => Promise<void>;
