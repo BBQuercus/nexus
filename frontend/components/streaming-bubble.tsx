@@ -4,10 +4,11 @@ import { useRef, useEffect, useState, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import { useStore } from '@/lib/store';
 import type { StreamingState } from '@/lib/store';
-import { Zap, Terminal, Play, Download, Check, ChevronDown, Loader2, FileSpreadsheet, FileText, Presentation, File as FileIcon } from 'lucide-react';
+import { Zap, Terminal, Play, Download, Check, ChevronDown, Loader2, FileSpreadsheet, FileText, Presentation, File as FileIcon, AlertCircle } from 'lucide-react';
 import type { ToolCall } from '@/lib/types';
 import VegaChart from './vega-chart';
 import FormRenderer from './form-renderer';
+import ApprovalGateCard from './approval-gate-card';
 import MarkdownContent from './markdown-content';
 import RunComparison from './run-comparison';
 import { buildFormSubmissionMessage } from '@/lib/form-submission';
@@ -283,12 +284,25 @@ function ThinkingIndicator({ toolCalls }: { toolCalls: ToolCall[] }) {
   );
 }
 
+function StreamingErrorCard({ message }: { message: string }) {
+  return (
+    <div className="flex items-start gap-2.5 mt-3 px-3 py-2.5 rounded-lg bg-error/8 border border-error/20 text-sm text-error/90">
+      <AlertCircle size={15} className="shrink-0 mt-0.5 text-error/70" />
+      <span className="leading-relaxed">{message}</span>
+    </div>
+  );
+}
+
 function BranchContent({ state, showCursor }: { state: StreamingState; showCursor: boolean }) {
   const t = useTranslations('streamingBubble');
-  const hasContent = state.content || state.reasoning || state.toolCalls.length > 0 || state.images.length > 0 || state.files.length > 0 || state.tables.length > 0 || state.charts.length > 0 || state.forms.length > 0;
+  const hasContent = state.content || state.reasoning || state.toolCalls.length > 0 || state.images.length > 0 || state.files.length > 0 || state.tables.length > 0 || state.charts.length > 0 || state.forms.length > 0 || state.approvalGates.length > 0;
 
-  if (!hasContent) {
+  if (!hasContent && !state.error) {
     return <ThinkingIndicator toolCalls={state.toolCalls} />;
+  }
+
+  if (state.error && !hasContent) {
+    return <StreamingErrorCard message={state.error} />;
   }
 
   return (
@@ -326,8 +340,14 @@ function BranchContent({ state, showCursor }: { state: StreamingState; showCurso
           }));
         }} />
       ))}
+      {state.approvalGates.map((gate) => (
+        <ApprovalGateCard key={gate.id} gate={gate} onDecision={() => {}} />
+      ))}
       {state.content && (
         <SmoothMarkdown text={state.content} showCursor={showCursor} />
+      )}
+      {state.error && (
+        <StreamingErrorCard message={state.error} />
       )}
     </>
   );

@@ -3,7 +3,7 @@ import { useStore } from './store';
 import type { StreamingState } from './store';
 import * as api from './api';
 import { streamSSE } from './sse';
-import type { Message, ToolCall, Citation, RetrievalResult, FormSpec } from './types';
+import type { Message, ToolCall, Citation, RetrievalResult, FormSpec, ApprovalGate } from './types';
 import { toast } from '@/components/toast';
 
 /** Load artifacts for a conversation and attach form specs to their parent messages */
@@ -264,6 +264,45 @@ export function processSseEvent(
       break;
     }
 
+    case 'approval_required': {
+      const gate: ApprovalGate = {
+        id: (event.gate_id as string) || '',
+        agentRunId: '',
+        conversationId: opts.conversationId,
+        toolName: (event.tool as string) || '',
+        toolArguments: (event.arguments as Record<string, unknown>) || undefined,
+        status: 'pending',
+        createdAt: new Date().toISOString(),
+      };
+      if (opts.isMulti) {
+        opts.updateBranch(bi, (b) => ({ approvalGates: [...b.approvalGates, gate] }));
+      } else {
+        const current = store.streamingByConversation[opts.conversationId] || store.streaming;
+        store.setConversationStreaming(opts.conversationId, { approvalGates: [...current.approvalGates, gate] });
+      }
+      break;
+    }
+
+    case 'approval_resolved': {
+      const gateId = (event.gate_id as string) || '';
+      const status = (event.status as string) || 'approved';
+      if (opts.isMulti) {
+        opts.updateBranch(bi, (b) => ({
+          approvalGates: b.approvalGates.map((g) =>
+            g.id === gateId ? { ...g, status: status as ApprovalGate['status'] } : g
+          ),
+        }));
+      } else {
+        const current = store.streamingByConversation[opts.conversationId] || store.streaming;
+        store.setConversationStreaming(opts.conversationId, {
+          approvalGates: current.approvalGates.map((g) =>
+            g.id === gateId ? { ...g, status: status as ApprovalGate['status'] } : g
+          ),
+        });
+      }
+      break;
+    }
+
     case 'chart_output': {
       const chartEntry = {
         spec: (event.spec as Record<string, unknown>) || {},
@@ -374,14 +413,16 @@ export function processSseEvent(
       return { done: true };
     }
 
-    case 'error':
+    case 'error': {
       flushStreamingBuffers();
+      const errorMsg = (event.message as string) || 'Something went wrong while generating a response. Please try again.';
       if (opts.isMulti) {
-        opts.updateBranch(bi, (b) => ({ content: b.content + `\n\n**Error:** ${(event.message as string) || 'Unknown error'}` }));
+        opts.updateBranch(bi, (b) => ({ ...b, error: errorMsg }));
       } else {
-        store.appendConversationStreamingContent(opts.conversationId, `\n\n**Error:** ${(event.message as string) || 'Unknown error'}`);
+        store.setConversationStreaming(opts.conversationId, { error: errorMsg });
       }
       break;
+    }
   }
 
   return {};
@@ -435,7 +476,7 @@ export function useStreaming() {
     const isMulti = branchCount > 1;
 
     if (isMulti) {
-        const emptyBranch: StreamingState = { content: '', reasoning: '', toolCalls: [], images: [], files: [], tables: [], charts: [], forms: [], citations: [], retrievalResult: null };
+        const emptyBranch: StreamingState = { content: '', reasoning: '', toolCalls: [], images: [], files: [], tables: [], charts: [], forms: [], approvalGates: [], citations: [], retrievalResult: null };
       store.setConversationMultiStreaming(convId, {
         branches: Array.from({ length: branchCount }, () => ({ ...emptyBranch })),
         activeBranchIndex: 0,

@@ -6,7 +6,7 @@ import { useTranslations } from 'next-intl';
 import { useStore } from '@/lib/store';
 import { logout as apiLogout, updateUserSettings } from '@/lib/api';
 import type { UserSettings } from '@/lib/types';
-import { LogOut, User, Keyboard, Shield, Users, BookOpen, Home, Compass, Bug, Building2, Check, Plus, Settings, Sun, Moon, Monitor, Type, Zap, Globe } from 'lucide-react';
+import { LogOut, User, Keyboard, Shield, Users, BookOpen, Home, Compass, Bug, Building2, Check, Plus, Settings, Sun, Moon, Monitor, Type, Zap, Globe, Store } from 'lucide-react';
 import { useLocale } from 'next-intl';
 import { locales, type Locale } from '@/i18n/config';
 import BugReportDialog from './bug-report-dialog';
@@ -208,6 +208,10 @@ export default function UserDropdown({ compact = false }: { compact?: boolean })
           <DropdownMenuItem onClick={() => navigateTo('/agents')}>
             <Users size={13} />
             <span>{t('agents')}</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => navigateTo('/marketplace')}>
+            <Store size={13} />
+            <span>{t('marketplace')}</span>
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => navigateTo('/knowledge')}>
             <BookOpen size={13} />
