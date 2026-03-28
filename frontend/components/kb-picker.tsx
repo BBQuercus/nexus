@@ -61,7 +61,7 @@ export default function KBPicker() {
 
       {open && (
         <div
-          className="absolute left-0 bottom-full mb-1.5 w-64 bg-surface-0 border border-border-default rounded-lg shadow-2xl shadow-black/30 overflow-hidden z-50 animate-fade-in-up"
+          className="absolute left-0 bottom-full mb-1.5 w-[min(256px,calc(100vw-24px))] bg-surface-0 border border-border-default rounded-lg shadow-2xl shadow-black/30 overflow-hidden z-50 animate-fade-in-up"
           style={{ animationDuration: '0.1s' }}
         >
           {/* Header */}

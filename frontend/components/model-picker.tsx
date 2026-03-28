@@ -101,7 +101,7 @@ export default function ModelPicker({
       )}
 
       {open && !disabled && (
-        <div className="absolute bottom-full left-0 mb-1.5 w-72 max-h-80 overflow-y-auto bg-surface-0 border border-border-default rounded-lg shadow-2xl shadow-black/40 z-50">
+        <div className="absolute bottom-full left-0 mb-1.5 w-[min(288px,calc(100vw-24px))] max-h-80 overflow-y-auto bg-surface-0 border border-border-default rounded-lg shadow-2xl shadow-black/40 z-50">
           {providerOrder.filter((p) => grouped[p]?.length).map((provider, gi) => (
             <div key={provider}>
               {gi > 0 && <div className="h-px bg-border-subtle mx-3" />}
