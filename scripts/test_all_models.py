@@ -36,6 +36,7 @@ from rich.text import Text
 from backend.services.llm import stream_chat, MODEL_PRICING, MODELS_WITHOUT_TEMPERATURE, client
 
 ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_SORA_API_BASE = "https://example.openai.azure.com/openai/v1/videos"
 
 
 def load_dotenv() -> dict[str, str]:
@@ -48,6 +49,14 @@ def load_dotenv() -> dict[str, str]:
             k, v = line.split("=", 1)
             values[k.strip()] = v.strip().strip('"').strip("'")
     return values
+
+
+def resolve_sora_api_base(env: dict[str, str]) -> str | None:
+    base = env.get("SORA_API_BASE") or ""
+    base = base.strip().rstrip("/")
+    if not base or base == DEFAULT_SORA_API_BASE.rstrip("/"):
+        return None
+    return base
 
 console = Console()
 
@@ -189,7 +198,10 @@ async def probe_video_model(model_id: str) -> ImageResult:
     start = time.monotonic()
     env = load_dotenv()
     api_key = env.get("SORA_API_KEY") or env.get("DUMMY_API_KEY") or env.get("LITE_LLM_API_KEY", "")
-    base = "https://arti-cgpt-rg-swc-aoai.openai.azure.com/openai/v1/videos"
+    base = resolve_sora_api_base(env)
+    if not base:
+        return ImageResult(model=model_id, ok=False, elapsed=time.monotonic() - start,
+                           error="set SORA_API_BASE to enable video probes")
     headers = {"Authorization": f"Bearer {api_key}", "api-key": api_key, "Content-Type": "application/json"}
     payload = {"model": model_id, "prompt": "A red circle on a white background."}
     try:

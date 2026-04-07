@@ -18,10 +18,15 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 ENV_PATH = ROOT / ".env"
-DEFAULT_TEAM_IDS = [
-    "2b75921c-0248-4a5c-86e5-07c4301ea696",
-    "7084055f-1efd-4700-be78-56209d890aa9",
-]
+PUBLIC_AZURE_AI_API_BASE = "https://example.services.ai.azure.com/models/chat/completions"
+PUBLIC_AZURE_OPENAI_API_BASE = "https://example.openai.azure.com"
+PUBLIC_SORA_API_BASE = f"{PUBLIC_AZURE_OPENAI_API_BASE}/openai/v1/videos"
+
+
+def default_team_ids() -> list[str]:
+    env = load_env()
+    raw = env.get("LITELLM_TEAM_IDS") or os.getenv("LITELLM_TEAM_IDS") or ""
+    return [team_id.strip() for team_id in raw.split(",") if team_id.strip()]
 
 
 def load_env() -> dict[str, str]:
@@ -130,7 +135,7 @@ def build_payload(
             "supports_audio_input": supports_audio_input,
             "supports_audio_output": supports_audio_output,
             "direct_access": True,
-            "access_via_team_ids": team_ids or DEFAULT_TEAM_IDS,
+            "access_via_team_ids": team_ids if team_ids is not None else default_team_ids(),
         },
     }
 
@@ -139,7 +144,7 @@ PRESETS: dict[str, dict[str, Any]] = {
     "gpt-oss-120b": {
         "alias": "azure_ai/gpt-oss-120b",
         "model": "azure_ai/gpt-oss-120b",
-        "api_base": "https://arti-llms.services.ai.azure.com/models/chat/completions",
+        "api_base": PUBLIC_AZURE_AI_API_BASE,
         "input_cost": 0.15,
         "output_cost": 0.60,
         "max_input_tokens": 131072,
@@ -149,7 +154,7 @@ PRESETS: dict[str, dict[str, Any]] = {
     "kimi-k2.5": {
         "alias": "azure_ai/kimi-k2.5",
         "model": "azure_ai/kimi-k2.5",
-        "api_base": "https://arti-llms.services.ai.azure.com/models/chat/completions?api-version=2024-05-01-preview",
+        "api_base": f"{PUBLIC_AZURE_AI_API_BASE}?api-version=2024-05-01-preview",
         "input_cost": 0.60,
         "output_cost": 3.00,
         "max_input_tokens": 262144,
@@ -159,7 +164,7 @@ PRESETS: dict[str, dict[str, Any]] = {
     "deepseek-v3.2": {
         "alias": "azure_ai/deepseek-v3.2",
         "model": "azure_ai/deepseek-v3.2",
-        "api_base": "https://arti-llms.services.ai.azure.com/models/chat/completions?api-version=2024-05-01-preview",
+        "api_base": f"{PUBLIC_AZURE_AI_API_BASE}?api-version=2024-05-01-preview",
         "input_cost": 0.58,
         "output_cost": 1.68,
         "max_input_tokens": 163840,
@@ -169,7 +174,7 @@ PRESETS: dict[str, dict[str, Any]] = {
     "grok-4-fast-reasoning": {
         "alias": "azure_ai/grok-4-fast-reasoning",
         "model": "azure_ai/grok-4-fast-reasoning",
-        "api_base": "https://arti-llms.services.ai.azure.com/models/chat/completions?api-version=2024-05-01-preview",
+        "api_base": f"{PUBLIC_AZURE_AI_API_BASE}?api-version=2024-05-01-preview",
         "input_cost": 0.20,
         "output_cost": 0.50,
         "max_input_tokens": 131072,
@@ -179,7 +184,7 @@ PRESETS: dict[str, dict[str, Any]] = {
     "model-router": {
         "alias": "azure_ai/model_router",
         "model": "azure_ai/model_router",
-        "api_base": "https://arti-cgpt-rg-swc-aoai.openai.azure.com/openai/deployments/model-router/chat/completions?api-version=2025-01-01-preview",
+        "api_base": f"{PUBLIC_AZURE_OPENAI_API_BASE}/openai/deployments/model-router/chat/completions?api-version=2025-01-01-preview",
         "input_cost": 0.14,
         "output_cost": 0.00,
         "max_input_tokens": 0,
@@ -189,7 +194,7 @@ PRESETS: dict[str, dict[str, Any]] = {
     "gpt-5.3-chat": {
         "alias": "azure_ai/gpt-5.3-chat",
         "model": "azure_ai/gpt-5.3-chat",
-        "api_base": "https://arti-cgpt-rg-swc-aoai.openai.azure.com/openai/deployments/gpt-5.3-chat/chat/completions?api-version=2025-01-01-preview",
+        "api_base": f"{PUBLIC_AZURE_OPENAI_API_BASE}/openai/deployments/gpt-5.3-chat/chat/completions?api-version=2025-01-01-preview",
         "input_cost": 15.00,
         "output_cost": 60.00,
         "max_input_tokens": 400000,
@@ -199,7 +204,7 @@ PRESETS: dict[str, dict[str, Any]] = {
     "gpt-5.4-mini": {
         "alias": "azure_ai/gpt-5.4-mini",
         "model": "azure_ai/gpt-5.4-mini",
-        "api_base": "https://arti-cgpt-rg-swc-aoai.openai.azure.com/openai/deployments/gpt-5.4-mini/chat/completions?api-version=2025-04-01-preview",
+        "api_base": f"{PUBLIC_AZURE_OPENAI_API_BASE}/openai/deployments/gpt-5.4-mini/chat/completions?api-version=2025-04-01-preview",
         "input_cost": 0.75,
         "output_cost": 4.50,
         "max_input_tokens": 400000,
@@ -209,7 +214,7 @@ PRESETS: dict[str, dict[str, Any]] = {
     "gpt-audio-1.5": {
         "alias": "azure_ai/gpt-audio-1.5",
         "model": "azure_ai/gpt-audio-1.5",
-        "api_base": "https://arti-cgpt-rg-swc-aoai.openai.azure.com/openai/deployments/gpt-audio-1.5/chat/completions?api-version=2025-01-01-preview",
+        "api_base": f"{PUBLIC_AZURE_OPENAI_API_BASE}/openai/deployments/gpt-audio-1.5/chat/completions?api-version=2025-01-01-preview",
         "input_cost": 2.50,
         "output_cost": 10.00,
         "max_input_tokens": 128000,
@@ -221,7 +226,7 @@ PRESETS: dict[str, dict[str, Any]] = {
     "gpt-5.4": {
         "alias": "gpt-5.4",
         "model": "gpt-5.4",
-        "api_base": "https://arti-cgpt-rg-swc-aoai.openai.azure.com/openai/deployments/gpt-5.4/chat/completions?api-version=2025-04-01-preview",
+        "api_base": f"{PUBLIC_AZURE_OPENAI_API_BASE}/openai/deployments/gpt-5.4/chat/completions?api-version=2025-04-01-preview",
         "input_cost": 15.0,
         "output_cost": 60.0,
         "max_input_tokens": 400000,
@@ -231,7 +236,7 @@ PRESETS: dict[str, dict[str, Any]] = {
     "gpt-5.4-pro": {
         "alias": "gpt-5.4-pro",
         "model": "azure/gpt-5.4-pro",
-        "api_base": "https://arti-cgpt-rg-swc-aoai.openai.azure.com",
+        "api_base": PUBLIC_AZURE_OPENAI_API_BASE,
         "api_version": "2025-04-01-preview",
         "input_cost": 15.0,
         "output_cost": 60.0,
@@ -243,7 +248,7 @@ PRESETS: dict[str, dict[str, Any]] = {
     "sora-2": {
         "alias": "sora-2",
         "model": "sora-2",
-        "api_base": "https://arti-cgpt-rg-swc-aoai.openai.azure.com/openai/v1/videos",
+        "api_base": PUBLIC_SORA_API_BASE,
         "input_cost": 0.0,
         "output_cost": 0.0,
         "max_input_tokens": 0,
@@ -254,7 +259,7 @@ PRESETS: dict[str, dict[str, Any]] = {
     "tts-hd": {
         "alias": "tts-hd",
         "model": "tts-hd",
-        "api_base": "https://arti-cgpt-rg-swc-aoai.openai.azure.com/openai/deployments/tts-hd",
+        "api_base": f"{PUBLIC_AZURE_OPENAI_API_BASE}/openai/deployments/tts-hd",
         "input_cost": 0.0,
         "output_cost": 0.0,
         "max_input_tokens": 0,
@@ -267,7 +272,7 @@ PRESETS: dict[str, dict[str, Any]] = {
     "o3-pro": {
         "alias": "o3-pro",
         "model": "azure/o3-pro",
-        "api_base": "https://arti-cgpt-rg-swc-aoai.openai.azure.com",
+        "api_base": PUBLIC_AZURE_OPENAI_API_BASE,
         "api_version": "2025-04-01-preview",
         "input_cost": 10.0,
         "output_cost": 40.0,
@@ -286,7 +291,7 @@ def _sora_headers() -> dict[str, str]:
 
 
 def cmd_poll_video(args: argparse.Namespace) -> None:
-    base = "https://arti-cgpt-rg-swc-aoai.openai.azure.com/openai/v1/videos"
+    base = load_env().get("SORA_API_BASE", "").strip().rstrip("/") or PUBLIC_SORA_API_BASE
     req = urllib.request.Request(f"{base}/{args.job_id}", method="GET", headers=_sora_headers())
     try:
         with urllib.request.urlopen(req, timeout=30) as response:
@@ -297,7 +302,7 @@ def cmd_poll_video(args: argparse.Namespace) -> None:
 
 
 def cmd_download_video(args: argparse.Namespace) -> None:
-    base = "https://arti-cgpt-rg-swc-aoai.openai.azure.com/openai/v1/videos"
+    base = load_env().get("SORA_API_BASE", "").strip().rstrip("/") or PUBLIC_SORA_API_BASE
     out_path = Path(args.output or f"{args.job_id}.mp4")
     # Try known content sub-paths in order
     for sub_path in (f"{args.job_id}/content/video", f"{args.job_id}/content", args.job_id):

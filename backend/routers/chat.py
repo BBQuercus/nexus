@@ -829,9 +829,16 @@ def _sora_headers() -> dict[str, str]:
     return {"Authorization": f"Bearer {api_key}", "api-key": api_key, "Content-Type": "application/json"}
 
 
+def _sora_base_url() -> str:
+    base = settings.SORA_API_BASE.strip().rstrip("/")
+    if not base:
+        raise HTTPException(status_code=503, detail="Video generation is not configured for this deployment.")
+    return base
+
+
 async def _submit_sora_job(prompt: str) -> str:
     """Submit a Sora video generation job and return the job ID."""
-    base = settings.SORA_API_BASE.rstrip("/")
+    base = _sora_base_url()
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             r = await client.post(base, json={"model": "sora-2", "prompt": prompt}, headers=_sora_headers())
@@ -856,7 +863,7 @@ async def _poll_sora_job(
     prompt: str,
 ) -> None:
     """Background task: poll Sora until done, then persist the assistant message."""
-    base = settings.SORA_API_BASE.rstrip("/")
+    base = _sora_base_url()
     redis = await get_redis()
     job_key = f"sora:job:{job_id}"
 
@@ -1101,7 +1108,7 @@ async def get_video_job_status(
     # Fall back to checking the Sora API directly and recover if the job actually completed.
     if cached.get("status") == "processing":
         try:
-            base = settings.SORA_API_BASE.rstrip("/")
+            base = _sora_base_url()
             async with httpx.AsyncClient(timeout=15.0) as client:
                 r = await client.get(f"{base}/{job_id}", headers=_sora_headers())
                 r.raise_for_status()

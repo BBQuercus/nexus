@@ -31,7 +31,7 @@ class TestParseOtlpHeaders(unittest.TestCase):
 
 class TestNormalizeOtlpProtocol(unittest.TestCase):
     def test_uses_explicit_http_protocol_alias(self):
-        protocol = _normalize_otlp_protocol("http", "grpc://tempo.railway.internal:4317")
+        protocol = _normalize_otlp_protocol("http", "grpc://tempo.internal:4317")
         self.assertEqual(protocol, "http/protobuf")
 
     def test_infers_http_when_endpoint_targets_trace_path(self):
@@ -39,7 +39,7 @@ class TestNormalizeOtlpProtocol(unittest.TestCase):
         self.assertEqual(protocol, "http/protobuf")
 
     def test_defaults_to_grpc_otherwise(self):
-        protocol = _normalize_otlp_protocol(None, "grpc://tempo.railway.internal:4317")
+        protocol = _normalize_otlp_protocol(None, "grpc://tempo.internal:4317")
         self.assertEqual(protocol, "grpc")
 
     def test_rejects_unknown_protocol(self):
@@ -57,21 +57,21 @@ class TestNormalizeHttpEndpoint(unittest.TestCase):
         self.assertEqual(endpoint, "https://tempo.example.com/custom/v1/traces")
 
     def test_converts_grpc_scheme_for_http_export(self):
-        endpoint = _normalize_http_endpoint("grpc://tempo.railway.internal:4318")
-        self.assertEqual(endpoint, "http://tempo.railway.internal:4318/v1/traces")
+        endpoint = _normalize_http_endpoint("grpc://tempo.internal:4318")
+        self.assertEqual(endpoint, "http://tempo.internal:4318/v1/traces")
 
 
 class TestBuildOtlpExporter(unittest.TestCase):
     def test_uses_grpc_exporter_for_grpc_protocol(self):
         with patch("opentelemetry.exporter.otlp.proto.grpc.trace_exporter.OTLPSpanExporter") as exporter_cls:
             exporter = _build_otlp_exporter(
-                endpoint="grpc://tempo.railway.internal:4317",
+                endpoint="grpc://tempo.internal:4317",
                 protocol="grpc",
                 headers={"x-scope-orgid": "nexus"},
             )
 
         exporter_cls.assert_called_once_with(
-            endpoint="http://tempo.railway.internal:4317",
+            endpoint="http://tempo.internal:4317",
             headers={"x-scope-orgid": "nexus"},
             insecure=True,
         )
