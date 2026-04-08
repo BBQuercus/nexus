@@ -189,7 +189,7 @@ async def flush_audit_buffer():
                 await session.execute(
                     text("""
                         INSERT INTO audit_events (id, org_id, timestamp, action, actor_id, resource_type, resource_id, details, ip_address, user_agent, request_id)
-                        VALUES (:id, :org_id::uuid, :timestamp, :action, :actor_id, :resource_type, :resource_id, :details::jsonb, :ip_address, :user_agent, :request_id)
+                        VALUES (:id, :org_id, :timestamp, :action, :actor_id, :resource_type, :resource_id, :details, :ip_address, :user_agent, :request_id)
                     """),
                     {
                         "id": event.id,
