@@ -4,7 +4,7 @@ import asyncio
 import contextlib
 from datetime import UTC, datetime
 
-from croniter import croniter
+from croniter import croniter  # type: ignore[import-untyped]
 from sqlalchemy import select
 
 from backend.db import async_session
@@ -20,7 +20,8 @@ def _next_run(cron_expression: str, after: datetime | None = None) -> datetime:
     """Calculate the next run time from a cron expression."""
     base = after or datetime.now(UTC)
     cron = croniter(cron_expression, base)
-    return cron.get_next(datetime).replace(tzinfo=UTC)
+    next_dt: datetime = cron.get_next(datetime)
+    return next_dt.replace(tzinfo=UTC)
 
 
 async def _check_and_trigger():

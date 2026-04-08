@@ -160,7 +160,8 @@ async def web_search(query: str, num_results: int = 5, engine: str = "google") -
             data = response.json()
 
         extractor = engine_config["extractor"]
-        return extractor(data, num_results)
+        results: list[dict[str, Any]] = extractor(data, num_results)
+        return results
     except Exception as e:
         logger.warning("web_search_failed", engine=engine, query=query[:100], error=str(e))
         return []

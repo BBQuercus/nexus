@@ -235,13 +235,17 @@ async def browse_listings(
             except Exception:
                 pass  # vector DB unavailable — KB metadata will be missing
 
+        matched_kb: KnowledgeBase | None
         for listing, publisher in kb_rows:
-            kb = kb_map.get(listing.knowledge_base_id) if listing.knowledge_base_id else None
-            if kb and search:
+            matched_kb = kb_map.get(listing.knowledge_base_id) if listing.knowledge_base_id else None
+            if matched_kb and search:
                 pattern_lower = search.lower()
-                if pattern_lower not in (kb.name or "").lower() and pattern_lower not in (kb.description or "").lower():
+                if (
+                    pattern_lower not in (matched_kb.name or "").lower()
+                    and pattern_lower not in (matched_kb.description or "").lower()
+                ):
                     continue
-            results.append(_serialize_listing(listing, publisher=publisher, kb=kb))
+            results.append(_serialize_listing(listing, publisher=publisher, kb=matched_kb))
 
     return results
 

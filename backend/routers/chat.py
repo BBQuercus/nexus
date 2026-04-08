@@ -840,7 +840,7 @@ async def _submit_sora_job(prompt: str) -> str:
         logger.error("sora_submit_error", status=e.response.status_code, body=e.response.text[:200])
         raise HTTPException(status_code=502, detail="Video generation failed to start. Please try again.") from e
 
-    job_id = job.get("id")
+    job_id: str | None = job.get("id")
     if not job_id:
         raise HTTPException(status_code=502, detail="Video generation returned no job ID.")
     logger.info("sora_job_queued", job_id=job_id)
@@ -1106,7 +1106,7 @@ async def get_video_job_status(
                 sora_data = r.json()
             sora_status = sora_data.get("status")
 
-            if sora_status == "completed":
+            if sora_status == "completed" and conv.active_leaf_id is not None:
                 # Background task died — kick off recovery to persist the result
                 logger.warning("sora_recovery_triggered", job_id=job_id, conversation_id=str(conversation_id))
                 asyncio.get_event_loop().create_task(

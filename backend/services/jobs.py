@@ -143,7 +143,7 @@ async def _update_job(job: Job, *, status: JobStatus, error: str | None | object
     if status in {JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED}:
         job.completed_at = datetime.now(UTC)
     if error is not _UNSET:
-        job.error = error
+        job.error = str(error) if error is not None else None
     if result is not _UNSET:
         job.result = result
     await _persist_job(job)
@@ -175,7 +175,7 @@ async def enqueue_job(
     await _persist_job(job)
     r = await get_redis()
     if r:
-        await r.rpush(JOB_QUEUE_KEY, job.id)
+        await r.rpush(JOB_QUEUE_KEY, job.id)  # type: ignore[misc]
     else:
         await _job_queue.put(job)
     logger.info("job_enqueued", job_id=job.id, job_name=name)
@@ -218,7 +218,7 @@ async def cancel_job(job_id: str) -> Job | None:
 async def _dequeue_job() -> Job:
     r = await get_redis()
     if r:
-        result = await r.blpop(JOB_QUEUE_KEY, timeout=QUEUE_BLOCK_TIMEOUT_SECONDS)
+        result = await r.blpop(JOB_QUEUE_KEY, timeout=QUEUE_BLOCK_TIMEOUT_SECONDS)  # type: ignore[misc]
         if result is None:
             raise TimeoutError("No queued job available")
         _, job_id = result

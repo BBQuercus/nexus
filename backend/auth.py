@@ -1,5 +1,6 @@
 import hashlib
 import uuid
+from collections.abc import AsyncGenerator
 from datetime import UTC, datetime, timedelta
 
 import jwt
@@ -317,7 +318,7 @@ async def get_current_org(request: Request) -> uuid.UUID:
                         if hasattr(model, "user_id"):
                             await db.execute(
                                 update(model)
-                                .where(model.user_id == uid, model.org_id == placeholder)
+                                .where(model.user_id == uid, model.org_id == placeholder)  # type: ignore[attr-defined]
                                 .values(org_id=org.id)
                             )
                     # Child tables: messages, artifacts, documents, feedback via conversation ownership
@@ -329,7 +330,7 @@ async def get_current_org(request: Request) -> uuid.UUID:
                         for child_model in [Message, Artifact, Feedback]:
                             await db.execute(
                                 update(child_model)
-                                .where(child_model.conversation_id.in_(conv_ids), child_model.org_id == placeholder)
+                                .where(child_model.conversation_id.in_(conv_ids), child_model.org_id == placeholder)  # type: ignore[attr-defined]
                                 .values(org_id=org.id)
                             )
                     # Documents via KB ownership
@@ -365,7 +366,7 @@ async def get_is_superadmin(
 async def get_org_db(
     org_id: uuid.UUID = Depends(get_current_org),
     is_superadmin: bool = Depends(get_is_superadmin),
-) -> AsyncSession:
+) -> AsyncGenerator[AsyncSession, None]:
     """FastAPI dependency that yields an org-scoped DB session."""
     async for session in get_org_scoped_db(org_id, is_superadmin):
         yield session

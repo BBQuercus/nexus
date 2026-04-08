@@ -10,7 +10,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.logging_config import get_logger
-from backend.models import ApprovalGate, RetrievalLog
+from backend.models import AgentPersona, ApprovalGate, RetrievalLog
 from backend.services import sandbox as sandbox_service
 from backend.services.chart_tool import normalize_chart_spec
 from backend.services.search import web_search
@@ -88,8 +88,8 @@ class ToolExecutionContext:
         self.enriched_tool_calls: list[dict] = []
 
         # Set by runner if available
-        self.persona = None
-        self.agent_run_id = None
+        self.persona: AgentPersona | None = None
+        self.agent_run_id: uuid.UUID | None = None
 
 
 async def _check_approval_gate(

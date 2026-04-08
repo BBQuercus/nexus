@@ -1,7 +1,6 @@
 """Telemetry: OpenTelemetry tracing + Prometheus metrics for Nexus."""
 
 import os
-from collections.abc import Mapping
 from contextlib import contextmanager
 from urllib.parse import urlparse, urlunparse
 
@@ -196,7 +195,7 @@ def _normalize_http_endpoint(endpoint: str) -> str:
     return urlunparse(parsed._replace(path=path))
 
 
-def _build_otlp_exporter(endpoint: str, protocol: str | None, headers: Mapping[str, str] | None):
+def _build_otlp_exporter(endpoint: str, protocol: str | None, headers: dict[str, str] | None):
     """Build an OTLP trace exporter using gRPC or HTTP transport."""
     resolved_protocol = _normalize_otlp_protocol(protocol, endpoint)
 
@@ -211,9 +210,9 @@ def _build_otlp_exporter(endpoint: str, protocol: str | None, headers: Mapping[s
             insecure=insecure,
         )
 
-    from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+    from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter as HTTPSpanExporter
 
-    return OTLPSpanExporter(
+    return HTTPSpanExporter(
         endpoint=_normalize_http_endpoint(endpoint),
         headers=headers,
     )

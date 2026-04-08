@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.logging_config import get_logger
-from backend.models import Artifact, Conversation, KnowledgeBase
+from backend.models import AgentPersona, Artifact, Conversation, KnowledgeBase
 from backend.prompts.system import build_system_prompt
 from backend.prompts.tools import get_tools_for_mode
 from backend.services import llm as llm_service
@@ -119,7 +119,7 @@ async def run_agent_loop(
     user_message: str,
     model: str,
     mode: str,
-    persona: object | None,
+    persona: AgentPersona | None,
     sandbox_id: str | None,
     db: AsyncSession,
     leaf_message_id: uuid.UUID | None = None,
@@ -190,7 +190,7 @@ async def run_agent_loop(
     )
 
     # Track sandbox and known output files
-    sandbox = None
+    sandbox: object | None = None
     known_output_files: set[str] = set()
     if sandbox_id:
         try:
@@ -406,7 +406,7 @@ async def run_multi_agent_loop(
     user_message: str,
     model: str,
     mode: str,
-    persona: object | None,
+    persona: AgentPersona | None,
     sandbox_id: str | None,
     leaf_message_id: uuid.UUID,
     num_responses: int,
