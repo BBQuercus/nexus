@@ -36,7 +36,7 @@ def upgrade() -> None:
     # 2. Add GIN expression index on messages for FTS
     # Using an expression index so we don't need a generated column
     op.execute(sa.text(
-        "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_messages_fts "
+        "CREATE INDEX IF NOT EXISTS idx_messages_fts "
         "ON messages USING GIN (to_tsvector('english', coalesce(content, '')))"
     ))
 
