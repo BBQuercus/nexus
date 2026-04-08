@@ -27,4 +27,4 @@ RUN chmod +x /app/scripts/run_backend_migrations.sh /app/run.sh
 RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD curl -f http://localhost:8000/ready || exit 1
 
-CMD ["sh", "-c", "uv run alembic stamp f2a3b4c5d6e7 2>/dev/null; uv run alembic upgrade head && uv run uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+CMD ["sh", "-c", "uv run alembic upgrade head && uv run uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
