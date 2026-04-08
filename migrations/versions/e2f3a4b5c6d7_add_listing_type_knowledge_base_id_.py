@@ -19,15 +19,31 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.add_column("marketplace_listings", sa.Column("listing_type", sa.String(20), nullable=True))
-    op.add_column("marketplace_listings", sa.Column("knowledge_base_id", sa.UUID(), nullable=True))
-    op.add_column("marketplace_listings", sa.Column("access_mode", sa.String(20), nullable=True))
+    conn = op.get_bind()
+
+    def column_exists(table, column):
+        result = conn.execute(sa.text(
+            f"SELECT 1 FROM information_schema.columns WHERE table_name='{table}' AND column_name='{column}'"
+        ))
+        return result.fetchone() is not None
+
+    if not column_exists("marketplace_listings", "listing_type"):
+        op.add_column("marketplace_listings", sa.Column("listing_type", sa.String(20), nullable=True))
+    if not column_exists("marketplace_listings", "knowledge_base_id"):
+        op.add_column("marketplace_listings", sa.Column("knowledge_base_id", sa.UUID(), nullable=True))
+    if not column_exists("marketplace_listings", "access_mode"):
+        op.add_column("marketplace_listings", sa.Column("access_mode", sa.String(20), nullable=True))
     # backfill listing_type for existing rows, then make non-nullable
     op.execute("UPDATE marketplace_listings SET listing_type = 'agent' WHERE listing_type IS NULL")
     op.alter_column("marketplace_listings", "listing_type", nullable=False)
     # agent_persona_id was NOT NULL in original migration but model has it nullable
     op.alter_column("marketplace_listings", "agent_persona_id", nullable=True)
-    op.create_index("ix_marketplace_listings_knowledge_base_id", "marketplace_listings", ["knowledge_base_id"])
+
+    result = conn.execute(sa.text(
+        "SELECT 1 FROM pg_indexes WHERE indexname='ix_marketplace_listings_knowledge_base_id'"
+    ))
+    if not result.fetchone():
+        op.create_index("ix_marketplace_listings_knowledge_base_id", "marketplace_listings", ["knowledge_base_id"])
 
 
 def downgrade() -> None:

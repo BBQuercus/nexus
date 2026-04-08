@@ -18,7 +18,12 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.add_column("agent_personas", sa.Column("installed_from_id", sa.UUID(), nullable=True))
+    conn = op.get_bind()
+    result = conn.execute(sa.text(
+        "SELECT 1 FROM information_schema.columns WHERE table_name='agent_personas' AND column_name='installed_from_id'"
+    ))
+    if not result.fetchone():
+        op.add_column("agent_personas", sa.Column("installed_from_id", sa.UUID(), nullable=True))
 
 
 def downgrade() -> None:
