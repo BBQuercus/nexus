@@ -18,6 +18,15 @@
 
 ---
 
+<p align="center">
+  <img src="assets/screenshot-chat.png" alt="Chat interface" width="45%" />
+  <img src="assets/screenshot-artifacts.png" alt="Charts and artifacts" width="45%" />
+</p>
+<p align="center">
+  <img src="assets/screenshot-forms.png" alt="Interactive forms" width="45%" />
+  <img src="assets/screenshot-agents.png" alt="Agent creation" width="45%" />
+</p>
+
 ## Features
 
 ### Multi-Model Chat
