@@ -132,9 +132,7 @@ class Project(Base):
         default=uuid.uuid4,
         server_default=text("gen_random_uuid()"),
     )
-    org_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("organizations.id"), index=True
-    )
+    org_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("organizations.id"), index=True)
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
     name: Mapped[str] = mapped_column(String)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -166,9 +164,7 @@ class Conversation(Base):
         default=uuid.uuid4,
         server_default=text("gen_random_uuid()"),
     )
-    org_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("organizations.id"), index=True
-    )
+    org_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("organizations.id"), index=True)
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
     project_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("projects.id", ondelete="SET NULL"), nullable=True, index=True
@@ -216,9 +212,7 @@ class Message(Base):
         default=uuid.uuid4,
         server_default=text("gen_random_uuid()"),
     )
-    org_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("organizations.id"), index=True
-    )
+    org_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("organizations.id"), index=True)
     conversation_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("conversations.id"))
     role: Mapped[str] = mapped_column(String)
     content: Mapped[str] = mapped_column(Text, default="")
@@ -255,9 +249,7 @@ class Artifact(Base):
         default=uuid.uuid4,
         server_default=text("gen_random_uuid()"),
     )
-    org_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("organizations.id"), index=True
-    )
+    org_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("organizations.id"), index=True)
     conversation_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("conversations.id"))
     message_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("messages.id"))
     type: Mapped[str] = mapped_column(String)
@@ -280,9 +272,7 @@ class AgentPersona(Base):
         default=uuid.uuid4,
         server_default=text("gen_random_uuid()"),
     )
-    org_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("organizations.id"), index=True
-    )
+    org_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("organizations.id"), index=True)
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
     name: Mapped[str] = mapped_column(String)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -340,9 +330,7 @@ class UsageLog(Base):
         default=uuid.uuid4,
         server_default=text("gen_random_uuid()"),
     )
-    org_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("organizations.id"), index=True
-    )
+    org_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("organizations.id"), index=True)
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
     conversation_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("conversations.id"))
     model: Mapped[str] = mapped_column(String)
@@ -365,9 +353,7 @@ class Feedback(Base):
         default=uuid.uuid4,
         server_default=text("gen_random_uuid()"),
     )
-    org_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("organizations.id"), index=True
-    )
+    org_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("organizations.id"), index=True)
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
     message_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("messages.id", ondelete="CASCADE"))
     conversation_id: Mapped[uuid.UUID] = mapped_column(
@@ -393,9 +379,7 @@ class AnalyticsEvent(Base):
         default=uuid.uuid4,
         server_default=text("gen_random_uuid()"),
     )
-    org_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("organizations.id"), index=True
-    )
+    org_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("organizations.id"), index=True)
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
     event_type: Mapped[str] = mapped_column(String)
     event_data: Mapped[Any | None] = mapped_column(JSON, nullable=True)
@@ -414,9 +398,7 @@ class KnowledgeBase(Base):
         default=uuid.uuid4,
         server_default=text("gen_random_uuid()"),
     )
-    org_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("organizations.id"), index=True
-    )
+    org_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("organizations.id"), index=True)
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
     name: Mapped[str] = mapped_column(String)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -427,7 +409,9 @@ class KnowledgeBase(Base):
     status: Mapped[str] = mapped_column(String, default="ready")
     is_public: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"))
     installed_from_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
-    access_mode: Mapped[str | None] = mapped_column(String(20), nullable=True)  # extensible, fixed (set on marketplace install)
+    access_mode: Mapped[str | None] = mapped_column(
+        String(20), nullable=True
+    )  # extensible, fixed (set on marketplace install)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -450,9 +434,7 @@ class Document(Base):
         default=uuid.uuid4,
         server_default=text("gen_random_uuid()"),
     )
-    org_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("organizations.id"), index=True
-    )
+    org_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("organizations.id"), index=True)
     knowledge_base_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("knowledge_bases.id", ondelete="CASCADE"), nullable=True, index=True
     )
@@ -467,7 +449,9 @@ class Document(Base):
     raw_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     metadata_: Mapped[Any | None] = mapped_column("metadata", JSON, nullable=True)
     status: Mapped[str] = mapped_column(String, default="processing")
-    processing_stage: Mapped[str | None] = mapped_column(String(20), nullable=True)  # splitting, contextualizing, encoding, storing
+    processing_stage: Mapped[str | None] = mapped_column(
+        String(20), nullable=True
+    )  # splitting, contextualizing, encoding, storing
     chunks_total: Mapped[int | None] = mapped_column(Integer, nullable=True)
     chunks_done: Mapped[int | None] = mapped_column(Integer, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -490,9 +474,7 @@ class Chunk(Base):
         default=uuid.uuid4,
         server_default=text("gen_random_uuid()"),
     )
-    org_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("organizations.id"), index=True
-    )
+    org_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("organizations.id"), index=True)
     document_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE"), index=True
     )
@@ -532,9 +514,7 @@ class Memory(Base):
         default=uuid.uuid4,
         server_default=text("gen_random_uuid()"),
     )
-    org_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("organizations.id"), index=True
-    )
+    org_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("organizations.id"), index=True)
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
     project_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("projects.id", ondelete="SET NULL"), nullable=True
@@ -583,9 +563,7 @@ class KnowledgeBaseAgent(Base):
         default=uuid.uuid4,
         server_default=text("gen_random_uuid()"),
     )
-    org_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("organizations.id"), index=True
-    )
+    org_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("organizations.id"), index=True)
     knowledge_base_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("knowledge_bases.id", ondelete="CASCADE")
     )
@@ -604,9 +582,7 @@ class RetrievalLog(Base):
         default=uuid.uuid4,
         server_default=text("gen_random_uuid()"),
     )
-    org_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("organizations.id"), index=True
-    )
+    org_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("organizations.id"), index=True)
     message_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("messages.id", ondelete="CASCADE"), nullable=True, index=True
     )
@@ -665,7 +641,9 @@ class PromptTemplate(Base):
     variables: Mapped[Any | None] = mapped_column(JSONB, nullable=True)  # [{name, type, default, required}]
     is_public: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
 
 class AgentRun(Base):
@@ -758,7 +736,9 @@ class AgentSchedule(Base):
     last_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     next_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
 
 # ── Phase 3: Action Layer ──
@@ -809,7 +789,9 @@ class TestCase(Base):
     expected_tool_calls: Mapped[Any | None] = mapped_column(JSONB, nullable=True)
     evaluation_criteria: Mapped[str | None] = mapped_column(Text, nullable=True)  # LLM-as-judge prompt
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
 
 class TestRun(Base):
@@ -833,7 +815,6 @@ class TestRun(Base):
     duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-
 
 
 # ── Phase 6: Agent Marketplace ──
@@ -866,7 +847,9 @@ class MarketplaceListing(Base):
     featured: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"))
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
 
 class AgentRating(Base):
@@ -885,4 +868,6 @@ class AgentRating(Base):
     rating: Mapped[int] = mapped_column(Integer)  # 1-5
     review: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )

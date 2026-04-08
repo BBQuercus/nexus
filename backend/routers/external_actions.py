@@ -151,10 +151,18 @@ async def approve_action(
     if delivery_result.get("sent"):
         action.status = "sent"
         action.sent_at = datetime.now(UTC)
-        action.result = {"message": f"{action.action_type} delivered successfully", "sent_at": action.sent_at.isoformat(), **delivery_result}
+        action.result = {
+            "message": f"{action.action_type} delivered successfully",
+            "sent_at": action.sent_at.isoformat(),
+            **delivery_result,
+        }
     else:
         action.status = "failed"
-        action.result = {"message": f"{action.action_type} delivery failed", "error": delivery_result.get("error"), **delivery_result}
+        action.result = {
+            "message": f"{action.action_type} delivery failed",
+            "error": delivery_result.get("error"),
+            **delivery_result,
+        }
 
     await db.commit()
     await record_audit_event(

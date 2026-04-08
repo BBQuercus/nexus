@@ -227,6 +227,7 @@ async def browse_listings(
         if kb_ids:
             try:
                 from backend.vector_db import vector_async_session
+
                 async with vector_async_session() as vdb:
                     kb_result = await vdb.execute(select(KnowledgeBase).where(KnowledgeBase.id.in_(kb_ids)))
                     for kb in kb_result.scalars().all():
@@ -265,8 +266,11 @@ async def get_listing(
     if listing.knowledge_base_id:
         try:
             from backend.vector_db import vector_async_session
+
             async with vector_async_session() as vdb:
-                kb_result = await vdb.execute(select(KnowledgeBase).where(KnowledgeBase.id == listing.knowledge_base_id))
+                kb_result = await vdb.execute(
+                    select(KnowledgeBase).where(KnowledgeBase.id == listing.knowledge_base_id)
+                )
                 kb = kb_result.scalar_one_or_none()
         except Exception:
             pass
@@ -338,8 +342,10 @@ async def publish_listing(
         existing.status = "published"
         await db.commit()
         await record_audit_event(
-            AuditAction.MARKETPLACE_PUBLISHED, actor_id=str(user_id),
-            resource_type="marketplace_listing", resource_id=str(existing.id),
+            AuditAction.MARKETPLACE_PUBLISHED,
+            actor_id=str(user_id),
+            resource_type="marketplace_listing",
+            resource_id=str(existing.id),
         )
         return _serialize_listing(existing, agent, kb=kb)
 
@@ -360,8 +366,10 @@ async def publish_listing(
     await db.flush()
     await db.commit()
     await record_audit_event(
-        AuditAction.MARKETPLACE_PUBLISHED, actor_id=str(user_id),
-        resource_type="marketplace_listing", resource_id=str(listing.id),
+        AuditAction.MARKETPLACE_PUBLISHED,
+        actor_id=str(user_id),
+        resource_type="marketplace_listing",
+        resource_id=str(listing.id),
     )
     return _serialize_listing(listing, agent, kb=kb)
 
@@ -432,9 +440,7 @@ async def install_listing(
     if listing and listing.listing_type == "knowledge_base":
         if not listing.knowledge_base_id:
             raise HTTPException(400, "Listing has no knowledge base")
-        kb_result = await vector_db.execute(
-            select(KnowledgeBase).where(KnowledgeBase.id == listing.knowledge_base_id)
-        )
+        kb_result = await vector_db.execute(select(KnowledgeBase).where(KnowledgeBase.id == listing.knowledge_base_id))
         original_kb = kb_result.scalar_one_or_none()
         if not original_kb:
             raise HTTPException(404, "Knowledge base not found")
@@ -461,8 +467,10 @@ async def install_listing(
         listing.install_count = (listing.install_count or 0) + 1
         await db.commit()
         await record_audit_event(
-            AuditAction.MARKETPLACE_INSTALLED, actor_id=str(user_id),
-            resource_type="marketplace_listing", resource_id=str(listing.id),
+            AuditAction.MARKETPLACE_INSTALLED,
+            actor_id=str(user_id),
+            resource_type="marketplace_listing",
+            resource_id=str(listing.id),
         )
         return {
             "listing_id": str(listing.id),
@@ -509,8 +517,10 @@ async def install_listing(
     await db.flush()
     await db.commit()
     await record_audit_event(
-        AuditAction.MARKETPLACE_INSTALLED, actor_id=str(user_id),
-        resource_type="marketplace_listing", resource_id=str(listing.id) if listing else str(original.id),
+        AuditAction.MARKETPLACE_INSTALLED,
+        actor_id=str(user_id),
+        resource_type="marketplace_listing",
+        resource_id=str(listing.id) if listing else str(original.id),
     )
     return {
         "listing_id": str(listing.id) if listing else str(original.id),

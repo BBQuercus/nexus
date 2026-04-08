@@ -155,6 +155,7 @@ async def rerun(
 
     if original.agent_persona_id:
         from backend.routers.agent_schedules import _execute_run
+
         background_tasks.add_task(_execute_run, new_run.id, original.agent_persona_id, input_text)
 
     return _serialize_run(new_run)

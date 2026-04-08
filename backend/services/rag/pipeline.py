@@ -59,9 +59,7 @@ async def ingest_document(
 
             from backend.services.rag.ingestion import parse_document
 
-            await db.execute(
-                update(Document).where(Document.id == document_id).values(processing_stage="splitting")
-            )
+            await db.execute(update(Document).where(Document.id == document_id).values(processing_stage="splitting"))
             await db.commit()
 
             # Run CPU-heavy parsing in a thread so the event loop stays free
@@ -125,9 +123,7 @@ async def ingest_document(
             ]
 
             async def _on_batch(chunks_done: int) -> None:
-                await db.execute(
-                    update(Document).where(Document.id == document_id).values(chunks_done=chunks_done)
-                )
+                await db.execute(update(Document).where(Document.id == document_id).values(chunks_done=chunks_done))
                 await db.commit()
 
             embeddings = await embed_texts(texts_to_embed, model=embedding_model, on_batch_complete=_on_batch)
@@ -138,16 +134,12 @@ async def ingest_document(
                 count=len(embeddings),
             )
 
-            await db.execute(
-                update(Document).where(Document.id == document_id).values(processing_stage="storing")
-            )
+            await db.execute(update(Document).where(Document.id == document_id).values(processing_stage="storing"))
             await db.commit()
 
             # 4. Store chunks with embeddings
             # Get org_id from the document record
-            doc_result = await db.execute(
-                select(Document.org_id).where(Document.id == document_id)
-            )
+            doc_result = await db.execute(select(Document.org_id).where(Document.id == document_id))
             doc_org_id = doc_result.scalar_one_or_none()
 
             chunk_records = []

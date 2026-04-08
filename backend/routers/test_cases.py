@@ -117,8 +117,14 @@ async def _evaluate_test_case(test_case: TestCase, persona) -> dict:
             # If basic check fails but we have evaluation_criteria, use LLM-as-judge
             if not passed and test_case.evaluation_criteria:
                 judge_messages = [
-                    {"role": "system", "content": "You are a test evaluator. Respond with ONLY 'PASS' or 'FAIL' followed by a brief reason."},
-                    {"role": "user", "content": f"Evaluation criteria: {test_case.evaluation_criteria}\n\nExpected: {test_case.expected_output}\n\nActual: {actual_output}\n\nDoes the actual output meet the criteria?"},
+                    {
+                        "role": "system",
+                        "content": "You are a test evaluator. Respond with ONLY 'PASS' or 'FAIL' followed by a brief reason.",
+                    },
+                    {
+                        "role": "user",
+                        "content": f"Evaluation criteria: {test_case.evaluation_criteria}\n\nExpected: {test_case.expected_output}\n\nActual: {actual_output}\n\nDoes the actual output meet the criteria?",
+                    },
                 ]
                 async with httpx.AsyncClient(timeout=30) as client:
                     judge_resp = await client.post(
@@ -178,9 +184,7 @@ async def get_test_run(
     org_id: uuid.UUID = Depends(get_current_org),
     db: AsyncSession = Depends(get_org_db),
 ):
-    result = await db.execute(
-        select(TestRun).where(TestRun.id == run_id, TestRun.org_id == org_id)
-    )
+    result = await db.execute(select(TestRun).where(TestRun.id == run_id, TestRun.org_id == org_id))
     run = result.scalar_one_or_none()
     if not run:
         raise HTTPException(status_code=404, detail="Test run not found")
@@ -233,9 +237,7 @@ async def get_test_case(
     org_id: uuid.UUID = Depends(get_current_org),
     db: AsyncSession = Depends(get_org_db),
 ):
-    result = await db.execute(
-        select(TestCase).where(TestCase.id == test_case_id, TestCase.org_id == org_id)
-    )
+    result = await db.execute(select(TestCase).where(TestCase.id == test_case_id, TestCase.org_id == org_id))
     test_case = result.scalar_one_or_none()
     if not test_case:
         raise HTTPException(status_code=404, detail="Test case not found")
@@ -250,9 +252,7 @@ async def update_test_case(
     org_id: uuid.UUID = Depends(get_current_org),
     db: AsyncSession = Depends(get_org_db),
 ):
-    result = await db.execute(
-        select(TestCase).where(TestCase.id == test_case_id, TestCase.org_id == org_id)
-    )
+    result = await db.execute(select(TestCase).where(TestCase.id == test_case_id, TestCase.org_id == org_id))
     test_case = result.scalar_one_or_none()
     if not test_case:
         raise HTTPException(status_code=404, detail="Test case not found")
@@ -271,9 +271,7 @@ async def delete_test_case(
     org_id: uuid.UUID = Depends(get_current_org),
     db: AsyncSession = Depends(get_org_db),
 ):
-    result = await db.execute(
-        select(TestCase).where(TestCase.id == test_case_id, TestCase.org_id == org_id)
-    )
+    result = await db.execute(select(TestCase).where(TestCase.id == test_case_id, TestCase.org_id == org_id))
     test_case = result.scalar_one_or_none()
     if not test_case:
         raise HTTPException(status_code=404, detail="Test case not found")
@@ -302,9 +300,7 @@ async def run_tests(
         raise HTTPException(status_code=400, detail="No test cases found for this agent")
 
     # Fetch agent persona for system prompt and model
-    persona_result = await db.execute(
-        select(AgentPersona).where(AgentPersona.id == body.agent_persona_id)
-    )
+    persona_result = await db.execute(select(AgentPersona).where(AgentPersona.id == body.agent_persona_id))
     persona = persona_result.scalar_one_or_none()
     if not persona:
         raise HTTPException(status_code=404, detail="Agent not found")
@@ -335,15 +331,17 @@ async def run_tests(
             else:
                 failed_count += 1
         except Exception as e:
-            results.append({
-                "test_case_id": str(tc.id),
-                "test_case_name": tc.name,
-                "passed": False,
-                "actual_output": None,
-                "expected_output": tc.expected_output,
-                "score": 0.0,
-                "error": str(e),
-            })
+            results.append(
+                {
+                    "test_case_id": str(tc.id),
+                    "test_case_name": tc.name,
+                    "passed": False,
+                    "actual_output": None,
+                    "expected_output": tc.expected_output,
+                    "score": 0.0,
+                    "error": str(e),
+                }
+            )
             failed_count += 1
 
     duration_ms = int((time.monotonic() - start_time) * 1000)

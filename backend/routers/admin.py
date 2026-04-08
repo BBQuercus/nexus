@@ -350,9 +350,7 @@ async def admin_list_users(
         # Get the user's role in the current org
         from backend.models import UserOrg
 
-        role_result = await db.execute(
-            select(UserOrg.role).where(UserOrg.user_id == u.id, UserOrg.org_id == org_id)
-        )
+        role_result = await db.execute(select(UserOrg.role).where(UserOrg.user_id == u.id, UserOrg.org_id == org_id))
         user_role = role_result.scalar_one_or_none() or "none"
 
         items.append(
@@ -394,9 +392,7 @@ async def admin_update_user(
         raise HTTPException(status_code=422, detail=f"Invalid role. Must be one of: {', '.join(sorted(valid_roles))}")
 
     # Find the user's membership in this org
-    result = await db.execute(
-        select(UserOrg).where(UserOrg.user_id == user_id, UserOrg.org_id == org_id)
-    )
+    result = await db.execute(select(UserOrg).where(UserOrg.user_id == user_id, UserOrg.org_id == org_id))
     membership = result.scalar_one_or_none()
     if not membership:
         raise HTTPException(status_code=404, detail="User not found in this organization")

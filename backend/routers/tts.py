@@ -56,4 +56,6 @@ async def text_to_speech(
         ) from e
     except Exception as e:
         logger.error("tts_error", error=str(e))
-        raise HTTPException(status_code=500, detail="Text-to-speech is temporarily unavailable. Please try again.") from e
+        raise HTTPException(
+            status_code=500, detail="Text-to-speech is temporarily unavailable. Please try again."
+        ) from e

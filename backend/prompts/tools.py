@@ -203,7 +203,16 @@ TOOLS = [
                     "engine": {
                         "type": "string",
                         "description": "Search engine to use",
-                        "enum": ["google", "google_news", "google_scholar", "youtube", "google_maps", "google_shopping", "bing", "duckduckgo"],
+                        "enum": [
+                            "google",
+                            "google_news",
+                            "google_scholar",
+                            "youtube",
+                            "google_maps",
+                            "google_shopping",
+                            "bing",
+                            "duckduckgo",
+                        ],
                         "default": "google",
                     },
                     "num_results": {

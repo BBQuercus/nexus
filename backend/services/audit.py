@@ -47,7 +47,6 @@ class AuditAction(StrEnum):
     AGENT_RUN_CREATED = "agent_run.created"
     AGENT_RUN_DELETED = "agent_run.deleted"
 
-
     # Agent schedules
     SCHEDULE_CREATED = "schedule.created"
     SCHEDULE_DELETED = "schedule.deleted"
@@ -66,7 +65,6 @@ class AuditAction(StrEnum):
     # Marketplace
     MARKETPLACE_PUBLISHED = "marketplace.published"
     MARKETPLACE_INSTALLED = "marketplace.installed"
-
 
     # Knowledge bases
     KB_CREATED = "kb.created"

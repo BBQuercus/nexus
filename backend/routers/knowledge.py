@@ -185,9 +185,7 @@ async def delete_knowledge_base(
     db.expire_all()  # Evict loaded objects to prevent ORM cascade on commit
 
     # Find all KBs that reference this one (installed via marketplace)
-    ref_result = await db.execute(
-        select(KnowledgeBase.id).where(KnowledgeBase.installed_from_id == kb_id)
-    )
+    ref_result = await db.execute(select(KnowledgeBase.id).where(KnowledgeBase.installed_from_id == kb_id))
     ref_kb_ids = [row[0] for row in ref_result.all()]
 
     # Delete referencing KBs and their local additions (extensible mode docs/chunks)
@@ -299,9 +297,7 @@ async def get_document_content(
     """Return the extracted raw text for a document."""
     kb = await _get_kb_or_404(db, kb_id, user_id)
     source_ids = _resolve_source_kb_ids(kb)
-    result = await db.execute(
-        select(Document).where(Document.id == doc_id, Document.knowledge_base_id.in_(source_ids))
-    )
+    result = await db.execute(select(Document).where(Document.id == doc_id, Document.knowledge_base_id.in_(source_ids)))
     doc = result.scalar_one_or_none()
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
@@ -431,15 +427,9 @@ async def get_kb_stats(
     source_ids = _resolve_source_kb_ids(kb)
     from sqlalchemy import func
 
-    total_tokens = await db.scalar(
-        select(func.sum(Chunk.token_count)).where(Chunk.knowledge_base_id.in_(source_ids))
-    )
-    doc_count = await db.scalar(
-        select(func.count(Document.id)).where(Document.knowledge_base_id.in_(source_ids))
-    )
-    chunk_count = await db.scalar(
-        select(func.count(Chunk.id)).where(Chunk.knowledge_base_id.in_(source_ids))
-    )
+    total_tokens = await db.scalar(select(func.sum(Chunk.token_count)).where(Chunk.knowledge_base_id.in_(source_ids)))
+    doc_count = await db.scalar(select(func.count(Document.id)).where(Document.knowledge_base_id.in_(source_ids)))
+    chunk_count = await db.scalar(select(func.count(Chunk.id)).where(Chunk.knowledge_base_id.in_(source_ids)))
 
     return {
         "document_count": doc_count or 0,

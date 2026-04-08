@@ -83,16 +83,20 @@ class RequestTimeoutMiddleware:
             await asyncio.wait_for(self.app(scope, receive, send), timeout=timeout)
         except TimeoutError:
             # Only send error if response hasn't started yet
-            body = json.dumps({
-                "error": "request_timeout",
-                "message": "The request took too long. Please try again.",
-            }).encode()
+            body = json.dumps(
+                {
+                    "error": "request_timeout",
+                    "message": "The request took too long. Please try again.",
+                }
+            ).encode()
             try:
-                await send({
-                    "type": "http.response.start",
-                    "status": 504,
-                    "headers": [(b"content-type", b"application/json")],
-                })
+                await send(
+                    {
+                        "type": "http.response.start",
+                        "status": 504,
+                        "headers": [(b"content-type", b"application/json")],
+                    }
+                )
                 await send({"type": "http.response.body", "body": body})
             except Exception:
                 pass  # Response already started — can't send error

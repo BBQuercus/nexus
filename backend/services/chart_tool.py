@@ -23,8 +23,6 @@ def normalize_chart_spec(spec: Any) -> dict[str, Any]:
         spec = {"$schema": _VEGA_LITE_SCHEMA, **spec}
 
     if not any(k in spec for k in _VALID_SPEC_KEYS):
-        raise ValueError(
-            "Chart spec must include one of: mark, layer, hconcat, vconcat, concat, facet, repeat"
-        )
+        raise ValueError("Chart spec must include one of: mark, layer, hconcat, vconcat, concat, facet, repeat")
 
     return spec

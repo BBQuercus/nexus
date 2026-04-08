@@ -261,10 +261,7 @@ async def get_current_org(request: Request) -> uuid.UUID:
             uid = uuid.UUID(user_id_str)
             async with async_session() as db:
                 result = await db.execute(
-                    select(UserOrg.org_id)
-                    .where(UserOrg.user_id == uid)
-                    .order_by(UserOrg.joined_at)
-                    .limit(1)
+                    select(UserOrg.org_id).where(UserOrg.user_id == uid).order_by(UserOrg.joined_at).limit(1)
                 )
                 found = result.scalar_one_or_none()
                 if found:
@@ -307,10 +304,21 @@ async def get_current_org(request: Request) -> uuid.UUID:
                     )
 
                     placeholder = uuid.UUID("00000000-0000-0000-0000-000000000001")
-                    for model in [Conversation, Project, AgentPersona, KnowledgeBase, Memory, UsageLog, FrontendError, AnalyticsEvent]:
+                    for model in [
+                        Conversation,
+                        Project,
+                        AgentPersona,
+                        KnowledgeBase,
+                        Memory,
+                        UsageLog,
+                        FrontendError,
+                        AnalyticsEvent,
+                    ]:
                         if hasattr(model, "user_id"):
                             await db.execute(
-                                update(model).where(model.user_id == uid, model.org_id == placeholder).values(org_id=org.id)
+                                update(model)
+                                .where(model.user_id == uid, model.org_id == placeholder)
+                                .values(org_id=org.id)
                             )
                     # Child tables: messages, artifacts, documents, feedback via conversation ownership
                     conv_ids_result = await db.execute(
@@ -367,7 +375,14 @@ async def get_org_db(
 
 
 # Auth endpoints that are called before a session exists (no CSRF cookie yet)
-_CSRF_EXEMPT_PATHS = {"/auth/password", "/auth/register", "/auth/refresh", "/auth/logout", "/auth/forgot-password", "/auth/switch-org"}
+_CSRF_EXEMPT_PATHS = {
+    "/auth/password",
+    "/auth/register",
+    "/auth/refresh",
+    "/auth/logout",
+    "/auth/forgot-password",
+    "/auth/switch-org",
+}
 
 
 async def validate_csrf(request: Request) -> None:
@@ -667,7 +682,10 @@ async def refresh_token(request: Request, response: Response, body: RefreshReque
         try:
             async with async_session() as db:
                 result = await db.execute(
-                    select(UserOrg.org_id).where(UserOrg.user_id == uuid.UUID(user_id)).order_by(UserOrg.joined_at).limit(1)
+                    select(UserOrg.org_id)
+                    .where(UserOrg.user_id == uuid.UUID(user_id))
+                    .order_by(UserOrg.joined_at)
+                    .limit(1)
                 )
                 found = result.scalar_one_or_none()
                 if found:
@@ -799,9 +817,7 @@ async def switch_org(
         raise HTTPException(status_code=400, detail="Invalid org_id") from None
 
     # Verify membership
-    result = await db.execute(
-        select(UserOrg).where(UserOrg.user_id == user_id, UserOrg.org_id == target_org_id)
-    )
+    result = await db.execute(select(UserOrg).where(UserOrg.user_id == user_id, UserOrg.org_id == target_org_id))
     membership = result.scalar_one_or_none()
     if not membership:
         raise HTTPException(status_code=403, detail="Not a member of this organization")

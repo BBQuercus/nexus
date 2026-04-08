@@ -54,7 +54,9 @@ async def transcribe_audio(
     except httpx.TimeoutException as e:
         raise HTTPException(status_code=504, detail="Audio transcription timed out. Try a shorter recording.") from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail="Audio transcription is temporarily unavailable. Please try again.") from e
+        raise HTTPException(
+            status_code=500, detail="Audio transcription is temporarily unavailable. Please try again."
+        ) from e
 
 
 @router.post("/speak")
@@ -92,7 +94,9 @@ async def speak_text(
     except httpx.TimeoutException as e:
         raise HTTPException(status_code=504, detail="Audio generation timed out. Try shorter text or try again.") from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail="Audio generation is temporarily unavailable. Please try again.") from e
+        raise HTTPException(
+            status_code=500, detail="Audio generation is temporarily unavailable. Please try again."
+        ) from e
 
     try:
         audio = data["choices"][0]["message"]["audio"]
@@ -105,4 +109,6 @@ async def speak_text(
             headers={"Content-Disposition": f'inline; filename="speech.{ext}"'},
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail="Received an unexpected response from the audio service. Please try again.") from e
+        raise HTTPException(
+            status_code=500, detail="Received an unexpected response from the audio service. Please try again."
+        ) from e

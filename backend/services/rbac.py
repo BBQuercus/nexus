@@ -109,9 +109,7 @@ async def get_user_role(user_id: uuid.UUID, org_id: uuid.UUID, db: AsyncSession)
     """Get a user's role in the specified org."""
     from backend.models import UserOrg
 
-    result = await db.execute(
-        select(UserOrg.role).where(UserOrg.user_id == user_id, UserOrg.org_id == org_id)
-    )
+    result = await db.execute(select(UserOrg.role).where(UserOrg.user_id == user_id, UserOrg.org_id == org_id))
     role_str = result.scalar_one_or_none()
     if not role_str:
         raise HTTPException(status_code=403, detail="Not a member of this organization")

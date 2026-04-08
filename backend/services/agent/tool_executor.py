@@ -129,12 +129,15 @@ async def _check_approval_gate(
     await ctx.db.flush()
 
     # Emit SSE event for the frontend
-    yield sse_event("approval_required", {
-        "gate_id": str(gate.id),
-        "tool": func_name,
-        "arguments": sanitize_tool_arguments(func_name, args),
-        "tool_call_id": tool_call_id,
-    })
+    yield sse_event(
+        "approval_required",
+        {
+            "gate_id": str(gate.id),
+            "tool": func_name,
+            "arguments": sanitize_tool_arguments(func_name, args),
+            "tool_call_id": tool_call_id,
+        },
+    )
 
     # Poll for decision (max 10 minutes)
     max_wait = 600  # seconds
@@ -150,18 +153,24 @@ async def _check_approval_gate(
 
         if gate.status == "approved":
             logger.info("approval_gate_approved", gate_id=str(gate.id), tool=func_name)
-            yield sse_event("approval_resolved", {"gate_id": str(gate.id), "status": "approved", "tool_call_id": tool_call_id})
+            yield sse_event(
+                "approval_resolved", {"gate_id": str(gate.id), "status": "approved", "tool_call_id": tool_call_id}
+            )
             yield {"__gate_result__": "approved", "args": args}
             return
         elif gate.status == "rejected":
             logger.info("approval_gate_rejected", gate_id=str(gate.id), tool=func_name)
-            yield sse_event("approval_resolved", {"gate_id": str(gate.id), "status": "rejected", "tool_call_id": tool_call_id})
+            yield sse_event(
+                "approval_resolved", {"gate_id": str(gate.id), "status": "rejected", "tool_call_id": tool_call_id}
+            )
             yield {"__gate_result__": "rejected", "args": args}
             return
         elif gate.status == "edited":
             edited_args = gate.edited_arguments or args
             logger.info("approval_gate_edited", gate_id=str(gate.id), tool=func_name)
-            yield sse_event("approval_resolved", {"gate_id": str(gate.id), "status": "edited", "tool_call_id": tool_call_id})
+            yield sse_event(
+                "approval_resolved", {"gate_id": str(gate.id), "status": "edited", "tool_call_id": tool_call_id}
+            )
             yield {"__gate_result__": "approved", "args": edited_args}
             return
 
@@ -198,17 +207,22 @@ async def execute_tool_call(
 
     if gate_result and gate_result["__gate_result__"] == "rejected":
         tool_output = f"Tool '{func_name}' was rejected by the user."
-        yield sse_event("tool_start", {"tool": func_name, "arguments": sanitize_tool_arguments(func_name, args), "tool_call_id": tool_call_id})
+        yield sse_event(
+            "tool_start",
+            {"tool": func_name, "arguments": sanitize_tool_arguments(func_name, args), "tool_call_id": tool_call_id},
+        )
         yield sse_event("tool_output", {"tool": func_name, "output": tool_output, "tool_call_id": tool_call_id})
         yield sse_event("tool_end", {"tool": func_name, "tool_call_id": tool_call_id})
-        ctx.enriched_tool_calls.append({
-            "id": tool_call_id,
-            "name": func_name,
-            "language": "",
-            "code": "",
-            "output": tool_output,
-            "exitCode": 0,
-        })
+        ctx.enriched_tool_calls.append(
+            {
+                "id": tool_call_id,
+                "name": func_name,
+                "language": "",
+                "code": "",
+                "output": tool_output,
+                "exitCode": 0,
+            }
+        )
         return
 
     # Use potentially edited args
@@ -262,7 +276,10 @@ async def execute_tool_call(
                 engine=args.get("engine", "google"),
             )
             tool_output = json.dumps(results, indent=2)
-            yield sse_event("search_results", {"results": results, "engine": args.get("engine", "google"), "tool_call_id": tool_call_id})
+            yield sse_event(
+                "search_results",
+                {"results": results, "engine": args.get("engine", "google"), "tool_call_id": tool_call_id},
+            )
             yield sse_event("tool_output", {"tool": func_name, "output": tool_output, "tool_call_id": tool_call_id})
 
         elif func_name == "preview_app":

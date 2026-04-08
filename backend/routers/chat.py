@@ -525,18 +525,10 @@ async def delete_message(
         raise HTTPException(status_code=404, detail="Message not found")
 
     # Detach children so they become root-level messages in the conversation
-    await db.execute(
-        update(Message)
-        .where(Message.parent_id == message_id)
-        .values(parent_id=msg.parent_id)
-    )
+    await db.execute(update(Message).where(Message.parent_id == message_id).values(parent_id=msg.parent_id))
 
     # If this message is the active leaf, clear it
-    await db.execute(
-        update(Conversation)
-        .where(Conversation.active_leaf_id == message_id)
-        .values(active_leaf_id=None)
-    )
+    await db.execute(update(Conversation).where(Conversation.active_leaf_id == message_id).values(active_leaf_id=None))
 
     # Delete artifacts and message
     await db.execute(delete(Artifact).where(Artifact.message_id == message_id))
@@ -801,8 +793,8 @@ async def send_message(
     return EventSourceResponse(event_generator(), ping=15)
 
 
-_SORA_POLL_INTERVAL = 5.0   # seconds between status checks
-_SORA_MAX_WAIT = 600.0      # 10 minutes total
+_SORA_POLL_INTERVAL = 5.0  # seconds between status checks
+_SORA_MAX_WAIT = 600.0  # 10 minutes total
 
 
 async def _generate_image(model: str, prompt: str, size: str) -> str:
@@ -919,9 +911,7 @@ async def _poll_sora_job(
                     async with async_session() as db:
                         await db.execute(sa_text(f"SET LOCAL app.current_org_id = '{org_id}'"))
 
-                        conv_result = await db.execute(
-                            select(Conversation).where(Conversation.id == conversation_id)
-                        )
+                        conv_result = await db.execute(select(Conversation).where(Conversation.id == conversation_id))
                         conv = conv_result.scalar_one_or_none()
                         if not conv:
                             await _set_status("failed", "conversation not found")
@@ -1016,7 +1006,8 @@ async def generate_image(
         redis = await get_redis()
         if redis:
             await redis.setex(
-                f"sora:job:{job_id}", 3600,
+                f"sora:job:{job_id}",
+                3600,
                 json.dumps({"status": "queued", "error": ""}),
             )
 

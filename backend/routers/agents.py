@@ -96,9 +96,7 @@ async def list_agents(
     db: AsyncSession = Depends(get_org_db),
 ):
     result = await db.execute(
-        select(AgentPersona)
-        .where(AgentPersona.user_id == user_id)
-        .order_by(AgentPersona.created_at.desc())
+        select(AgentPersona).where(AgentPersona.user_id == user_id).order_by(AgentPersona.created_at.desc())
     )
     agents = result.scalars().all()
     return [_serialize_agent(a) for a in agents]

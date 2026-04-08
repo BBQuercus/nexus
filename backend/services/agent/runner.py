@@ -36,7 +36,17 @@ def _user_facing_error(e: Exception) -> str:
     msg = str(e).lower()
 
     # Context / token limits
-    if any(k in msg for k in ("context_length_exceeded", "context window", "maximum context", "too many tokens", "token limit", "input is too long")):
+    if any(
+        k in msg
+        for k in (
+            "context_length_exceeded",
+            "context window",
+            "maximum context",
+            "too many tokens",
+            "token limit",
+            "input is too long",
+        )
+    ):
         return (
             "Your conversation has exceeded the model's context limit. "
             "Try starting a new conversation, removing some messages, or switching to a model with a larger context window."
@@ -44,14 +54,18 @@ def _user_facing_error(e: Exception) -> str:
 
     # Rate limits
     if any(k in msg for k in ("rate limit", "rate_limit", "ratelimiterror", "429", "too many requests", "quota")):
-        return "The model is currently rate-limited. Please wait a moment and try again, or switch to a different model."
+        return (
+            "The model is currently rate-limited. Please wait a moment and try again, or switch to a different model."
+        )
 
     # Content / safety filters
     if any(k in msg for k in ("content_filter", "content filter", "safety", "policy", "moderat", "harmful", "blocked")):
         return "The response was blocked by the content policy. Please rephrase your request and try again."
 
     # Authentication / permission issues
-    if any(k in msg for k in ("unauthorized", "invalid_api_key", "authentication", "permission", "forbidden", "401", "403")):
+    if any(
+        k in msg for k in ("unauthorized", "invalid_api_key", "authentication", "permission", "forbidden", "401", "403")
+    ):
         return "There's a configuration issue with the AI provider. Please contact your administrator."
 
     # Timeout
@@ -59,7 +73,19 @@ def _user_facing_error(e: Exception) -> str:
         return "The model took too long to respond. Please try again — complex requests may need to be simplified."
 
     # Connection / network
-    if any(k in msg for k in ("connection", "network", "unreachable", "service unavailable", "apiconnectionerror", "502", "503", "504")):
+    if any(
+        k in msg
+        for k in (
+            "connection",
+            "network",
+            "unreachable",
+            "service unavailable",
+            "apiconnectionerror",
+            "502",
+            "503",
+            "504",
+        )
+    ):
         return "Could not reach the AI provider. Please check your connection and try again in a moment."
 
     # Model not found / invalid
@@ -344,7 +370,9 @@ async def run_agent_loop(
     )
 
     # Log usage
-    await log_usage(db, conversation, conversation_id, model, total_input_tokens, total_output_tokens, org_id=conversation.org_id)
+    await log_usage(
+        db, conversation, conversation_id, model, total_input_tokens, total_output_tokens, org_id=conversation.org_id
+    )
 
     await db.commit()
 

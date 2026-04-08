@@ -47,8 +47,12 @@ async def save_assistant_message(
         "charts": collected_charts if collected_charts else None,
         "attachments": ([{"type": "files", "files": collected_files}] if collected_files else None),
         "citations": rag_citations if rag_citations else None,
-        "token_count": (total_input_tokens + total_output_tokens) if (total_input_tokens + total_output_tokens) > 0 else None,
-        "cost_usd": llm_service.calculate_cost(model, total_input_tokens, total_output_tokens) if total_input_tokens > 0 else None,
+        "token_count": (total_input_tokens + total_output_tokens)
+        if (total_input_tokens + total_output_tokens) > 0
+        else None,
+        "cost_usd": llm_service.calculate_cost(model, total_input_tokens, total_output_tokens)
+        if total_input_tokens > 0
+        else None,
         "parent_id": assistant_parent_id,
         "branch_index": assistant_branch_index,
     }

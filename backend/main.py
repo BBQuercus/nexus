@@ -236,7 +236,9 @@ async def list_models(user_id: uuid.UUID = Depends(get_current_user)):
     from backend.services.llm import MODEL_PRICING
 
     # Chat models derived from pricing table (source of truth)
-    chat_models = [{"id": model_id, "pricing": {"input": p[0], "output": p[1]}} for model_id, p in MODEL_PRICING.items()]
+    chat_models = [
+        {"id": model_id, "pricing": {"input": p[0], "output": p[1]}} for model_id, p in MODEL_PRICING.items()
+    ]
     return {
         "chat_models": chat_models,
         "image_models": [
@@ -630,19 +632,23 @@ async def submit_bug_report(
         # Build screenshot image blocks for the card
         screenshot_blocks: list[dict] = []
         if screenshot_urls:
-            screenshot_blocks.append({
-                "type": "TextBlock",
-                "text": f"**Screenshots** ({len(screenshot_urls)})",
-                "wrap": True,
-                "spacing": "Medium",
-            })
+            screenshot_blocks.append(
+                {
+                    "type": "TextBlock",
+                    "text": f"**Screenshots** ({len(screenshot_urls)})",
+                    "wrap": True,
+                    "spacing": "Medium",
+                }
+            )
             for url in screenshot_urls:
-                screenshot_blocks.append({
-                    "type": "Image",
-                    "url": url,
-                    "size": "Large",
-                    "altText": "Bug report screenshot",
-                })
+                screenshot_blocks.append(
+                    {
+                        "type": "Image",
+                        "url": url,
+                        "size": "Large",
+                        "altText": "Bug report screenshot",
+                    }
+                )
 
         teams_card = {
             "type": "message",
@@ -680,32 +686,40 @@ async def submit_bug_report(
                                 "text": body.description,
                                 "wrap": True,
                             },
-                            *([
-                                {
-                                    "type": "TextBlock",
-                                    "text": "**Steps to Reproduce**",
-                                    "wrap": True,
-                                    "spacing": "Medium",
-                                },
-                                {
-                                    "type": "TextBlock",
-                                    "text": body.steps_to_reproduce,
-                                    "wrap": True,
-                                },
-                            ] if body.steps_to_reproduce else []),
-                            *([
-                                {
-                                    "type": "TextBlock",
-                                    "text": "**Expected Behavior**",
-                                    "wrap": True,
-                                    "spacing": "Medium",
-                                },
-                                {
-                                    "type": "TextBlock",
-                                    "text": body.expected_behavior,
-                                    "wrap": True,
-                                },
-                            ] if body.expected_behavior else []),
+                            *(
+                                [
+                                    {
+                                        "type": "TextBlock",
+                                        "text": "**Steps to Reproduce**",
+                                        "wrap": True,
+                                        "spacing": "Medium",
+                                    },
+                                    {
+                                        "type": "TextBlock",
+                                        "text": body.steps_to_reproduce,
+                                        "wrap": True,
+                                    },
+                                ]
+                                if body.steps_to_reproduce
+                                else []
+                            ),
+                            *(
+                                [
+                                    {
+                                        "type": "TextBlock",
+                                        "text": "**Expected Behavior**",
+                                        "wrap": True,
+                                        "spacing": "Medium",
+                                    },
+                                    {
+                                        "type": "TextBlock",
+                                        "text": body.expected_behavior,
+                                        "wrap": True,
+                                    },
+                                ]
+                                if body.expected_behavior
+                                else []
+                            ),
                             *screenshot_blocks,
                         ],
                     },

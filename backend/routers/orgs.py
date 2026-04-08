@@ -129,9 +129,7 @@ async def get_org(
 ):
     """Get organization details. Must be a member."""
     # Verify membership
-    membership = await db.execute(
-        select(UserOrg).where(UserOrg.user_id == user_id, UserOrg.org_id == org_id)
-    )
+    membership = await db.execute(select(UserOrg).where(UserOrg.user_id == user_id, UserOrg.org_id == org_id))
     if not membership.scalar_one_or_none():
         raise HTTPException(status_code=403, detail="Not a member of this organization")
 
@@ -217,9 +215,7 @@ async def list_members(
     from backend.models import User
 
     # Verify caller is a member
-    caller_membership = await db.execute(
-        select(UserOrg).where(UserOrg.user_id == user_id, UserOrg.org_id == org_id)
-    )
+    caller_membership = await db.execute(select(UserOrg).where(UserOrg.user_id == user_id, UserOrg.org_id == org_id))
     if not caller_membership.scalar_one_or_none():
         raise HTTPException(status_code=403, detail="Not a member of this organization")
 
@@ -231,14 +227,16 @@ async def list_members(
     )
     members = []
     for user, user_org in result.all():
-        members.append({
-            "userId": str(user.id),
-            "email": user.email,
-            "name": user.name,
-            "avatarUrl": user.avatar_url,
-            "role": user_org.role,
-            "joinedAt": user_org.joined_at.isoformat() if user_org.joined_at else None,
-        })
+        members.append(
+            {
+                "userId": str(user.id),
+                "email": user.email,
+                "name": user.name,
+                "avatarUrl": user.avatar_url,
+                "role": user_org.role,
+                "joinedAt": user_org.joined_at.isoformat() if user_org.joined_at else None,
+            }
+        )
     return members
 
 
@@ -270,9 +268,7 @@ async def invite_member(
         raise HTTPException(status_code=404, detail="User not found")
 
     # Check if already a member
-    existing = await db.execute(
-        select(UserOrg).where(UserOrg.user_id == target_user.id, UserOrg.org_id == org_id)
-    )
+    existing = await db.execute(select(UserOrg).where(UserOrg.user_id == target_user.id, UserOrg.org_id == org_id))
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=409, detail="User is already a member")
 
@@ -315,9 +311,7 @@ async def update_member_role(
     if member_id == user_id:
         raise HTTPException(status_code=400, detail="Cannot change your own role")
 
-    result = await db.execute(
-        select(UserOrg).where(UserOrg.user_id == member_id, UserOrg.org_id == org_id)
-    )
+    result = await db.execute(select(UserOrg).where(UserOrg.user_id == member_id, UserOrg.org_id == org_id))
     membership = result.scalar_one_or_none()
     if not membership:
         raise HTTPException(status_code=404, detail="Member not found")
@@ -356,9 +350,7 @@ async def remove_member(
         if caller_role not in (Role.ADMIN, Role.OWNER):
             raise HTTPException(status_code=403, detail="Requires admin or owner role")
 
-    result = await db.execute(
-        select(UserOrg).where(UserOrg.user_id == member_id, UserOrg.org_id == org_id)
-    )
+    result = await db.execute(select(UserOrg).where(UserOrg.user_id == member_id, UserOrg.org_id == org_id))
     membership = result.scalar_one_or_none()
     if not membership:
         raise HTTPException(status_code=404, detail="Member not found")
