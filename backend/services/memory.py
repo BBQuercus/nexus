@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import re
-import uuid
 from typing import TYPE_CHECKING
 
 from sqlalchemy import select, update
 
 if TYPE_CHECKING:
+    import uuid
+
     from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.logging_config import get_logger
@@ -172,10 +173,7 @@ async def save_memories_from_message(
 
     result = await db.execute(stmt)
     existing = list(result.scalars().all())
-    existing_keys = {
-        (mem.category, mem.scope, re.sub(r"\s+", " ", mem.content.strip()).lower())
-        for mem in existing
-    }
+    existing_keys = {(mem.category, mem.scope, re.sub(r"\s+", " ", mem.content.strip()).lower()) for mem in existing}
 
     to_save = [
         mem
