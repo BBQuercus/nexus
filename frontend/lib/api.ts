@@ -1,6 +1,8 @@
 import type { Conversation, Message, Artifact, AgentPersona, User, FileNode, ConversationTree, KnowledgeBase, KBDocument, Citation, Project, SearchResult, Organization, OrgMembership, UserSettings, ApprovalGate, PromptTemplate, AgentRunRecord, AgentRunStep, AgentSchedule, ExternalAction, TestCase, TestRun, MarketplaceListing, AgentRatingRecord } from './types';
 import { getCsrfToken } from './auth';
 import { toApiUrl } from './runtime';
+import { createTranslator } from 'next-intl';
+import { defaultLocale, locales, type Locale } from '@/i18n/config';
 
 export class ApiError extends Error {
   status: number;
@@ -28,21 +30,41 @@ function getToast() {
   return _toast;
 }
 
-function _friendlyError(status: number, serverMessage: string, path: string): string {
+function _getLocale(): Locale {
+  if (typeof document === 'undefined') return defaultLocale;
+  const match = document.cookie.match(/(?:^|;\s*)NEXT_LOCALE=([^;]+)/);
+  const value = match?.[1];
+  if (value && locales.includes(value as Locale)) return value as Locale;
+  return defaultLocale;
+}
+
+let _cachedErrorT: { locale: Locale; t: ReturnType<typeof createTranslator<{ errors: Record<string, string> }, 'errors'>> } | null = null;
+
+async function _getErrorT() {
+  const locale = _getLocale();
+  if (_cachedErrorT && _cachedErrorT.locale === locale) return _cachedErrorT.t;
+  const messages = (await import(`../messages/${locale}.json`)).default;
+  const t = createTranslator({ locale, messages, namespace: 'errors' });
+  _cachedErrorT = { locale, t };
+  return t;
+}
+
+async function _friendlyError(status: number, serverMessage: string, path: string): Promise<string> {
+  const t = await _getErrorT();
   // Use the server message if it's already user-friendly (not a raw status text)
   if (serverMessage && serverMessage !== 'Internal Server Error' && serverMessage !== 'Bad Gateway') {
     return serverMessage;
   }
   // Context-aware fallbacks based on the API path
-  if (status === 429) return "You're sending requests too quickly. Please wait a moment.";
+  if (status === 429) return t('rateLimited');
   if (status >= 500) {
-    if (path.includes('/messages')) return 'Failed to send message. Please try again.';
-    if (path.includes('/images')) return 'Image generation failed. Please try again.';
-    if (path.includes('/media')) return 'Media processing failed. Please try again.';
-    return 'Something unexpected happened. Please try again.';
+    if (path.includes('/messages')) return t('messageFailed');
+    if (path.includes('/images')) return t('imageGenFailed');
+    if (path.includes('/media')) return t('mediaFailed');
+    return t('genericError');
   }
-  if (path.includes('/conversations') && status === 404) return 'Conversation not found or no longer available.';
-  return serverMessage || 'Something went wrong. Please try again.';
+  if (path.includes('/conversations') && status === 404) return t('conversationNotFound');
+  return serverMessage || t('fallbackError');
 }
 
 async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -96,7 +118,7 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
             return undefined as T;
           }
         }
-        getToast()?.info('Session expired — redirecting to sign in...');
+        _getErrorT().then(t => getToast()?.info(t('sessionExpired')));
         setTimeout(() => { window.location.href = '/login'; }, 800);
       }
       throw new ApiError(response.status, message, errorBody, requestId);
@@ -106,7 +128,7 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
     const isStaleConversationLoad = response.status === 404 && path.match(/\/api\/conversations\/[^/]+$/);
     const isTranscription = path.includes('/api/media/transcribe');
     if (!path.includes('/api/errors') && !isStaleConversationLoad && !isTranscription) {
-      const friendly = _friendlyError(response.status, message, path);
+      const friendly = await _friendlyError(response.status, message, path);
       getToast()?.error(friendly);
     }
 
