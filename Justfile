@@ -43,14 +43,26 @@ seed:
 # ── Code quality ──────────────────────────────────────────────────────────────
 
 # Run all linters (backend + frontend)
-lint:
+lint: lint-backend lint-frontend
+
+# Run backend linters (ruff check + format)
+lint-backend:
   uv run ruff check backend/
   uv run ruff format --check backend/
+
+# Run frontend linter (ESLint)
+lint-frontend:
   cd frontend && npm run lint
 
 # Run all type checkers (backend + frontend)
-type-check:
+type-check: type-check-backend type-check-frontend
+
+# Run backend type checker (mypy)
+type-check-backend:
   uv run python -m mypy backend/ --ignore-missing-imports
+
+# Run frontend type checker (tsc)
+type-check-frontend:
   cd frontend && npx tsc --noEmit
 
 # Auto-fix backend lint issues and format code
