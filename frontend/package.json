@@ -2,6 +2,12 @@
   "name": "nexus-frontend",
   "version": "1.1.0",
   "private": true,
+  "license": "Apache-2.0",
+  "author": "Bastian Eichenberger (https://github.com/BBQuercus)",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/BBQuercus/nexus.git"
+  },
   "scripts": {
     "dev": "next dev -p 5173",
     "build": "next build",

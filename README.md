@@ -1,166 +1,156 @@
-# Nexus
+<p align="center">
+  <img src="assets/logo.png" alt="Nexus" width="200" />
+</p>
 
-Nexus is a FastAPI backend plus Next.js frontend. Local workflows are standardized with `just`, and Railway deployments are split into explicit `backend` and `frontend` services with separate dev and production environments.
+<h1 align="center">Nexus</h1>
 
-## Local development
+<p align="center">
+  An open-source AI agent workspace with sandboxed code execution, knowledge bases, and multi-model support.
+</p>
 
-Install dependencies:
+<p align="center">
+  <a href="#features">Features</a> •
+  <a href="#tech-stack">Tech Stack</a> •
+  <a href="#getting-started">Getting Started</a> •
+  <a href="#deployment">Deployment</a> •
+  <a href="#license">License</a>
+</p>
+
+---
+
+## Features
+
+### Multi-Model Chat
+
+Connect to any LLM provider through a [LiteLLM](https://github.com/BerriAI/litellm) proxy — Claude, GPT-4, Llama, DeepSeek, Grok, and more. Switch models mid-conversation, generate multiple responses in parallel, and branch conversation history to explore different directions.
+
+### Sandboxed Code Execution
+
+Run Python, JavaScript, TypeScript, and Bash in isolated [Daytona](https://github.com/daytonaio/daytona) sandboxes. Read and write files, preview running applications, and stream output in real time — all without risking your host environment.
+
+### Custom Agents
+
+Build reusable AI agents with custom system prompts, tool configurations, and personas. Share agents publicly through a built-in marketplace, schedule automated runs on a cron, and track execution history.
+
+### Knowledge Bases & RAG
+
+Upload documents, chunk and embed them with pgvector, and retrieve relevant context at query time with Cohere reranking. Attach knowledge bases to conversations for grounded, citation-backed answers.
+
+### Built-in Tools
+
+| Category | Tools |
+|---|---|
+| **Code** | Execute code, file read/write/list |
+| **Web** | Browse pages, REST API calls (GET/POST/PUT/DELETE/PATCH) |
+| **Search** | Google, News, Scholar, YouTube, Maps, Bing, DuckDuckGo |
+| **Data** | SQL queries on CSV/Excel/Parquet via DuckDB |
+| **Visualization** | Interactive Vega-Lite charts |
+| **Media** | Image generation, video generation, text-to-speech |
+| **Forms** | Dynamic form creation with validation |
+
+### Workspace Organization
+
+Multi-org support with WorkOS SSO, project-based organization, user roles and RBAC, audit logging, and conversation pinning. An artifact center tracks generated files, diffs, and terminal output in a unified workspace panel.
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| **Backend** | FastAPI, SQLAlchemy (async), PostgreSQL, pgvector, Redis, Alembic |
+| **Frontend** | Next.js 15, React 19, TypeScript (strict), Zustand, TailwindCSS |
+| **Code Execution** | Daytona sandboxed environments |
+| **Auth** | WorkOS (password + SSO), JWT sessions, CSRF protection |
+| **AI Gateway** | LiteLLM proxy (route to any LLM provider) |
+| **Observability** | OpenTelemetry, Prometheus metrics |
+| **Task Runner** | [just](https://github.com/casey/just) |
+
+## Getting Started
+
+### Prerequisites
+
+- Python 3.12+ (managed with [uv](https://github.com/astral-sh/uv))
+- Node.js 20+
+- PostgreSQL 15+ with pgvector
+- Redis
+- [just](https://github.com/casey/just)
+
+### Setup
 
 ```bash
+# Clone the repo
+git clone https://github.com/BBQuercus/nexus.git
+cd nexus
+
+# Install backend and frontend dependencies
 just install
-```
 
-Start local dependencies and both app servers:
+# Copy the example env and fill in your values
+cp .env.example .env
 
-```bash
+# Start PostgreSQL, Redis, run migrations, and launch both servers
 just dev
 ```
 
-Common commands:
+The backend runs at `http://localhost:8000` and the frontend at `http://localhost:5173`.
+
+### Configuration
+
+Copy `.env.example` and configure the required services:
+
+| Variable | Description |
+|---|---|
+| `DATABASE_URL` | PostgreSQL connection string |
+| `REDIS_URL` | Redis connection string |
+| `SERVER_SECRET` | Secret key for JWT signing |
+| `LITE_LLM_URL` | LiteLLM proxy URL |
+| `LITE_LLM_API_KEY` | LiteLLM API key |
+| `WORKOS_API_KEY` | WorkOS API key for authentication |
+| `WORKOS_CLIENT_ID` | WorkOS client ID |
+| `DAYTONA_API_KEY` | Daytona API key for sandboxed execution |
+| `DAYTONA_SERVER_URL` | Daytona server URL |
+
+Optional integrations: Cohere (reranking), SerpAPI (web search), Azure Speech (TTS), Sora (image/video generation).
+
+### Common Commands
 
 ```bash
-just lint
-just type-check
-just test
-just build
-just migrate
+just dev            # Start everything locally
+just test           # Run all tests
+just lint           # Lint backend (Ruff) + frontend (ESLint)
+just type-check     # MyPy + tsc
+just migrate        # Run Alembic migrations
+just ci             # Full CI pipeline
 ```
 
-## Landing prompt live suite
+## Deployment
 
-The landing-page prompt suite is a manual live validator that runs the real prompt cards against a real backend, then grades the result with a smaller judge model.
+Nexus is designed for [Railway](https://railway.app) with separate backend and frontend services, but can be deployed anywhere that runs Docker containers.
 
-Local or Railway usage:
+```
+┌─────────────┐     ┌──────────────┐
+│  Frontend   │────▶│   Backend    │
+│  (Next.js)  │     │  (FastAPI)   │
+└─────────────┘     └──────┬───────┘
+                           │
+                    ┌──────┴───────┐
+                    │              │
+               ┌────▼────┐  ┌─────▼────┐
+               │PostgreSQL│  │  Redis   │
+               │+pgvector │  │          │
+               └──────────┘  └──────────┘
+```
+
+Railway manifests are in `railway/backend.toml` and `railway/frontend.toml`. CI/CD workflows handle automatic deployments on push.
+
+## Contributing
+
+Contributions are welcome! Please open an issue or submit a pull request.
 
 ```bash
-just landing-prompt-suite --base-url https://<backend>.up.railway.app \
-  --email <test-user-email> \
-  --password '<test-user-password>'
+# Before committing, make sure everything passes
+just ci
 ```
 
-Useful options:
+## License
 
-- `--execution-model <model>`: primary model under test
-- `--judge-model <model>`: LLM-as-judge model
-- `--auth-mode admin-token --admin-token <token>`: use the backend admin service token instead of user login
-- `--execution-models a,b,c`: compare the same prompts across multiple execution models
-- `--include-prompts prompt-a,prompt-b`: run only selected prompt IDs
-- `--output-path reports/file.json`: write machine-readable results
-- `--register-if-needed`: create the password user on first run if the environment allows registration
-
-Recommended Railway setup:
-
-- Prefer a dedicated backend admin service token for this suite in production-like environments.
-- Set `ADMIN_API_TOKEN` and `ADMIN_API_USER_ID` on the backend service. `ADMIN_API_USER_ID` must be the UUID of a real admin or org-admin user in the deployed database.
-- Then run:
-  `just landing-prompt-suite --base-url https://<backend>.up.railway.app --auth-mode admin-token --admin-token "$NEXUS_ADMIN_API_TOKEN"`
-- Create a dedicated low-privilege test user in WorkOS password auth.
-- Store its credentials as local secrets or CI secrets, not in the repo.
-- Point `--base-url` at the deployed backend service URL, not the frontend URL.
-- Use password auth for Railway by default; the runner will keep the returned `session` and `csrf_token` cookies and send `X-CSRF-Token` automatically on state-changing requests.
-- Use bearer-token mode only if you already have a short-lived access token and explicitly pass `--auth-mode bearer --bearer-token ...`.
-
-## Railway topology
-
-- `backend`: FastAPI service built from `Dockerfile.backend`
-- `frontend`: Next.js standalone service built from `Dockerfile.frontend`
-- `postgres`: Railway PostgreSQL service
-- `redis`: Railway Redis service
-
-Checked-in Railway manifests live in:
-
-- `railway/backend.toml`
-- `railway/frontend.toml`
-
-The CI deploy workflow copies the right manifest into `railway.toml` before each deploy so service configuration stays in git instead of only in the Railway dashboard.
-
-## Required Railway variables
-
-Backend:
-
-- `DATABASE_URL`
-- `REDIS_URL`
-- `SERVER_SECRET`
-- `LITE_LLM_API_KEY`
-- `LITE_LLM_URL`
-- `WORKOS_API_KEY`
-- `WORKOS_CLIENT_ID`
-- `WORKOS_REDIRECT_URI`
-- `FRONTEND_URL`
-- `CORS_ORIGINS`
-- `ENVIRONMENT`
-- `COOKIE_SECURE`
-- `COOKIE_SAMESITE`
-- `COOKIE_DOMAIN`
-
-Frontend:
-
-- `NEXT_PUBLIC_API_BASE_URL`
-- `NEXT_PUBLIC_WS_BASE_URL`
-
-Recommended observability variables:
-
-- `OTEL_EXPORTER_OTLP_ENDPOINT`
-- `OTEL_EXPORTER_OTLP_PROTOCOL`
-- `OTEL_EXPORTER_OTLP_HEADERS`
-- `OTEL_EXPORTER_OTLP_INSECURE`
-- `RELEASE_VERSION`
-- `BUILD_SHA`
-
-Use environment-specific values for dev and production. Keep `COOKIE_SAMESITE=lax` if frontend and backend share the same site. Use `COOKIE_SAMESITE=none` and `COOKIE_SECURE=true` if they do not.
-
-## GitHub Actions setup
-
-Repository variables:
-
-- `RAILWAY_PROJECT_ID_DEV`
-- `RAILWAY_BACKEND_SERVICE_DEV`
-- `RAILWAY_FRONTEND_SERVICE_DEV`
-- `DEV_FRONTEND_URL`
-- `DEV_BACKEND_URL`
-- `RAILWAY_PROJECT_ID_PRODUCTION`
-- `RAILWAY_BACKEND_SERVICE_PRODUCTION`
-- `RAILWAY_FRONTEND_SERVICE_PRODUCTION`
-- `PRODUCTION_FRONTEND_URL`
-- `PRODUCTION_BACKEND_URL`
-
-Repository secrets:
-
-- `RAILWAY_TOKEN_DEV`
-- `RAILWAY_TOKEN_PRODUCTION`
-- `RAILWAY_CI_TOKEN`
-
-Workflows:
-
-- `.github/workflows/ci.yml`: lint, type-check, tests, image builds
-- `.github/workflows/deploy-staging.yml`: deploys `dev` to Railway dev after CI succeeds
-- `.github/workflows/deploy-production.yml`: deploys `main` to production after CI succeeds
-- `.github/workflows/deploy-instance.yml`: manual deploy for another Railway instance
-- `.github/workflows/monitor.yml`: scheduled smoke checks for dev and production
-
-## Monitoring
-
-Baseline monitoring is built around four layers:
-
-- Railway health checks using `/ready`
-- Deep app health via `/health`
-- Prometheus metrics via `/metrics`
-- OpenTelemetry export via `OTEL_EXPORTER_OTLP_ENDPOINT`
-
-The scheduled monitor workflow runs `scripts/smoke_check.py` against dev and production every 15 minutes. `OTEL_EXPORTER_OTLP_PROTOCOL` supports both `grpc` and `http/protobuf`, which lets the backend send traces to a public Tempo endpoint even when the collector lives in a different Railway project. Use `OTEL_EXPORTER_OTLP_HEADERS` for multi-tenant collectors and `OTEL_EXPORTER_OTLP_INSECURE=true` only for plaintext collectors.
-
-## Manual deploys
-
-Local Railway deploys use `just`:
-
-```bash
-just railway-deploy railway/backend.toml <backend-service> <project-id> dev
-just railway-deploy railway/frontend.toml <frontend-service> <project-id> dev
-```
-
-Or deploy both services with:
-
-```bash
-just railway-deploy-dev <project-id> <backend-service> <frontend-service>
-just railway-deploy-production <project-id> <backend-service> <frontend-service>
-```
+[Apache 2.0](LICENSE) — see the [LICENSE](LICENSE) file for details.
